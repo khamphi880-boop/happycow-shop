@@ -229,7 +229,7 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // ฟังก์ชันบันทึกเมนูใหม่
+  // แยกฟังก์ชันบันทึกเมนูใหม่
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return alert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return alert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -241,7 +241,7 @@ export default function App() {
     } catch (e) { alert(e.message); }
   };
 
-  // ฟังก์ชันอัปเดตเมนูที่กำลังแก้ไข
+  // แยกฟังก์ชันอัปเดตเมนูที่กำลังแก้ไข
   const handleUpdateMenu = async () => {
     if (!editingMenu.name || !editingMenu.price || !editingMenu.image) return alert('กรุณากรอกข้อมูลให้ครบครับ');
     try {
@@ -365,6 +365,21 @@ export default function App() {
 
   const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); alert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { alert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); alert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { alert("Error: " + e.message); } };
+
+  const openOptionModal = (item) => {
+    if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
+    setOptionModalItem(item);
+    setTempOptions({ 
+      sweetness: '100%', 
+      isBlended: item.isOnlyBlend ? true : false, 
+      addPearl: item.hasFreePearl, 
+      selectedToppings: [],
+      bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null,
+      teaType: item.hasTeaType ? 'มัทฉะ' : null,
+      addShot: false
+    });
+    if(searchQuery) handleSearchSubmit(searchQuery);
+  };
 
   const getBlendText = (item) => {
     if (item.isOnlyBlend) return 'ปั่น';
@@ -592,7 +607,7 @@ export default function App() {
                             <span className="text-[9px] bg-gradient-to-r from-red-500 to-orange-400 text-white px-2 py-1 rounded-full w-fit mb-1.5 font-bold flex items-center gap-1 shadow-md">
                                <Star size={10} fill="white"/> เมนูแนะนำ (Must Try!)
                             </span>
-                            <h4 className="font-bold text-sm leading-tight line-clamp-2 text-primary">{item.name}</h4>
+                            <h4 className="font-bold text-sm leading-tight text-primary">{item.name}</h4>
                             <p className="text-accent font-bold text-base mt-1">฿{item.price}</p>
                             <p className="text-[9px] text-orange-600 font-bold mt-1 bg-orange-50 w-fit px-1.5 py-0.5 rounded shadow-sm">สูตรลับเฉพาะทางร้าน ✨</p>
                          </div>
@@ -1330,7 +1345,7 @@ export default function App() {
 
       {/* --- Modal ตัวเลือกสินค้า --- */}
       {optionModalItem && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4">
           <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
             <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600"><X/></button></div>
             <div className="space-y-8">
