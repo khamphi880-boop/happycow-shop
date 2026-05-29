@@ -122,6 +122,7 @@ export default function App() {
   const [posterMenu, setPosterMenu] = useState(null); // สำหรับป้ายเมนูเดี่ยว
   const [showMenuBoardModal, setShowMenuBoardModal] = useState(false); // สำหรับป้ายเมนูรวม (Menu Board)
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
+  const [generatedPreview, setGeneratedPreview] = useState(null); // 🌟 [NEW] เก็บรูปที่สร้างเสร็จเพื่อแสดงบนจอ
 
   // --- States: จัดการตัวเลือกตอนสั่งสินค้า ---
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -274,20 +275,22 @@ export default function App() {
         });
       }
 
-      // ปรับ scale เป็น 3 เพื่อความละเอียดระดับ Print Quality (300dpi+)
+      // ให้เวลาเรนเดอร์ภาพสักครู่ก่อน Capture เพื่อให้แน่ใจว่าโหลดฟอนต์/รูปครบ
+      await new Promise(r => setTimeout(r, 500));
+
+      // ปรับ scale เป็น 2 เพื่อป้องกัน Memory มือถือเต็ม แต่ยังคมชัดสูง
       const canvas = await window.html2canvas(targetRef.current, { 
-         scale: 3, 
-         useCORS: true, 
+         scale: 2, 
+         useCORS: true,
+         allowTaint: true,
          backgroundColor: '#ffffff'
       });
 
       const imageBase64 = canvas.toDataURL("image/png");
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = imageBase64;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      
+      // 🌟 เปลี่ยนจากการดาวน์โหลดอัตโนมัติ (ที่มักโดนบล็อกในมือถือ) 
+      // เป็นการโชว์รูปบนหน้าจอให้ลูกค้ากดค้างเพื่อบันทึกแทน
+      setGeneratedPreview({ src: imageBase64, name: fileName });
       
     } catch (err) {
       console.error("Error generating image:", err);
@@ -1545,6 +1548,27 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* --- 🌟 [NEW] Modal แสดงรูปภาพที่สร้างเสร็จ (ป้องกันปัญหาโหลดไม่ลงในมือถือ) --- */}
+      {generatedPreview && (
+        <div className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4 animate-in zoom-in backdrop-blur-md">
+          <button onClick={() => setGeneratedPreview(null)} className="absolute top-4 right-4 bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
+          
+          <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse">
+            <p className="text-white font-bold flex items-center justify-center gap-2"><ArrowDownToLine size={20}/> สร้างรูปภาพสำเร็จ!</p>
+            <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพ ด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
+          </div>
+
+          <div className="relative w-full max-w-lg max-h-[60vh] overflow-auto hide-scrollbar rounded-2xl shadow-2xl border-4 border-white/20 bg-white">
+            <img src={generatedPreview.src} className="w-full object-contain" alt="Generated Poster" />
+          </div>
+
+          <a href={generatedPreview.src} download={generatedPreview.name} className="mt-8 bg-green-500 text-white px-8 py-4 rounded-full font-bold text-sm shadow-xl flex items-center gap-2 hover:bg-green-600 transition-all active:scale-95">
+             <Download size={20}/> ดาวน์โหลด (สำหรับ PC)
+          </a>
+        </div>
+      )}
+
     </div>
   );
 }
