@@ -3,7 +3,7 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing 
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Image as ImageIcon
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
@@ -20,7 +20,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const LIFF_ID = "2009828681-C1cb8QC3"; // ⚠️ อย่าลืมเปิดสิทธิ์ shareTargetPicker ใน LINE Developers
+const LIFF_ID = "2009828681-C1cb8QC3"; // ⚠️ อย่าลืมแก้ Endpoint URL ใน LINE Console ให้ตรงกับเว็บปัจจบัน
 
 const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'กาแฟ', 'มัทฉะ', 'สมูทตี้โยเกิร์ต', 'วิปครีมและครีมชีส'];
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
@@ -116,6 +116,10 @@ export default function App() {
 
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
+  
+  // State สำหรับฟีเจอร์สร้างป้ายโปสเตอร์
+  const [posterMenu, setPosterMenu] = useState(null);
+  const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
 
   // --- States: จัดการตัวเลือกตอนสั่งสินค้า ---
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -136,6 +140,7 @@ export default function App() {
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
+  const posterRef = useRef(null);
 
   // ฟังก์ชันคำนวณราคาปั่นเพิ่ม
   const getAddedBlendPrice = (item) => {
@@ -174,7 +179,10 @@ export default function App() {
         } else {
           window.liff.login({ redirectUri: window.location.href });
         }
-      }).catch(err => console.error("LIFF Error", err));
+      }).catch(err => {
+        console.error("LIFF Error:", err);
+        // ถึง LIFF จะ Error (เช่น 400 Bad Request) ก็ไม่ให้แอปแครช
+      });
     };
 
     if (window.liff) initializeLiff();
@@ -255,6 +263,50 @@ export default function App() {
   }, [orders, view]);
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
+
+  // --- ฟังก์ชันโหลด html2canvas อัตโนมัติและสร้างป้ายโปรโมท ---
+  const generatePosterImage = async () => {
+    if (!posterRef.current) return;
+    setIsGeneratingPoster(true);
+
+    try {
+      // 1. ตรวจสอบและโหลดไลบรารี html2canvas แบบด่วน (Dynamic Import)
+      if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      // 2. ซ่อนขอบมน (Border Radius) ชั่วคราวเพื่อให้ภาพป้ายออกมาเต็มเหลี่ยม
+      const element = posterRef.current;
+      const canvas = await window.html2canvas(element, { 
+         scale: 2, // เพิ่มความละเอียดเป็น 2 เท่าให้คมชัดเวลาปริ้นต์
+         useCORS: true, // อนุญาตให้ดึงรูปภาพข้ามโดเมน
+         backgroundColor: '#ffffff'
+      });
+
+      // 3. แปลงเป็น Data URL (Base64)
+      const imageBase64 = canvas.toDataURL("image/png");
+
+      // 4. บังคับดาวน์โหลดลงเครื่องลูกค้า/แอดมิน
+      const link = document.createElement('a');
+      link.download = `ป้ายโปรโมท_${posterMenu.name}.png`;
+      link.href = imageBase64;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (err) {
+      console.error("Error generating poster:", err);
+      alert("เกิดข้อผิดพลาดในการสร้างรูปภาพครับ: " + err.message);
+    } finally {
+      setIsGeneratingPoster(false);
+    }
+  };
 
   // --- ฟังก์ชันการจัดการระบบหลังบ้าน (Admin Functions) ---
   const handleAddNewMenu = async () => {
@@ -464,12 +516,15 @@ export default function App() {
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght=300;400;600;700&display=swap');
+        
         :root {
           --theme-primary: ${currentThemeData.primary};
           --theme-accent: ${currentThemeData.accent};
           --theme-bg: ${currentThemeData.bg};
         }
         .font-serif { font-family: 'Vollkorn', serif; }
+        .font-kanit { font-family: 'Kanit', sans-serif; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
         .bg-primary { background-color: var(--theme-primary); color: #fff; }
@@ -824,7 +879,7 @@ export default function App() {
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
-                      // 🔥 [สถาปัตยกรรมใหม่]: ตรวจสอบการล็อกอินและสิทธิ์การส่งข้อความส่วนตัวเข้า LINE
+                      // 🔥 ตรวจสอบการล็อกอินและสิทธิ์การส่งข้อความส่วนตัวเข้า LINE
                       if (!window.liff.isLoggedIn()) {
                         return window.liff.login();
                       }
@@ -845,7 +900,7 @@ export default function App() {
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
-                        // 2. 🛠️ สร้าง Flex Message บิลส่งตรงเข้าแชทส่วนตัวแอดมินร้าน
+                        // 2. สร้าง Flex Message บิลส่งตรงเข้าแชทส่วนตัวแอดมินร้าน
                         const flexPayload = {
                           type: "bubble",
                           header: {
@@ -895,7 +950,7 @@ export default function App() {
                           }
                         };
 
-                        // 3. 🚀 เรียกฟังก์ชันเปิดหน้าแชท LINE เพื่อให้ลูกค้าแชร์เข้าแชทร้านโดยตรง
+                        // 3. เรียกฟังก์ชันเปิดหน้าแชท LINE เพื่อให้ลูกค้าแชร์เข้าแชทร้านโดยตรง
                         if (window.liff.isApiAvailable('shareTargetPicker')) {
                           window.liff.shareTargetPicker([{
                             type: "flex",
@@ -911,7 +966,6 @@ export default function App() {
                           }).catch(err => {
                             console.error(err);
                             alert("LINE Share Picker Error: " + err.message + "\n*กรุณาตรวจสอบว่าได้เปิดสิทธิ์ shareTargetPicker ใน LINE Developers Console แล้วหรือยัง");
-                            // Fallback clear cart แม้จะส่ง line ไม่ผ่านแต่ออเดอร์เข้า DB แล้ว
                             setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false); setView('myOrders');
                           });
                         } else {
@@ -993,12 +1047,12 @@ export default function App() {
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
                <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
-               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงระบบเตือนบิล</button>
+               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงเตือน</button>
             </div>
             
-            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner">
+            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner overflow-x-auto hide-scrollbar">
               {['orders', 'menus', 'dashboard', 'settings'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary'}`}>
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 min-w-[70px] py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary'}`}>
                   {t === 'orders' ? 'ออร์เดอร์' : t === 'menus' ? 'เมนู' : t === 'dashboard' ? 'รายรับ' : 'ตั้งค่า'}
                 </button>
               ))}
@@ -1136,7 +1190,11 @@ export default function App() {
                                 <p className="text-xs text-accent font-bold">฿{item.price}</p>
                               </div>
                             </div>
-                            <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={16}/></button>
+                            <div className="flex gap-2">
+                              {/* 🌟 ปุ่มใหม่: สร้างป้ายโปรโมท */}
+                              <button onClick={() => setPosterMenu(item)} className="p-2 text-indigo-500 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors" title="สร้างป้ายโปรโมท"><ImageIcon size={16}/></button>
+                              <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"><Trash2 size={16}/></button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1180,6 +1238,60 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* --- Modal สร้างป้ายโปรโมทอัตโนมัติ (Poster Generator) --- */}
+      {posterMenu && (
+        <div className="fixed inset-0 bg-black/80 z-[150] flex flex-col items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
+          <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl flex flex-col relative">
+            
+            <button onClick={() => setPosterMenu(null)} className="absolute top-4 right-4 z-10 bg-black/50 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/70 transition-colors">
+               <X size={20}/>
+            </button>
+
+            {/* โซนที่ต้องการถ่ายภาพ Capture Area */}
+            <div ref={posterRef} className="w-full bg-gradient-to-br from-[#F5EEDC] to-[#ffffff] relative flex flex-col items-center p-8 text-center" style={{ aspectRatio: '3/4' }}>
+               {/* องค์ประกอบตกแต่ง */}
+               <div className="absolute top-0 left-0 w-full h-32 bg-[var(--theme-accent)] opacity-10 rounded-b-[50%]"></div>
+               <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
+               
+               <h1 className="font-serif font-bold text-2xl text-[var(--theme-primary)] mb-6 z-10">วัวนมอารมณ์ดี 🐮</h1>
+               
+               <div className="relative z-10 w-48 h-48 mb-6">
+                 <div className="absolute inset-0 bg-white rounded-[2rem] shadow-xl transform rotate-3"></div>
+                 <img src={posterMenu.image} className="absolute inset-0 w-full h-full object-cover rounded-[2rem] shadow-lg transform -rotate-3 border-4 border-white" alt="menu poster" crossOrigin="anonymous" />
+                 {posterMenu.isPromoted && (
+                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg transform rotate-12 border-2 border-white">
+                      แนะนำ! 🔥
+                    </div>
+                 )}
+               </div>
+
+               <h2 className="font-kanit font-bold text-3xl text-[var(--theme-primary)] leading-tight mb-2 z-10 line-clamp-2">{posterMenu.name}</h2>
+               
+               <div className="mt-auto mb-4 z-10">
+                 <p className="text-[10px] font-bold text-[var(--theme-accent)] uppercase tracking-[0.2em] mb-1">เพียงแก้วละ</p>
+                 <div className="bg-[var(--theme-primary)] text-white px-8 py-3 rounded-full font-bold text-4xl shadow-2xl inline-block border-4 border-[#F5EEDC]">
+                    ฿{posterMenu.price}
+                 </div>
+               </div>
+
+               {posterMenu.hasFreePearl && (
+                  <p className="font-kanit text-orange-600 font-bold text-sm bg-orange-100 px-4 py-1.5 rounded-full z-10 border border-orange-200">
+                    ✨ ฟรีไข่มุกหนึบหนับ!
+                  </p>
+               )}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+               <button onClick={generatePosterImage} disabled={isGeneratingPoster} className={`flex-1 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${isGeneratingPoster ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                  {isGeneratingPoster ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Download size={18}/>}
+                  {isGeneratingPoster ? 'กำลังสร้างรูปภาพ...' : 'บันทึกรูปป้ายลงเครื่อง'}
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (
