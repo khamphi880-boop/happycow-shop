@@ -3,7 +3,8 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Image as ImageIcon
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Image as ImageIcon,
+  CloudRain, ZapOff, ArrowDownToLine
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
@@ -20,7 +21,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const LIFF_ID = "2009828681-C1cb8QC3"; // ⚠️ อย่าลืมแก้ Endpoint URL ใน LINE Console ให้ตรงกับเว็บปัจจบัน
+const LIFF_ID = "2009828681-C1cb8QC3"; 
 
 const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'กาแฟ', 'มัทฉะ', 'สมูทตี้โยเกิร์ต', 'วิปครีมและครีมชีส'];
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
@@ -117,8 +118,9 @@ export default function App() {
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
   
-  // State สำหรับฟีเจอร์สร้างป้ายโปสเตอร์
-  const [posterMenu, setPosterMenu] = useState(null);
+  // State สำหรับฟีเจอร์สร้างรูปป้าย
+  const [posterMenu, setPosterMenu] = useState(null); // สำหรับป้ายเมนูเดี่ยว
+  const [showMenuBoardModal, setShowMenuBoardModal] = useState(false); // สำหรับป้ายเมนูรวม (Menu Board)
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
 
   // --- States: จัดการตัวเลือกตอนสั่งสินค้า ---
@@ -141,6 +143,7 @@ export default function App() {
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
   const posterRef = useRef(null);
+  const menuBoardRef = useRef(null);
 
   // ฟังก์ชันคำนวณราคาปั่นเพิ่ม
   const getAddedBlendPrice = (item) => {
@@ -179,10 +182,7 @@ export default function App() {
         } else {
           window.liff.login({ redirectUri: window.location.href });
         }
-      }).catch(err => {
-        console.error("LIFF Error:", err);
-        // ถึง LIFF จะ Error (เช่น 400 Bad Request) ก็ไม่ให้แอปแครช
-      });
+      }).catch(err => console.error("LIFF Error:", err));
     };
 
     if (window.liff) initializeLiff();
@@ -193,27 +193,23 @@ export default function App() {
       document.body.appendChild(script);
     }
 
-    // ดึงข้อมูลเมนู
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
       setIsLoading(false); 
     }, error => {
-      alert("ไม่สามารถโหลดเมนูได้: " + error.message + " (กรุณาเช็ค Rules)");
+      alert("ไม่สามารถโหลดเมนูได้: " + error.message);
       setIsLoading(false);
     });
 
-    // ดึงข้อมูลออร์เดอร์
     const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
        const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
        setOrders(fetchedOrders); 
     });
 
-    // ดึงข้อมูลท็อปปิ้ง
     const unsubToppings = onSnapshot(collection(db, 'toppings'), snapshot => { 
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
-    // ดึงการตั้งค่าร้าน
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -226,7 +222,6 @@ export default function App() {
       }
     });
 
-    // ดึงคำค้นหายอดฮิต
     const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -238,7 +233,6 @@ export default function App() {
     return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
   }, []);
 
-  // ระบบเสียงแจ้งเตือนสำหรับแอดมิน
   const playNotificationSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -264,13 +258,12 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // --- ฟังก์ชันโหลด html2canvas อัตโนมัติและสร้างป้ายโปรโมท ---
-  const generatePosterImage = async () => {
-    if (!posterRef.current) return;
+  // --- ฟังก์ชันสร้างภาพแบบอเนกประสงค์ (รองรับทั้งป้ายเดี่ยวและป้ายรวม) ---
+  const generateImageFromRef = async (targetRef, fileName) => {
+    if (!targetRef.current) return;
     setIsGeneratingPoster(true);
 
     try {
-      // 1. ตรวจสอบและโหลดไลบรารี html2canvas แบบด่วน (Dynamic Import)
       if (!window.html2canvas) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -281,34 +274,30 @@ export default function App() {
         });
       }
 
-      // 2. ซ่อนขอบมน (Border Radius) ชั่วคราวเพื่อให้ภาพป้ายออกมาเต็มเหลี่ยม
-      const element = posterRef.current;
-      const canvas = await window.html2canvas(element, { 
-         scale: 2, // เพิ่มความละเอียดเป็น 2 เท่าให้คมชัดเวลาปริ้นต์
-         useCORS: true, // อนุญาตให้ดึงรูปภาพข้ามโดเมน
+      // ปรับ scale เป็น 3 เพื่อความละเอียดระดับ Print Quality (300dpi+)
+      const canvas = await window.html2canvas(targetRef.current, { 
+         scale: 3, 
+         useCORS: true, 
          backgroundColor: '#ffffff'
       });
 
-      // 3. แปลงเป็น Data URL (Base64)
       const imageBase64 = canvas.toDataURL("image/png");
-
-      // 4. บังคับดาวน์โหลดลงเครื่องลูกค้า/แอดมิน
       const link = document.createElement('a');
-      link.download = `ป้ายโปรโมท_${posterMenu.name}.png`;
+      link.download = fileName;
       link.href = imageBase64;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
     } catch (err) {
-      console.error("Error generating poster:", err);
+      console.error("Error generating image:", err);
       alert("เกิดข้อผิดพลาดในการสร้างรูปภาพครับ: " + err.message);
     } finally {
       setIsGeneratingPoster(false);
     }
   };
 
-  // --- ฟังก์ชันการจัดการระบบหลังบ้าน (Admin Functions) ---
+  // --- Admin Functions ---
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return alert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return alert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -378,10 +367,9 @@ export default function App() {
     const cleanTerm = term.trim().toLowerCase();
     setSearchHistory(prev => [cleanTerm, ...prev.filter(t => t !== cleanTerm)].slice(0, 5));
     setIsSearchFocused(false); setSearchQuery(term);
-    try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
+    try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error(e); }
   };
 
-  // แอดมินยืนยันการจัดส่ง
   const handleConfirmDelivery = async () => {
     if (!deliveryImage) return alert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -438,7 +426,6 @@ export default function App() {
   const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); alert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { alert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); alert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { alert("Error: " + e.message); } };
 
-  // เปิด Modal เลือกออปชันเมนู
   const openOptionModal = (item) => {
     if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
@@ -462,7 +449,6 @@ export default function App() {
 
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
 
-  // ประมวลผลเมนูขายดี
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
     if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
@@ -515,8 +501,7 @@ export default function App() {
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght=300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&family=Kanit:wght@300;400;600;700&display=swap');
         
         :root {
           --theme-primary: ${currentThemeData.primary};
@@ -879,7 +864,6 @@ export default function App() {
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
-                      // 🔥 ตรวจสอบการล็อกอินและสิทธิ์การส่งข้อความส่วนตัวเข้า LINE
                       if (!window.liff.isLoggedIn()) {
                         return window.liff.login();
                       }
@@ -893,14 +877,12 @@ export default function App() {
                       const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
                       
                       try {
-                        // 1. บันทึกข้อมูลลงฐานข้อมูล Firebase เพื่อให้ออเดอร์เข้าสู่ระบบของแอดมิน
                         const orderRef = await addDoc(collection(db, 'orders'), {
                           items: cart, total, status: 'pending', timestamp: Date.now(),
                           userId: lineProfile.userId, lineName: lineProfile.displayName, address, note,
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
-                        // 2. สร้าง Flex Message บิลส่งตรงเข้าแชทส่วนตัวแอดมินร้าน
                         const flexPayload = {
                           type: "bubble",
                           header: {
@@ -950,7 +932,6 @@ export default function App() {
                           }
                         };
 
-                        // 3. เรียกฟังก์ชันเปิดหน้าแชท LINE เพื่อให้ลูกค้าแชร์เข้าแชทร้านโดยตรง
                         if (window.liff.isApiAvailable('shareTargetPicker')) {
                           window.liff.shareTargetPicker([{
                             type: "flex",
@@ -1139,7 +1120,18 @@ export default function App() {
             {/* TAB: ระบบจัดการคลังเมนูของร้าน */}
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
-                <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative">
+                {/* 🌟 ส่วน Header จัดการเมนู และ ปุ่มสร้างป้ายเมนูรวม (Menu Board) */}
+                <div className="bg-gradient-to-br from-[var(--theme-accent)] to-[var(--theme-primary)] p-6 rounded-[2.5rem] shadow-lg flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl pointer-events-none"></div>
+                   <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black opacity-20 rounded-full blur-2xl pointer-events-none"></div>
+                   
+                   <h3 className="text-white font-bold text-lg font-serif z-10 flex items-center gap-2"><ClipboardList/> จัดการเมนู & โปรโมท</h3>
+                   <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white py-4 rounded-2xl font-bold text-sm shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/30 z-10">
+                      <ImageIcon size={18}/> 🖨️ สร้างป้ายเมนูรวม (Menu Board)
+                   </button>
+                </div>
+
+                <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative mt-4">
                    <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
                    <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหาชื่อเมนู..." className="w-full pl-12 pr-10 py-4 rounded-2xl text-sm outline-none bg-white focus:ring-2 focus:ring-[var(--theme-accent)] transition-all"/>
                 </div>
@@ -1191,8 +1183,8 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              {/* 🌟 ปุ่มใหม่: สร้างป้ายโปรโมท */}
-                              <button onClick={() => setPosterMenu(item)} className="p-2 text-indigo-500 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors" title="สร้างป้ายโปรโมท"><ImageIcon size={16}/></button>
+                              {/* ปุ่มสร้างป้ายโปรโมทแบบเดี่ยว (Instagram Poster) */}
+                              <button onClick={() => setPosterMenu(item)} className="p-2 text-indigo-500 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors" title="สร้างป้ายโปรโมทแบบเดี่ยว"><ImageIcon size={16}/></button>
                               <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"><Trash2 size={16}/></button>
                             </div>
                           </div>
@@ -1239,7 +1231,183 @@ export default function App() {
         )}
       </main>
 
-      {/* --- Modal สร้างป้ายโปรโมทอัตโนมัติ (Poster Generator) --- */}
+      {/* --- 🌟 [ใหม่] Modal สร้างป้ายเมนูรวม (Menu Board) --- */}
+      {showMenuBoardModal && (
+        <div className="fixed inset-0 bg-black/85 z-[200] flex flex-col items-center p-4 animate-in fade-in backdrop-blur-md overflow-y-auto">
+          
+          {/* Action Bar (Top) */}
+          <div className="w-full max-w-[800px] flex justify-between items-center mb-4 sticky top-0 z-50 p-2">
+            <button onClick={() => setShowMenuBoardModal(false)} className="bg-white/10 text-white p-3 rounded-full hover:bg-white/20 transition-all backdrop-blur-md"><X size={24}/></button>
+            <button 
+               onClick={() => generateImageFromRef(menuBoardRef, 'ป้ายเมนูรวม_วัวนมอารมณ์ดี.png')} 
+               disabled={isGeneratingPoster}
+               className={`py-3 px-6 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg transition-all active:scale-95 backdrop-blur-md ${isGeneratingPoster ? 'bg-gray-500 text-gray-300' : 'bg-green-500 text-white hover:bg-green-600 border border-green-400'}`}
+            >
+               {isGeneratingPoster ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Download size={20}/>}
+               {isGeneratingPoster ? 'กำลังเรนเดอร์ภาพ (รอสักครู่)...' : 'ดาวน์โหลดป้าย (ความละเอียดสูง)'}
+            </button>
+          </div>
+
+          {/* 
+            The Menu Board Container
+            กำหนดขนาด Fixed (800x1131) อัตราส่วนคล้าย A4 เพื่อให้ html2canvas จับภาพออกมาชัดและไม่แตก
+            ใช้ CSS Transform เพื่อย่อขนาดให้พอดีกับหน้าจอมือถือเวลา Preview
+          */}
+          <div className="relative w-[800px] h-[1131px] bg-white rounded-xl shadow-2xl flex-shrink-0 overflow-hidden transform origin-top scale-[0.4] sm:scale-[0.6] md:scale-90 lg:scale-100" style={{ transformOrigin: 'top center' }}>
+             
+             {/* ซ่อนเนื้อหาจริงๆ ใน Ref เพื่อนำไป Render */}
+             <div ref={menuBoardRef} className="absolute inset-0 w-[800px] h-[1131px] flex flex-col font-kanit" style={{ background: `linear-gradient(180deg, ${currentThemeData.bg} 0%, #ffffff 40%, #ffffff 100%)` }}>
+                
+                {/* 1. ส่วน Header (โลโก้ + ชื่อร้าน) */}
+                <div className="relative w-full h-[220px] flex items-center justify-center border-b-[8px]" style={{ borderColor: currentThemeData.primary }}>
+                   <div className="absolute top-0 left-0 w-full h-full opacity-10" style={{ backgroundColor: currentThemeData.accent }}></div>
+                   
+                   {/* ไอคอน/โลโก้วัว */}
+                   <div className="absolute left-[50px] bottom-0 flex items-end">
+                      <div className="text-[120px] leading-none z-10" style={{ filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.2))' }}>🐮</div>
+                      <div className="text-[60px] leading-none -ml-8 mb-4 z-20" style={{ filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.2))' }}>🧋</div>
+                   </div>
+
+                   {/* ข้อความชื่อร้าน */}
+                   <div className="flex flex-col items-center ml-[180px] z-10">
+                      <h1 className="font-serif font-bold text-[85px] leading-none tracking-tight" style={{ color: currentThemeData.primary, textShadow: '2px 2px 0px #fff, 4px 4px 0px rgba(0,0,0,0.1)' }}>วัวนมอารมณ์ดี</h1>
+                      <div className="flex items-center gap-4 mt-2">
+                         <div className="w-16 h-[2px]" style={{ backgroundColor: currentThemeData.accent }}></div>
+                         <h2 className="font-serif text-[40px] leading-none text-gray-700 uppercase tracking-widest">Happy Moo</h2>
+                         <div className="w-16 h-[2px]" style={{ backgroundColor: currentThemeData.accent }}></div>
+                      </div>
+                      <p className="text-[20px] font-bold mt-3 text-gray-600 tracking-widest flex items-center gap-2">
+                         <span style={{ color: currentThemeData.accent }}>♥</span> สดชื่น หวานมัน กลมกล่อม <span style={{ color: currentThemeData.accent }}>♥</span>
+                      </p>
+                   </div>
+                </div>
+
+                {/* 2. ส่วน Main Body (แบ่ง 2 คอลัมน์ 60/40) */}
+                <div className="flex-1 flex px-[40px] py-[30px] gap-[40px]">
+                   
+                   {/* 2.1 ฝั่งซ้าย (รายการเมนูเครื่องดื่ม) */}
+                   <div className="w-[60%] flex flex-col relative z-10">
+                      
+                      {/* หัวตารางราคา */}
+                      <div className="flex justify-between items-end border-b-4 pb-2 mb-4" style={{ borderColor: currentThemeData.accent }}>
+                         <div className="font-bold text-[32px] text-white px-8 py-1 rounded-t-3xl rounded-br-3xl inline-block" style={{ backgroundColor: currentThemeData.primary }}>เมนู</div>
+                         <div className="flex gap-6 pr-2">
+                            <span className="font-bold text-[22px] w-16 text-center" style={{ color: currentThemeData.primary }}>เย็น</span>
+                            <span className="font-bold text-[22px] w-16 text-center" style={{ color: currentThemeData.primary }}>ปั่น</span>
+                         </div>
+                      </div>
+
+                      {/* รายการเครื่องดื่ม (ดึงเฉพาะที่เปิดขาย) */}
+                      <div className="flex flex-col gap-1.5 flex-1">
+                         {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(cat => {
+                            const items = menuItems.filter(i => i.category === cat && !i.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0));
+                            if(!items.length) return null;
+                            return (
+                               <div key={cat} className="mb-3">
+                                  {/* ชื่อหมวดหมู่ย่อย */}
+                                  <h4 className="font-bold text-[18px] mb-1 pl-2 opacity-80" style={{ color: currentThemeData.primary }}>{cat}</h4>
+                                  
+                                  {items.map(item => {
+                                     const coldPrice = item.isOnlyBlend ? '-' : item.price;
+                                     const blendPrice = item.allowBlend === false ? '-' : (item.price + getAddedBlendPrice(item));
+                                     return (
+                                        <div key={item.id} className="flex justify-between items-end w-full mb-1">
+                                           <div className="font-semibold text-[20px] text-gray-800 bg-white pr-2 whitespace-nowrap">{item.name}</div>
+                                           {/* เส้นประ Dotted Line */}
+                                           <div className="flex-grow border-b-[3px] border-dotted border-gray-300 relative top-[-8px] mx-1"></div>
+                                           <div className="flex gap-6 bg-white pl-2">
+                                              <div className="font-bold text-[22px] text-gray-700 w-16 text-center">{coldPrice}</div>
+                                              <div className="font-bold text-[22px] text-gray-700 w-16 text-center">{blendPrice}</div>
+                                           </div>
+                                        </div>
+                                     )
+                                  })}
+                               </div>
+                            )
+                         })}
+                      </div>
+                   </div>
+
+                   {/* 2.2 ฝั่งขวา (ท็อปปิ้ง + QR Code) */}
+                   <div className="w-[40%] flex flex-col gap-[30px] relative z-10">
+                      
+                      {/* กล่องท็อปปิ้ง */}
+                      <div className="border-[3px] rounded-3xl overflow-hidden bg-white/80" style={{ borderColor: currentThemeData.accent }}>
+                         <div className="py-2 text-center text-white font-bold text-[28px]" style={{ backgroundColor: currentThemeData.accent }}>ท็อปปิ้ง</div>
+                         <div className="p-5 flex flex-col gap-3">
+                            {toppings.map(t => (
+                               <div key={t.id} className="flex justify-between items-center text-[22px]">
+                                  <span className="font-bold text-gray-700 flex items-center gap-2">
+                                     <span className="text-[24px]">✨</span> {t.name}
+                                  </span>
+                                  <span className="font-bold text-gray-800">{t.price} <span className="text-[18px] font-normal text-gray-500">บาท</span></span>
+                               </div>
+                            ))}
+                            {toppings.length === 0 && <div className="text-center text-gray-400 py-4">ไม่มีท็อปปิ้งเสริม</div>}
+                         </div>
+                      </div>
+
+                      {/* กล่อง QR Code ติดต่อ */}
+                      <div className="border-[3px] rounded-3xl p-5 flex flex-col items-center bg-white" style={{ borderColor: currentThemeData.primary }}>
+                         <h3 className="font-bold text-[24px] mb-4 flex items-center gap-2" style={{ color: currentThemeData.primary }}>
+                            <span style={{ color: currentThemeData.accent }}>♥</span> ช่องทางติดต่อ <span style={{ color: currentThemeData.accent }}>♥</span>
+                         </h3>
+                         {storeSettings.qrCodeImage ? (
+                            <img src={storeSettings.qrCodeImage} className="w-[200px] h-[200px] object-contain border border-gray-100 rounded-xl" alt="Contact QR" />
+                         ) : (
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://lin.ee/your-line-link`} className="w-[200px] h-[200px] p-2 border border-gray-100 rounded-xl" alt="Default QR" />
+                         )}
+                         <div className="bg-[#06C755] text-white px-6 py-2 rounded-full font-bold text-[20px] mt-4 shadow-md flex items-center gap-2">
+                            <MessageSquare size={20}/> สั่งซื้อผ่าน LINE
+                         </div>
+                      </div>
+
+                   </div>
+                </div>
+
+                {/* 3. ส่วน Footer (เงื่อนไขการจัดส่ง) */}
+                <div className="mt-auto px-[40px] pb-[30px] pt-4">
+                   <div className="grid grid-cols-3 gap-4 border-[3px] rounded-2xl bg-white" style={{ borderColor: currentThemeData.bg }}>
+                      {/* الشرط 1 */}
+                      <div className="flex items-center gap-3 p-3 border-r-[3px]" style={{ borderColor: currentThemeData.bg }}>
+                         <div className="p-3 rounded-full bg-orange-100 text-orange-600"><Home size={32}/></div>
+                         <div>
+                            <p className="font-bold text-[18px] text-gray-800 leading-none">กอล์ฟวิวส่งฟรี</p>
+                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งหน้าห้องแค่เข้าตึกได้</p>
+                         </div>
+                      </div>
+                      {/* الشرط 2 */}
+                      <div className="flex items-center gap-3 p-3 border-r-[3px]" style={{ borderColor: currentThemeData.bg }}>
+                         <div className="p-3 rounded-full bg-blue-100 text-blue-600"><CloudRain size={32}/></div>
+                         <div>
+                            <p className="font-bold text-[18px] text-gray-800 leading-none">ฝนตก</p>
+                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งใต้ตึกเท่านั้น</p>
+                         </div>
+                      </div>
+                      {/* الشرط 3 */}
+                      <div className="flex items-center gap-3 p-3">
+                         <div className="p-3 rounded-full bg-red-100 text-red-600"><ZapOff size={32}/></div>
+                         <div>
+                            <p className="font-bold text-[18px] text-gray-800 leading-none">ไฟดับ / ลิฟต์พัง</p>
+                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งใต้ตึกเท่านั้น</p>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Thank you bar */}
+                   <div className="w-full text-center text-white py-2 rounded-b-2xl font-bold text-[18px] tracking-widest mt-2" style={{ backgroundColor: currentThemeData.primary }}>
+                      <span style={{ color: currentThemeData.accent }}>♥</span> ขอบคุณที่อุดหนุนค่ะ <span style={{ color: currentThemeData.accent }}>♥</span>
+                   </div>
+                </div>
+
+             </div>
+          </div>
+          {/* พื้นที่ดัน Scroll ด้านล่างให้มือถือเลื่อนดูได้สุด */}
+          <div className="h-[20vh] w-full flex-shrink-0"></div>
+        </div>
+      )}
+
+      {/* --- Modal สร้างป้ายโปรโมทอัตโนมัติแบบเดี่ยว (Poster Generator - IG Story Style) --- */}
       {posterMenu && (
         <div className="fixed inset-0 bg-black/80 z-[150] flex flex-col items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
           <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl flex flex-col relative">
@@ -1284,7 +1452,7 @@ export default function App() {
             </div>
 
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
-               <button onClick={generatePosterImage} disabled={isGeneratingPoster} className={`flex-1 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${isGeneratingPoster ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+               <button onClick={() => generateImageFromRef(posterRef, `ป้ายโปรโมท_${posterMenu.name}.png`)} disabled={isGeneratingPoster} className={`flex-1 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${isGeneratingPoster ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
                   {isGeneratingPoster ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Download size={18}/>}
                   {isGeneratingPoster ? 'กำลังสร้างรูปภาพ...' : 'บันทึกรูปป้ายลงเครื่อง'}
                </button>
