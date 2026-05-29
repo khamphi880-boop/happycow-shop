@@ -3,12 +3,11 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, ArrowDownToLine 
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, ArrowDownToLine, Share2 
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 
-// --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
   apiKey: "AIzaSyALI9gWvkoSfaGZd5tVxA-INr4QV5Cmf-w",
   authDomain: "happycowshop-fd7b0.firebaseapp.com",
@@ -36,7 +35,6 @@ const THEMES = {
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
-// --- 2. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
 const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,7 +60,6 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 };
 
 export default function App() {
-  // --- States: จัดการข้อมูลหลักของแอป ---
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
@@ -89,7 +86,6 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
-  // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
@@ -115,20 +111,15 @@ export default function App() {
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
 
-  // --- States: ฟีเจอร์สร้างป้าย Menu Board ---
   const [showMenuBoardModal, setShowMenuBoardModal] = useState(false);
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
   const [generatedPreview, setGeneratedPreview] = useState(null);
+  const menuBoardRef = useRef(null);
 
-  // --- States: Failsafe Success Modal (แก้ปัญหาสั่งซื้อล้มเหลวเวลารันนอกแอป LINE) ---
-  const [successModalData, setSuccessModalData] = useState(null);
-
-  // --- States: เลือกตัวเลือกตอนสั่งสินค้า ---
   const [optionModalItem, setOptionModalItem] = useState(null);
   const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [] });
   const [lineProfile, setLineProfile] = useState({ displayName: 'ลูกค้าทั่วไป', pictureUrl: '', userId: '' });
 
-  // --- States: ค้นหา ---
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchHistory, setSearchHistory] = useState(() => {
@@ -137,20 +128,16 @@ export default function App() {
   });
   const [popularSearches, setPopularSearches] = useState([]);
 
-  // --- Refs ---
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
-  const menuBoardRef = useRef(null);
 
-  // คำนวณราคาปั่นเพิ่ม
   const getAddedBlendPrice = (item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
-  // Sync LocalStorage
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
   useEffect(() => { localStorage.setItem('happycow_address', address); }, [address]);
@@ -165,7 +152,6 @@ export default function App() {
     }
   }, [isLoadingOrders]);
 
-  // ดึงข้อมูล Firebase และ LINE LIFF Init
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -178,11 +164,8 @@ export default function App() {
       window.liff.init({ liffId: LIFF_ID }).then(() => {
         if (window.liff.isLoggedIn()) {
           window.liff.getProfile().then(p => setLineProfile({ displayName: p.displayName, pictureUrl: p.pictureUrl, userId: p.userId }));
-        } else {
-          // ไม่บังคับเด้งล็อกอินเพื่ออนุญาตให้เข้าใช้งานแบบ Guest ได้ ป้องกันปัญหา 400 Bad Request
-          console.log("LIFF connected as Guest Mode");
         }
-      }).catch(err => console.error("LIFF Init failed", err));
+      }).catch(err => console.error("LIFF Error", err));
     };
 
     if (window.liff) initializeLiff();
@@ -196,9 +179,6 @@ export default function App() {
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
       setIsLoading(false); 
-    }, error => {
-      console.error(error);
-      setIsLoading(false);
     });
 
     const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
@@ -233,12 +213,35 @@ export default function App() {
     return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
   }, []);
 
-  // ฟังก์ชันวาดป้าย Menu Board 
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().then(() => {
+        setTimeout(() => {
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(e => console.log('Autoplay blocked', e));
+          }
+        }, 800);
+      }).catch(e => console.log('Autoplay blocked by browser policy', e));
+    }
+  };
+
+  useEffect(() => {
+    if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
+      const newOrders = orders.slice(0, orders.length - previousOrderCount.current);
+      const hasNewPending = newOrders.some(o => o.status === 'pending');
+      if (hasNewPending && view === 'admin') playNotificationSound();
+    }
+    previousOrderCount.current = orders.length;
+  }, [orders, view]);
+
   const generateMenuBoard = async () => {
     if (!menuBoardRef.current) return;
     setIsGeneratingPoster(true);
 
     try {
+      // 1. โหลด html2canvas แบบ Dynamic
       if (!window.html2canvas) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -249,29 +252,70 @@ export default function App() {
         });
       }
 
-      // รอรีเฟรช DOM สองวิเพื่อให้รูป Base64 และขนาดคงที่
+      // 2. ให้เวลาระบบเรนเดอร์ Font และจัด Layout ให้เสร็จก่อนถ่ายภาพ (แก้ปัญหาเลย์เอาต์เคลื่อน)
       await new Promise(r => setTimeout(r, 1000));
 
+      // 3. ถ่ายภาพหน้าจอ Container เฉพาะป้าย
       const canvas = await window.html2canvas(menuBoardRef.current, { 
-         scale: 2.5, 
+         scale: 2, // ความละเอียด 2 เท่าเพื่อความคมชัด
          useCORS: true,
          allowTaint: true,
-         backgroundColor: '#ffffff',
+         backgroundColor: '#fffdf8', // สีพื้นหลังครีมอ่อนๆ
          logging: false
       });
 
       const imageBase64 = canvas.toDataURL("image/png");
-      setGeneratedPreview({ src: imageBase64, name: `MenuBoard_HappyCow_${Date.now()}.png` });
+      setGeneratedPreview({ src: imageBase64, name: `MenuBoard_HappyCow_${new Date().getTime()}.png` });
       
     } catch (err) {
       console.error("Error generating menu board:", err);
-      alert("เกิดข้อผิดพลาดในการวาดป้าย: " + err.message);
+      alert("เกิดข้อผิดพลาดในการสร้างรูปป้ายครับ: " + err.message);
     } finally {
       setIsGeneratingPoster(false);
     }
   };
 
-  // --- Admin Functions ---
+  // 🌟 ฟังก์ชันจัดการการแชร์หรือบันทึกภาพลงมือถือ (Web Share API)
+  const handleSaveOrSharePoster = async () => {
+    if (!generatedPreview) return;
+    
+    try {
+        // หากเล่นบนมือถือ และระบบรองรับการแชร์ (ส่งเข้าแชท / บันทึกลงเครื่อง)
+        if (navigator.share) {
+            const response = await fetch(generatedPreview.src);
+            const blob = await response.blob();
+            const file = new File([blob], generatedPreview.name, { type: 'image/png' });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'ป้ายเมนู วัวนมอารมณ์ดี',
+                    text: 'ป้ายเมนูอัปเดตล่าสุดครับ'
+                });
+                return; // แขร์สำเร็จ จบการทำงาน
+            }
+        }
+        
+        // หากไม่รองรับการแชร์ (เล่นบนคอม) ให้ใช้วิธีดาวน์โหลดปกติ
+        const link = document.createElement("a");
+        link.href = generatedPreview.src;
+        link.download = generatedPreview.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+    } catch (error) {
+        console.error("Share failed", error);
+        // Fallback: หากกดแชร์แล้วกดยกเลิก หรือเกิด Error ให้ลองบังคับดาวน์โหลด
+        const link = document.createElement("a");
+        link.href = generatedPreview.src;
+        link.download = generatedPreview.name;
+        link.click();
+    }
+  };
+
+  const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
+
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return alert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return alert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -355,9 +399,6 @@ export default function App() {
     setIsDelivering(false);
   };
 
-  const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
-
-  // คำนวณรายรับทั้งหมดของร้าน (ฟังก์ชันตัวเต็ม)
   const calculateRevenue = () => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -424,6 +465,8 @@ export default function App() {
     return item.isBlended ? 'ปั่น' : 'เย็น';
   };
 
+  const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
+
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
     if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
@@ -446,6 +489,19 @@ export default function App() {
 
   const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
 
+  const sliderRef = useRef(null);
+  useEffect(() => {
+    if (view !== 'shop' || promotedItems.length <= 1 || searchQuery) return;
+    const interval = setInterval(() => {
+      if (sliderRef.current) {
+         const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+         if (scrollLeft + clientWidth >= scrollWidth - 10) sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+         else sliderRef.current.scrollBy({ left: clientWidth * 0.85, behavior: 'smooth' });
+      }
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [view, promotedItems.length, searchQuery]);
+
   const revData = calculateRevenue();
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
@@ -463,13 +519,14 @@ export default function App() {
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&family=Kanit:wght@400;600;700&display=swap');
         :root {
           --theme-primary: ${currentThemeData.primary};
           --theme-accent: ${currentThemeData.accent};
           --theme-bg: ${currentThemeData.bg};
         }
         .font-serif { font-family: 'Vollkorn', serif; }
+        .font-kanit { font-family: 'Kanit', sans-serif; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
         .bg-primary { background-color: var(--theme-primary); color: #fff; }
@@ -495,6 +552,7 @@ export default function App() {
         .falling-icon { position: fixed; z-index: 10; animation: fall linear infinite; pointer-events: none; font-size: 1.5rem; opacity: 0.6; }
       `}</style>
 
+      {/* --- Floating Theme Decorations --- */}
       {storeSettings.theme && storeSettings.theme !== 'default' && currentThemeData.icons && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
           {[...Array(12)].map((_, i) => (
@@ -510,7 +568,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
+      {}
       <header className="sticky top-0 z-[50] bg-white/95 p-4 flex justify-between items-center border-b border-gray-100 shadow-sm relative backdrop-blur-md">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('shop')}>
            {lineProfile.pictureUrl ? <img src={lineProfile.pictureUrl} className="w-10 h-10 rounded-full border-2 border-orange-100" alt="profile" /> : <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">🐮</div>}
@@ -520,7 +578,11 @@ export default function App() {
                <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold text-white shadow-sm flex items-center gap-1 ${storeSettings.isStoreOpen !== false ? 'bg-green-500' : 'bg-red-500'}`}>
                  {storeSettings.isStoreOpen !== false ? '🟢 เปิดแล้วค่ะ' : '🔴 ปิดแล้วค่ะ'}
                </span>
-               <p className="text-[9px] font-bold text-green-700 uppercase tracking-tighter">คุณ {(lineProfile.displayName || 'ลูกค้าทั่วไป').slice(0, 10)}</p>
+               {(lineProfile.userId || '').startsWith('guest_') ? (
+                 <button onClick={handleLineLogin} className="text-[9px] bg-[#06C755] text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm"><LogIn size={10}/> ล็อกอินด้วย LINE</button>
+               ) : (
+                 <p className="text-[9px] font-bold text-green-700 uppercase tracking-tighter">คุณ {(lineProfile.displayName || '').slice(0, 10)}</p>
+               )}
              </div>
            </div>
         </div>
@@ -537,8 +599,10 @@ export default function App() {
         </div>
       </header>
 
+      {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/10 backdrop-blur-sm" onClick={() => setIsSearchFocused(false)}></div>}
+
       <main className="flex-1 pb-10 relative z-10">
-        {/* --- Shop View --- */}
+        {}
         {view === 'shop' && (
           <div className="animate-in fade-in">
             <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: currentThemeData.bg }}>
@@ -549,11 +613,73 @@ export default function App() {
                    value={searchQuery} 
                    onChange={e => setSearchQuery(e.target.value)}
                    onFocus={() => setIsSearchFocused(true)}
+                   onKeyDown={e => { if (e.key === 'Enter') handleSearchSubmit(searchQuery); }}
                    placeholder="ค้นหาเมนูที่คุณอยากดื่ม..." 
                    className="w-full pl-11 pr-10 py-3.5 rounded-[1.5rem] text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-gray-100 bg-white/90 backdrop-blur-sm" 
                 />
+                {searchQuery && (
+                  <button onClick={() => { setSearchQuery(''); setIsSearchFocused(false); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 active:scale-90 bg-gray-100 rounded-full p-1"><X size={14}/></button>
+                )}
               </div>
+
+              {isSearchFocused && !searchQuery && (searchHistory.length > 0 || popularSearches.length > 0) && (
+                <div className="absolute top-[110%] left-5 right-5 bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl border border-gray-100 p-5 z-[50] animate-in fade-in slide-in-from-top-2">
+                   {searchHistory.length > 0 && (
+                      <div className="mb-5">
+                         <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-[11px] font-bold text-gray-400 flex items-center gap-1 uppercase tracking-wider"><Clock size={14}/> ประวัติการค้นหา</h4>
+                            <button onClick={() => setSearchHistory([])} className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded-lg">ล้าง</button>
+                         </div>
+                         <div className="flex flex-wrap gap-2">
+                            {searchHistory.map(h => (
+                               <button key={h} onClick={() => handleSearchSubmit(h)} className="bg-gray-50 hover:bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs border border-gray-200 transition-all">{h}</button>
+                            ))}
+                         </div>
+                      </div>
+                   )}
+                   {popularSearches.length > 0 && (
+                      <div>
+                         <h4 className="text-[11px] font-bold text-orange-500 flex items-center gap-1 mb-3 uppercase tracking-wider"><TrendingUp size={14}/> คำค้นหายอดฮิต 🔥</h4>
+                         <div className="flex flex-wrap gap-2">
+                            {popularSearches.map(p => (
+                               <button key={p} onClick={() => handleSearchSubmit(p)} className="bg-orange-50 hover:bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs border border-orange-100 font-bold transition-all shadow-sm">{p}</button>
+                            ))}
+                         </div>
+                      </div>
+                   )}
+                </div>
+              )}
             </div>
+
+            {!searchQuery && promotedItems.length > 0 && (
+              <div className="pt-2 pb-2">
+                <div ref={sliderRef} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth w-full px-5 gap-3">
+                  {promotedItems.map(item => (
+                    <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
+                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-95'}`}>
+                         {item.isSoldOut && (
+                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                               <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-xs border border-white/50 shadow-xl rotate-[-5deg] tracking-widest flex items-center gap-1">SOLD OUT</div>
+                            </div>
+                         )}
+                         <div className="relative">
+                            <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0 ${item.isSoldOut ? 'grayscale' : ''}`} alt={item.name} />
+                            <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
+                         </div>
+                         <div className="flex-1 flex flex-col justify-center py-1 pr-2">
+                            <span className="text-[9px] bg-gradient-to-r from-red-500 to-orange-400 text-white px-2 py-1 rounded-full w-fit mb-1.5 font-bold flex items-center gap-1 shadow-md">
+                               <Star size={10} fill="white"/> เมนูแนะนำ (Must Try!)
+                            </span>
+                            <h4 className="font-bold text-sm leading-tight line-clamp-2 text-primary">{item.name}</h4>
+                            <p className="text-accent font-bold text-base mt-1">฿{item.price}</p>
+                            <p className="text-[9px] text-orange-600 font-bold mt-1 bg-orange-50 w-fit px-1.5 py-0.5 rounded shadow-sm">สูตรลับเฉพาะทางร้าน ✨</p>
+                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!searchQuery && (
               <div className="mx-5 mb-2 mt-4 p-4 bg-white/80 backdrop-blur-sm border-l-4 border-l-[var(--theme-accent)] rounded-r-2xl shadow-sm animate-in fade-in relative overflow-hidden">
@@ -562,45 +688,92 @@ export default function App() {
                   <li>ส่งถึงหน้าห้อง <span className="font-bold text-accent">เฉพาะกรณีเข้าตึกได้</span> เท่านั้น</li>
                   <li>หากเข้าตึกไม่ได้ / ฝนตก / ลิฟต์พัง ขออนุญาต <span className="font-bold text-accent">แขวนไว้ใต้ตึก</span></li>
                   <li>ระยะเวลารอออร์เดอร์ประมาณ <span className="font-bold">20 นาที (+/-)</span></li>
+                  <li>ทางร้านรีบทำและจัดส่งตามคิว <span className="font-bold text-red-500">ขอความกรุณางดเร่งนะคะ 🙏</span></li>
                 </ul>
+              </div>
+            )}
+
+            {!searchQuery && storeSettings.isBlendOut && (
+              <div className="mx-5 mb-2 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl shadow-sm animate-in fade-in text-center flex items-center justify-center gap-2">
+                 <Zap size={16} className="text-blue-500"/>
+                 <p className="text-xs font-bold text-blue-700">ขออภัยค่ะ วันนี้งดรับออร์เดอร์ <span className="text-red-500">เมนูปั่น</span> ชั่วคราวนะคะ 🙏</p>
               </div>
             )}
 
             {!searchQuery && (
               <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 py-3 sticky top-[138px] z-[40] backdrop-blur-md" style={{ backgroundColor: `${currentThemeData.bg}e6` }}>
                 {CATEGORIES.map(c => (
-                  <button key={c} onClick={() => setActiveCategory(c)} className={`px-5 py-2.5 rounded-2xl text-[11px] font-bold whitespace-nowrap transition-all border ${activeCategory === c ? 'bg-primary text-white border-primary' : 'bg-white/90 text-gray-500 border-gray-100'}`}>{c}</button>
+                  <button key={c} onClick={() => setActiveCategory(c)} className={`px-5 py-2.5 rounded-2xl text-[11px] font-bold whitespace-nowrap transition-all border ${activeCategory === c && c === '🔥 เมนูขายดี' ? 'bg-orange-500 text-white border-orange-500 shadow-md' : activeCategory === c ? 'bg-primary text-white border-primary shadow-md' : 'bg-white/90 text-gray-500 border-gray-100 hover:bg-white'}`}>{c}</button>
                 ))}
               </div>
             )}
 
-            {/* Render Items */}
             <div className="px-5 pb-5 pt-2">
-              {isLoading ? <div className="p-20 text-center opacity-30 italic font-bold text-primary animate-pulse">กำลังโหลดความสดชื่น... 🐮</div> : (
+              {searchQuery && <p className="text-sm font-bold text-primary mb-4 ml-1">ผลการค้นหา "{searchQuery}" ({displayedItems.length} รายการ)</p>}
+              {isLoading ? <div className="p-20 text-center opacity-30 italic font-bold text-primary">กำลังเตรียมเมนูแสนอร่อย... 🐮</div> : (
                 <div className="grid grid-cols-2 gap-5">
                   {displayedItems.map((item, index) => {
+                    const isSpecial = item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
+                    const isBestSeller = !searchQuery && activeCategory === '🔥 เมนูขายดี';
                     const isBlendUnavailable = item.isOnlyBlend && storeSettings.isBlendOut;
                     const isDisabled = item.isSoldOut || isBlendUnavailable;
                     return (
-                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm bg-white/95 border border-white/50 cursor-pointer hover:-translate-y-0.5 transition-all ${isDisabled ? 'opacity-50' : ''}`}>
+                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                      
+                      {item.isSoldOut && (
+                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                            <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-white/50 shadow-xl rotate-[-10deg] tracking-wider">หมดชั่วคราว</div>
+                         </div>
+                      )}
+                      
+                      {!item.isSoldOut && isBlendUnavailable && (
+                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                            <div className="bg-blue-500 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-blue-200 shadow-xl rotate-[-10deg] tracking-wider text-center leading-tight">เมนูปั่น<br/>หมดชั่วคราว</div>
+                         </div>
+                      )}
+
+                      {item.hasFreePearl && !isDisabled && <div className="absolute top-2 right-2 bg-gradient-to-r from-orange-400 to-red-400 text-white text-[8px] px-2 py-0.5 rounded-full font-bold shadow-md z-10 flex items-center gap-0.5 floating-badge"><Star size={8} fill="white"/> ฟรีไข่มุก!</div>}
+                      
+                      {isBestSeller && (
+                        <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 shadow-md flex items-center gap-1 border border-white/20">อันดับ {index + 1} 👑</div>
+                      )}
+                      
+                      {isSpecial && !isBestSeller && (
+                        <div className="absolute top-2 left-2 bg-accent text-white text-[9px] font-bold px-2 py-1 rounded-lg z-10 shadow-md">🌟 Limited</div>
+                      )}
+
                       <div className="aspect-square bg-gray-50 relative">
-                         <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                         <img src={item.image} className={`w-full h-full object-cover ${isDisabled ? 'grayscale' : ''}`} alt={item.name} />
+                         {item.sales > 10 && (
+                            <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold floating-badge">ฮิตมาก 🔥</div>
+                         )}
                       </div>
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
                         <p className="text-accent font-bold text-sm">฿{item.price}</p>
+                        {isBestSeller && item.sales > 0 && <p className="text-[9px] text-green-600 font-bold mt-1 bg-green-50 rounded px-1 py-0.5 inline-block shadow-sm">ขายไปแล้ว {item.sales} แก้ว</p>}
+                        {isSpecial && !isBestSeller && <p className="text-[8px] text-accent mt-1 font-bold">เมนูสุดพรีเมียม</p>}
                       </div>
                     </div>
                   )})}
+                  
+                  {displayedItems.length === 0 && (
+                    <div className="col-span-2 py-20 text-center flex flex-col items-center gap-4 bg-white/50 rounded-3xl backdrop-blur-sm">
+                      <AlertCircle size={40} className="text-gray-300" />
+                      <p className="text-gray-500 text-sm font-bold">
+                        {searchQuery ? `ไม่พบเมนูที่ตรงกับ "${searchQuery}"` : `ยังไม่มีเมนูในหมวด "${activeCategory}"`}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* --- Cart View (หน้าตะกร้า) --- */}
+        {}
         {view === 'cart' && (
-          <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
+          <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl animate-in slide-in-from-bottom-10 relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
             <h2 className="text-3xl font-serif font-bold text-primary">ตะกร้าของคุณ</h2>
             <div className="space-y-4">
@@ -609,12 +782,14 @@ export default function App() {
                    <div className="flex-1 font-bold text-sm text-primary">
                      {i.qty}x {i.name} <br/>
                      <span className="text-gray-400 text-[10px] uppercase">
-                       ({getBlendText(i)} • หวาน {i.sweetness})
+                       ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
+                       {i.selectedToppings?.length > 0 && ` • เพิ่ม: ${i.selectedToppings.map(t=>t.name).join(', ')}`}
                      </span>
                    </div>
                    <div className="flex items-center gap-4"><p className="font-bold text-accent">฿{i.price * i.qty}</p><button onClick={() => setCart(prev => prev.filter(item => item.cartId !== i.cartId))} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></div>
                  </div>
                ))}
+               {cart.length === 0 && <div className="py-20 text-center opacity-30 italic font-bold text-gray-400">ยังไม่มีสินค้าในตะกร้า 🐮</div>}
             </div>
 
             {cart.length > 0 && (
@@ -640,10 +815,18 @@ export default function App() {
                 {paymentMethod === 'promptpay' && (
                   <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 text-center relative overflow-hidden">
                     <p className="text-xs font-bold mb-4 text-primary">สแกนชำระเงิน พร้อมแนบสลิป</p>
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
+                    {storeSettings.qrCodeImage ? (
+                      <img src={storeSettings.qrCodeImage} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
+                    ) : (
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
+                    )}
                     
                     <div className="flex items-center justify-center gap-2 mb-6">
                       <p className="text-xs text-gray-500 font-bold">พร้อมเพย์: {storeSettings.promptPayNo || '0812345678'}</p>
+                      <button onClick={copyPromptPay} className="flex items-center gap-1 bg-white border border-gray-200 text-accent px-3 py-1.5 rounded-full shadow-sm active:scale-95 transition-all">
+                        {isCopied ? <CheckCircle size={14} className="text-green-500"/> : <Copy size={14}/>}
+                        <span className="text-[10px] font-bold">{isCopied ? 'คัดลอกแล้ว' : 'คัดลอกเลข'}</span>
+                      </button>
                     </div>
 
                     <label className="cursor-pointer bg-primary text-white py-4 px-8 rounded-2xl text-[11px] font-bold inline-flex items-center gap-2 shadow-lg active:scale-95 transition-all">
@@ -658,99 +841,149 @@ export default function App() {
                              setSlipImage(comp);
                              setTimeout(() => setSlipStatus('valid'), 1000);
                            } catch (err) {
+                             console.error(err);
                              setSlipStatus('idle');
                            }
                         }
                       }} />
                     </label>
+
+                    {slipImage && (
+                       <div className="mt-5 bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
+                          <img src={slipImage} className="h-32 mx-auto rounded-lg shadow-sm border border-gray-100 mb-3 object-contain bg-gray-50" alt="Slip Preview" />
+                          {slipStatus === 'checking' && (
+                             <div className="flex flex-col items-center gap-2 text-blue-500 animate-pulse">
+                               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                               <span className="text-[10px] font-bold">กำลังตรวจสอบความถูกต้องของสลิป...</span>
+                             </div>
+                          )}
+                          {slipStatus === 'valid' && (
+                             <div className="bg-green-50 text-green-600 p-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 border border-green-100 animate-in zoom-in">
+                               <CheckCircle size={14}/> ยอดเงินตรงกับออร์เดอร์ (จำลองตรวจ AI)
+                             </div>
+                          )}
+                       </div>
+                    )}
                   </div>
                 )}
                 
-                <label className="flex items-start gap-3 p-4 rounded-2xl border bg-gray-50 transition-all cursor-pointer shadow-sm">
+                <label className={`flex items-start gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer shadow-sm ${acceptedTerms ? 'border-green-400 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                   <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} className="mt-1 w-5 h-5 accent-green-600 cursor-pointer flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-xs font-bold text-primary mb-1">ยอมรับเงื่อนไขการส่งและสั่งซื้อ</p>
+                    <p className={`text-xs font-bold ${acceptedTerms ? 'text-green-700' : 'text-red-600'} mb-1`}>ฉันรับทราบและยอมรับเงื่อนไข</p>
+                    <ul className="text-[9.5px] text-gray-600 space-y-1 list-disc pl-3 font-medium">
+                      <li>ส่งหน้าห้องเฉพาะเข้าตึกได้ (เข้าไม่ได้/ฝนตก = <span className="font-bold text-red-500">แขวนใต้ตึก</span>)</li>
+                      <li>รอออร์เดอร์ 20 นาที (+/-) / จัดส่งตามคิว <span className="text-red-500 font-bold">งดเร่ง</span></li>
+                    </ul>
                   </div>
                 </label>
                 
-                {/* --- 🛠️ ใช้งานปุ่มสั่งซื้อ Fail-Safe 100% --- */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
+                      if (!window.liff.isLoggedIn()) {
+                        return window.liff.login();
+                      }
+                      if ((lineProfile.userId || '').startsWith('guest_')) {
+                        return alert("⚠️ กรุณาล็อกอินบัญชี LINE ก่อนสั่งซื้อครับ");
+                      }
                       if (!address) return alert("กรุณากรอกที่อยู่จัดส่งครับ");
                       if (paymentMethod === 'promptpay' && !slipImage) return alert("กรุณาแนบสลิปการโอนเงินครับ");
                       
                       setIsLoading(true);
-                      const total = cartTotal;
+                      const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
                       
                       try {
-                        // บันทึกเข้า database
                         const orderRef = await addDoc(collection(db, 'orders'), {
                           items: cart, total, status: 'pending', timestamp: Date.now(),
-                          userId: lineProfile.userId || "guest_user", lineName: lineProfile.displayName || "ลูกค้าทั่วไป", address, note,
+                          userId: lineProfile.userId, lineName: lineProfile.displayName, address, note,
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
-                        // สร้างสรุปออเดอร์สำหรับการส่งไลน์
-                        const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า:คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
-                          cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
-                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note}`;
-
-                        // ทำการก๊อปปี้ข้อความเตรียมไว้ให้ลูกค้าอัตโนมัติ
-                        try {
-                          await navigator.clipboard.writeText(orderSummaryText);
-                        } catch (cErr) {
-                          console.log("Clipboard bypass", cErr);
-                        }
-
-                        // พยายามเปิด LINE Share Target Picker
-                        let isLiffShared = false;
-                        if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
-                          try {
-                            const res = await window.liff.shareTargetPicker([{
-                              type: "flex",
-                              altText: `🐮 ออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName} (฿${total})`,
-                              contents: {
-                                type: "bubble",
-                                header: { type: "box", layout: "vertical", backgroundColor: "#3D2C1E", contents: [{ type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" }] },
-                                body: { type: "box", layout: "vertical", spacing: "md", contents: [{ type: "text", text: `คุณ: ${lineProfile.displayName}`, weight: "bold" }, { type: "text", text: `ยอดรวม: ฿${total}`, color: "#dc2626", weight: "bold" }] }
-                              }
-                            }]);
-                            if (res) isLiffShared = true;
-                          } catch (err) {
-                            console.log("LIFF picker failed", err);
+                        const flexPayload = {
+                          type: "bubble",
+                          header: {
+                            type: "box", layout: "vertical", backgroundColor: "#3D2C1E",
+                            contents: [
+                              { type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" },
+                              { type: "text", text: `ใบสั่งซื้อเครื่องดื่มดิจิทัล [บิล #${orderRef.id.slice(0, 6)}]`, color: "#A67C52", size: "xs", align: "center", margin: "xs" }
+                            ]
+                          },
+                          body: {
+                            type: "box", layout: "vertical", spacing: "md",
+                            contents: [
+                              { type: "text", text: `👤 คุณลูกค้า: ${lineProfile.displayName}`, weight: "bold", size: "sm" },
+                              { type: "text", text: `📱 ช่องทางชำระ: ${paymentMethod === 'promptpay' ? 'โอนเงินพร้อมเพย์' : 'เงินสด'}`, size: "xs", color: "#666666" },
+                              { type: "separator" },
+                              ...cart.map(i => ({
+                                type: "box", layout: "vertical", margin: "sm",
+                                contents: [
+                                  { type: "box", layout: "horizontal", contents: [
+                                    { type: "text", text: `${i.qty}x ${i.name}`, size: "xs", weight: "bold", flex: 3, wrap: true },
+                                    { type: "text", text: `฿${i.price * i.qty}`, size: "xs", align: "end", flex: 1, weight: "bold" }
+                                  ]},
+                                  { type: "text", text: `(${getBlendText(i)} • หวาน ${i.sweetness}${i.bean ? ` • ${i.bean}` : ''})`, size: "xxs", color: "#999999", margin: "xs" }
+                                ]
+                              })),
+                              { type: "separator" },
+                              { type: "box", layout: "vertical", contents: [
+                                { type: "text", text: "📍 ที่อยู่จัดส่ง:", size: "xs", weight: "bold", color: "#3D2C1E" },
+                                { type: "text", text: address, size: "xs", wrap: true, color: "#555555", margin: "xs" }
+                              ]},
+                              note.trim() ? { type: "text", text: `💬 หมายเหตุ: ${note}`, size: "xs", color: "#ea580c" } : { type: "spacer", size: "xs" },
+                              { type: "separator" },
+                              { type: "box", layout: "horizontal", contents: [
+                                { type: "text", text: "ยอดรวมรวมทั้งสิ้น", weight: "bold", size: "sm" },
+                                { type: "text", text: `฿${total}`, align: "end", weight: "bold", color: "#dc2626", size: "md" }
+                              ]}
+                            ]
+                          },
+                          footer: {
+                            type: "box", layout: "vertical",
+                            contents: [
+                              { type: "button", style: "primary", color: "#A67C52", action: {
+                                type: "uri", label: "📄 ตรวจสอบสถานะบิล",
+                                uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders`
+                              }}
+                            ]
                           }
-                        }
+                        };
 
-                        // เคลียร์ตะกร้า
-                        setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
-
-                        // หากทำงานนอก LINE LIFF ให้ขึ้นเป็นหน้าต่าง Failsafe Success แทน เพื่อไม่ให้ออเดอร์ค้างเติ่ง
-                        if (isLiffShared) {
-                          setView('myOrders');
-                          alert("ส่งใบเสร็จเรียบร้อย! 🐮🎉");
-                        } else {
-                          // แสดง Modal สั่งสำเร็จ เพื่อให้สามารถส่งไลน์ส่วนตัวได้ต่อ
-                          setSuccessModalData({
-                            orderId: orderRef.id,
-                            text: orderSummaryText,
-                            adminLine: storeSettings.adminLineId || "0812345678"
+                        if (window.liff.isApiAvailable('shareTargetPicker')) {
+                          window.liff.shareTargetPicker([{
+                            type: "flex",
+                            altText: `🐮 มีออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName} (฿${total})`,
+                            contents: flexPayload
+                          }]).then((res) => {
+                            if (res) {
+                              alert("ส่งบิลเรียบร้อย! ข้อมูลออร์เดอร์ส่งตรงเข้าแชท LINE เรียบร้อยแล้วครับ 🐮🎉");
+                              setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false); setView('myOrders');
+                            } else {
+                              alert("⚠️ คุณยกเลิกการเลือกผู้รับ บิลจึงยังส่งไม่สำเร็จเข้า LINE (แต่บันทึกเข้าระบบหลังบ้านแล้ว) รบกวนกดแชร์บิลอีกครั้งนะครับ");
+                            }
+                          }).catch(err => {
+                            console.error(err);
+                            alert("LINE Share Picker Error: " + err.message + "\n*กรุณาตรวจสอบว่าได้เปิดสิทธิ์ shareTargetPicker ใน LINE Developers Console แล้วหรือยัง");
+                            setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false); setView('myOrders');
                           });
+                        } else {
+                          alert("อุปกรณ์นี้ไม่รองรับระบบส่งแชทอัตโนมัติของ LINE กรุณาเปิดผ่านแอปพลิเคชัน LINE บนมือถือครับ");
+                          setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false); setView('myOrders');
                         }
                       } catch (err) {
-                        alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
-                      } finally {
-                        setIsLoading(false); // ⚠️ ตรวจสอบให้แน่ใจว่าปลดบล็อกปุ่มไม่ว่าจะเกิดกรณีใดก็ตาม
+                        alert("เกิดข้อผิดพลาดในการบันทึกออเดอร์: " + err.message);
                       }
+                      setIsLoading(false);
                     }}
-                    disabled={isLoading || !acceptedTerms} 
-                    className={`w-full py-5 rounded-[2.5rem] font-bold text-lg transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2 ${acceptedTerms && !isLoading ? 'bg-accent text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                    disabled={isLoading || (paymentMethod === 'promptpay' && (!slipImage || slipStatus === 'checking')) || !acceptedTerms} 
+                    className={`w-full py-5 rounded-[2.5rem] font-bold text-lg transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2 ${ (paymentMethod === 'cash' || (slipImage && slipStatus === 'valid')) && acceptedTerms ? 'bg-accent text-white hover:opacity-90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                   >
-                     {isLoading ? 'กำลังประมวลผล...' : `ยืนยันการสั่งซื้อ • ฿${cartTotal}`}
+                     {isLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
+                     {isLoading ? 'กำลังประมวลผล...' : `ส่งบิลเข้า LINE ร้านค้า • ฿${cartTotal}`}
                   </button>
                 ) : (
-                  <button disabled className="w-full py-5 bg-gray-300 text-white rounded-[2.5rem] font-bold text-lg cursor-not-allowed">
-                     ร้านปิดรับออเดอร์ชั่วคราว
+                  <button disabled className="w-full py-5 bg-gray-300 text-white rounded-[2.5rem] font-bold text-lg shadow-xl cursor-not-allowed flex items-center justify-center gap-2">
+                     <AlertCircle size={20}/> ร้านปิดรับออเดอร์ชั่วคราว
                   </button>
                 )}
               </div>
@@ -758,64 +991,77 @@ export default function App() {
           </div>
         )}
 
-        {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
              <h2 className="text-3xl font-serif font-bold text-primary">ประวัติการสั่งซื้อ</h2>
-             <div className="space-y-4">
-                {orders.filter(o => o.userId === lineProfile.userId).map(o => (
-                   <div key={o.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
-                      <div className="flex justify-between items-start">
-                         <span className="text-xs font-bold text-accent">บิล #{o.id.slice(0,6)}</span>
-                         <span className="text-sm font-bold text-primary">฿{o.total}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 uppercase">สถานะ: {o.status}</p>
-                   </div>
-                ))}
-             </div>
+             
+             {isLoadingOrders ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-4 animate-in fade-in">
+                   <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+                   <p className="text-accent font-bold text-sm text-center">กำลังเปิดประวัติการสั่งซื้อ<br/>รอระบบสักครู่นะคะ 🐮...</p>
+                </div>
+             ) : (
+                 <div className="space-y-6">
+                   {orders.filter(o => o.userId === lineProfile.userId).map(o => (
+                       <div key={o.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
+                          <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
+                            <div><span className="text-[10px] font-bold text-accent uppercase tracking-wider">บิล #{o.id.slice(0,6)}</span><p className="text-xs font-bold text-orange-400 mt-1 uppercase">{o.status}</p></div>
+                            <div className="text-2xl font-serif font-bold text-primary">฿{o.total}</div>
+                          </div>
+                          
+                          <div className="space-y-1">{(o.items || []).map((item, idx) => (
+                              <p key={idx} className="text-[11px] font-bold text-gray-500">
+                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''})
+                              </p>
+                          ))}</div>
+
+                          {o.status === 'completed' && (
+                            <div className="mt-4 pt-4 border-t border-gray-100">
+                              {o.deliveryMessage && (
+                                <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-3">
+                                  <p className="text-[10px] font-bold text-accent mb-1 flex items-center gap-1"><MessageSquare size={12}/> ข้อความจากทางร้าน:</p>
+                                  <p className="text-[11px] text-gray-600 font-bold">{o.deliveryMessage}</p>
+                                </div>
+                              )}
+                              {o.deliveryImage && (
+                                <button onClick={() => setSelectedSlip(o.deliveryImage)} className="w-full bg-primary text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all">
+                                   <Camera size={16}/> ดูรูปถ่ายตอนจัดส่งสินค้า
+                                </button>
+                              )}
+                            </div>
+                          )}
+                       </div>
+                   ))}
+                 </div>
+             )}
           </div>
         )}
 
-        {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
+               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงระบบเตือนบิล</button>
+            </div>
             
             <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner">
               {['orders', 'menus', 'dashboard', 'settings'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-xs font-bold ${adminTab === t ? 'bg-primary text-white' : 'text-gray-500'}`}>
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary'}`}>
                   {t === 'orders' ? 'ออร์เดอร์' : t === 'menus' ? 'เมนู' : t === 'dashboard' ? 'รายรับ' : 'ตั้งค่า'}
                 </button>
               ))}
             </div>
 
-            {/* TAB: Orders */}
-            {adminTab === 'orders' && (
-              <div className="space-y-4">
-                 {orders.map(o => (
-                    <div key={o.id} className="border p-5 rounded-3xl bg-white shadow-sm">
-                       <p className="font-bold text-sm text-primary">#{o.id.slice(0,6)} คุณ {o.lineName}</p>
-                       <p className="text-xs text-gray-500 mt-1">ที่อยู่: {o.address}</p>
-                       <div className="mt-2 border-t pt-2 text-xs">
-                          {o.items?.map((item, idx) => (
-                             <p key={idx}>{item.qty}x {item.name}</p>
-                          ))}
-                       </div>
-                       <div className="flex gap-2 mt-4">
-                          {o.status === 'pending' && <button onClick={() => updateDoc(doc(db, 'orders', o.id), { status: 'completed' })} className="flex-1 bg-green-500 text-white py-2 rounded-xl text-xs font-bold">จัดส่งเสร็จสิ้น</button>}
-                          <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-xs font-bold">ลบ</button>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-            )}
-
-            {/* TAB: Dashboard */}
+            {/* TAB: Dashboard รายรับ */}
             {adminTab === 'dashboard' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in">
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl">
-                  <h3 className="font-bold text-sm">สรุปยอดขายวันนี้</h3>
+                  <div className="flex items-center gap-2 mb-4 opacity-80">
+                    <TrendingUp size={20} />
+                    <h3 className="font-bold text-sm">สรุปยอดขายวันนี้</h3>
+                  </div>
                   <h1 className="text-5xl font-serif font-bold">฿{revData.daily.toLocaleString()}</h1>
                 </div>
 
@@ -830,8 +1076,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
-                   <h3 className="font-bold text-sm text-primary mb-4 border-b pb-3">สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm mt-4">
+                   <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
                    <div className="space-y-3">
                       {revData.dailyHistory.map((d, idx) => (
                          <div key={idx} className="flex justify-between items-center text-sm">
@@ -842,74 +1088,157 @@ export default function App() {
                    </div>
                 </div>
 
-                <button onClick={exportToCSV} className="w-full bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-sm shadow-lg active:scale-95 transition-all">
-                  Export บัญชีรายรับ (CSV)
+                <button onClick={exportToCSV} className="w-full bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 mt-4">
+                  <Download size={18} /> Export บัญชีรายรับ (CSV)
                 </button>
               </div>
             )}
 
-            {/* TAB: Menus */}
+            {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
+            {adminTab === 'orders' && (
+              <div className="space-y-4">
+                {orders.map((o, idx) => (
+                    <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-colors ${o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2"><span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - idx}</span><span className="font-bold text-sm text-primary">{o.lineName}</span></div>
+                        <div className="text-right"><span className="text-orange-600 font-bold block">฿{o.total}</span><span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">{o.paymentMethod === 'cash' ? '💵 จ่ายสด' : '📱 โอนเงิน'}</span></div>
+                      </div>
+                      <div className="text-[10px] text-gray-500 mb-3 flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100"><MapPin size={12} className="flex-shrink-0 text-accent"/> {o.address}</div>
+                      
+                      <div className="space-y-1 border-t border-gray-100 pt-3 mb-3">{(o.items || []).map((i, idx) => (
+                          <div key={idx} className="text-xs text-gray-600 flex justify-between font-medium">
+                            <span>{i.qty}x {i.name} ({getBlendText(i)} • หวาน {i.sweetness})</span>
+                            <span className="font-bold">฿{i.price * i.qty}</span>
+                          </div>
+                      ))}</div>
+
+                      <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
+                        {o.paymentMethod !== 'cash' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"><Eye size={14}/> ตรวจสลิป</button>}
+                        <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all"><Trash2 size={16}/></button>
+                      </div>
+
+                      <div className="flex gap-2 border-t border-gray-100 pt-3 mt-2">
+                        {o.status === 'pending' && <button onClick={() => updateDoc(doc(db, 'orders', o.id), { status: 'cooking' })} className="flex-1 bg-orange-400 text-white py-4 rounded-xl text-[11px] font-bold shadow-lg active:scale-95 transition-all">กดยอมรับออเดอร์</button>}
+                        {o.status === 'cooking' && (
+                          <button onClick={() => { setDeliveryModal(o); setDeliveryImage(''); setDeliveryLocation('room'); }} className="flex-1 bg-green-500 text-white py-4 rounded-xl text-[11px] font-bold shadow-md flex items-center justify-center gap-1 active:scale-95 transition-all">
+                             <Check size={14}/> จัดส่งสินค้าแล้ว
+                          </button>
+                        )}
+                        {o.status === 'completed' && <div className="flex-1 text-center text-[10px] font-bold text-green-600 py-2 border border-green-200 rounded-xl bg-green-50">ส่งเรียบร้อย</div>}
+                      </div>
+                    </div>
+                ))}
+                {orders.length === 0 && <div className="py-20 text-center text-gray-400 font-bold opacity-50">ยังไม่มีออร์เดอร์ใหม่เข้าครับ 🐮</div>}
+              </div>
+            )}
+
+            {/* TAB: ระบบจัดการคลังเมนูของร้าน */}
             {adminTab === 'menus' && (
-              <div className="space-y-6">
-                {/* 🌟 ปรับระบบ Menu Board ใหม่ให้พรีเมียม สไตล์ A4 กระดาษแบบดั้งเดิม 100% ไม่พึ่งพากล่องซ้อนกันเพื่อไม่ให้เละ */}
-                <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 rounded-[2rem] text-white shadow-lg text-center">
-                  <h3 className="font-bold text-lg mb-1">🖼️ ระบบออกป้ายเมนูรวม (Menu Board)</h3>
-                  <p className="text-xs opacity-90 mb-4">ดาวน์โหลดรูปภาพเอาไปโพสต์ หรือพิมพ์ติดหน้าร้านค้าสไตล์โปสเตอร์</p>
-                  <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-white text-orange-600 py-3 rounded-full font-bold text-xs shadow-md">
-                     สร้างและดูรูปตัวอย่าง
+              <div className="space-y-8 animate-in fade-in">
+                
+                {/* 🌟 [NEW] ปุ่มสร้างป้าย Menu Board */}
+                <div className="bg-gradient-to-br from-red-50 to-orange-50 p-6 rounded-[2.5rem] border border-red-100 shadow-sm flex flex-col items-center justify-center text-center">
+                  <div className="bg-white p-4 rounded-full shadow-md text-red-500 mb-4 animate-bounce">
+                     <Palette size={28} />
+                  </div>
+                  <h3 className="font-bold text-base text-red-800 mb-2 font-kanit">สร้างป้ายเมนูรวม (Menu Board)</h3>
+                  <p className="text-[11px] text-red-600 mb-5 leading-relaxed font-kanit">
+                    ระบบจะรวบรวมเมนูทั้งหมดมาจัดหน้ากระดาษแนวตั้ง<br/>พร้อมบันทึกหรือแชร์ลงมือถือได้ทันที
+                  </p>
+                  <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+                     <Share2 size={18} /> สร้างป้ายเมนูตอนนี้
                   </button>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-3xl border">
+                <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative">
+                   <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
+                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหาชื่อเมนู..." className="w-full pl-12 pr-10 py-4 rounded-2xl text-sm outline-none bg-white focus:ring-2 focus:ring-[var(--theme-accent)] transition-all"/>
+                </div>
+
+                <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 shadow-inner relative">
                   {!showAddMenuForm ? (
-                     <button onClick={() => setShowAddMenuForm(true)} className="w-full py-2 text-accent font-bold text-sm text-center">เพิ่มเมนูใหม่</button>
+                     <button onClick={() => setShowAddMenuForm(true)} className="w-full py-2 text-accent font-bold flex items-center justify-center gap-2 hover:bg-gray-100 rounded-2xl transition-all"><Plus size={18}/> คลิกเพื่อเพิ่มเมนูใหม่</button>
                   ) : (
-                    <div className="space-y-3">
-                      <input type="text" placeholder="ชื่อเมนู" className="w-full p-3 rounded-xl border text-sm" value={newMenu.name} onChange={e => setNewMenu({...newMenu, name: e.target.value})} />
-                      <input type="number" placeholder="ราคา" className="w-full p-3 rounded-xl border text-sm" value={newMenu.price} onChange={e => setNewMenu({...newMenu, price: e.target.value})} />
-                      <label className="cursor-pointer bg-white border p-3 rounded-xl text-xs block text-center">
-                        {newMenu.image ? 'เปลี่ยนรูปภาพ' : 'อัปโหลดรูปภาพ'}
+                    <div className="space-y-4 text-center animate-in fade-in slide-in-from-top-2">
+                      <div className="flex justify-between items-center border-b border-gray-200 pb-3 mb-2">
+                        <h3 className="font-bold text-sm text-accent uppercase tracking-widest flex items-center gap-2"><Plus size={16}/> เพิ่มเมนูใหม่</h3>
+                        <button onClick={() => setShowAddMenuForm(false)} className="text-gray-400 p-1 hover:bg-gray-200 rounded-full"><X size={16}/></button>
+                      </div>
+                      <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none bg-white" value={newMenu.name} onChange={e => setNewMenu({...newMenu, name: e.target.value})} />
+                      <div className="flex gap-2">
+                        <input type="number" placeholder="ราคา" className="w-1/2 p-4 rounded-2xl text-sm outline-none bg-white" value={newMenu.price} onChange={e => setNewMenu({...newMenu, price: e.target.value})} />
+                        <select className="w-1/2 p-4 rounded-2xl text-sm bg-white" value={newMenu.category} onChange={e => setNewMenu({...newMenu, category: e.target.value})}>
+                          {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <label className="cursor-pointer bg-white border border-gray-200 p-4 rounded-2xl text-xs font-bold block shadow-sm text-gray-400">
+                        <Upload size={18} className="inline mr-2"/> {newMenu.image ? 'เปลี่ยนรูปเมนู' : 'อัปโหลดรูปภาพเมนู'}
                         <input type="file" accept="image/*" className="hidden" onChange={async e => {
                           const file = e.target.files[0];
                           if (file) { setNewMenu({...newMenu, image: await compressImage(file)}); }
                         }} />
                       </label>
-                      <button onClick={handleAddNewMenu} className="w-full bg-accent text-white py-3 rounded-xl text-xs font-bold">บันทึก</button>
+                      <button onClick={handleAddNewMenu} className="w-full bg-accent text-white py-4 rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center gap-2"><Plus size={18}/> บันทึกเมนูใหม่</button>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                   {menuItems.map(item => (
-                      <div key={item.id} className="flex justify-between items-center bg-white p-3 border rounded-2xl shadow-sm">
-                         <div className="flex items-center gap-3">
-                            <img src={item.image} className="w-10 h-10 rounded-xl object-cover" alt="" />
-                            <span className="font-bold text-xs text-primary">{item.name} (฿{item.price})</span>
-                         </div>
-                         <button onClick={() => handleDeleteMenu(item.id)} className="text-red-500 text-xs font-bold">ลบ</button>
+                <div className="space-y-4">
+                  {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(category => {
+                    let itemsInCategory = menuItems.filter(item => item.category === category);
+                    if (adminSearchQuery) itemsInCategory = itemsInCategory.filter(item => item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()));
+                    if (itemsInCategory.length === 0) return null;
+
+                    return (
+                      <div key={category} className="space-y-2">
+                        <h4 className="font-bold text-md text-primary ml-1">{category}</h4>
+                        {itemsInCategory.map((item) => (
+                          <div key={item.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <img src={item.image} className="w-12 h-12 rounded-xl object-cover" alt="drink" />
+                              <div>
+                                <p className="font-bold text-sm text-primary">{item.name}</p>
+                                <p className="text-xs text-accent font-bold">฿{item.price}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={16}/></button>
+                          </div>
+                        ))}
                       </div>
-                   ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* TAB: Settings */}
+            {/* TAB: ตั้งค่าบัญชีและธีมร้าน */}
             {adminTab === 'settings' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in">
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-[2.5rem] border border-indigo-100 space-y-4 shadow-sm">
+                  <h3 className="font-bold text-sm text-indigo-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><Palette size={16}/> เลือกธีมร้านค้าดิจิทัล</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                     {Object.entries(THEMES).map(([key, theme]) => (
+                        <button key={key} onClick={() => updateTheme(key)} className={`py-3 px-2 rounded-2xl font-bold text-[11px] transition-all border-2 flex items-center justify-center ${storeSettings.theme === key ? 'border-indigo-500 bg-indigo-600 text-white shadow-md' : 'border-white bg-white text-gray-600'}`}>
+                           {theme.name}
+                        </button>
+                     ))}
+                  </div>
+                </div>
+                
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border border-orange-200 space-y-4">
-                  <h3 className="font-bold text-sm text-accent text-center">สถานะการเปิดรับบิลหน้าร้าน</h3>
+                  <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะการเปิดรับบิลหน้าร้าน</h3>
                   <div className="flex gap-3">
-                    <button onClick={() => updateStoreStatus(true)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400'}`}>เปิดร้าน</button>
-                    <button onClick={() => updateStoreStatus(false)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen === false ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400'}`}>ปิดร้าน</button>
+                    <button onClick={() => updateStoreStatus(true)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400'}`}><CheckCircle size={18}/> เปิดร้าน</button>
+                    <button onClick={() => updateStoreStatus(false)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen === false ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400'}`}><X size={18}/> ปิดร้าน</button>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 p-6 rounded-[2.5rem] border border-gray-200 space-y-4 shadow-inner">
-                  <h3 className="font-bold text-sm text-accent text-center">ตั้งค่าพร้อมเพย์</h3>
-                  <input type="text" placeholder="หมายเลขพร้อมเพย์" className="w-full p-4 rounded-2xl text-sm border-transparent bg-white shadow-sm" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
+                  <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">ตั้งค่าพร้อมเพย์สำหรับสร้าง QR</h3>
+                  <input type="text" placeholder="หมายเลขพร้อมเพย์" className="w-full p-4 rounded-2xl text-sm border-transparent focus:ring-accent bg-white shadow-sm" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
                   <button onClick={async () => {
-                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay }, { merge: true }); alert('อัปเดตการชำระเงินของร้านสำเร็จ! 🐮'); } catch(e) { alert("Error: " + e.message); }
-                  }} className="w-full bg-primary text-white py-4 rounded-2xl font-bold text-sm shadow-md">บันทึกข้อมูลธนาคาร</button>
+                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage }, { merge: true }); alert('อัปเดตการชำระเงินของร้านสำเร็จ! 🐮'); } catch(e) { alert("Error: " + e.message); }
+                  }} className="w-full bg-primary text-white py-4 rounded-2xl font-bold text-sm active:scale-95 shadow-md">บันทึกข้อมูลธนาคาร</button>
                 </div>
               </div>
             )}
@@ -917,26 +1246,24 @@ export default function App() {
         )}
       </main>
 
-      {/* --- Modal เลือกตัวเลือกสินค้า --- */}
+      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center p-4">
-          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-8 space-y-6 max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center"><h3 className="text-xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-2 bg-gray-100 rounded-full"><X size={16}/></button></div>
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400"><X/></button></div>
+            <div className="space-y-8">
+              <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
+                <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
+                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>
+                ))}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-5">
+                 <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
+                 <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Zap size={32}/><span className="text-xs uppercase text-center">ปั่น (+฿{getAddedBlendPrice(optionModalItem)})</span></button>
+              </div>
+            </div>
             
-            <div>
-               <label className="text-[10px] font-bold block mb-2 text-gray-400 uppercase tracking-widest">ความหวาน</label>
-               <div className="grid grid-cols-3 gap-2">
-                  {SWEETNESS.map(s => (
-                     <button key={s} onClick={() => setTempOptions({...tempOptions, sweetness: s})} className={`py-2 rounded-xl text-xs font-bold ${tempOptions.sweetness === s ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}>{s}</button>
-                  ))}
-               </div>
-            </div>
-
-            <div className="flex gap-4">
-               <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`flex-1 py-4 rounded-2xl border font-bold ${!tempOptions.isBlended ? 'border-accent bg-orange-50 text-accent' : 'border-gray-100 text-gray-400'}`}>เย็น</button>
-               <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} className={`flex-1 py-4 rounded-2xl border font-bold ${tempOptions.isBlended ? 'border-accent bg-orange-50 text-accent' : 'border-gray-100 text-gray-400'}`}>ปั่น</button>
-            </div>
-
             <button onClick={() => {
                 const isItemBlended = tempOptions.isBlended;
                 const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0);
@@ -948,269 +1275,213 @@ export default function App() {
                   return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, qty: 1 }];
                 });
                 setOptionModalItem(null);
-              }} className="w-full py-4 bg-primary text-white rounded-2xl font-bold">เพิ่มลงตะกร้า</button>
+              }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
+                <Plus size={24}/> เพิ่มลงตะกร้าเครื่องดื่ม
+            </button>
           </div>
         </div>
       )}
 
-      {/* --- 🌟 [NEW] Failsafe Order Success Modal --- */}
-      {successModalData && (
-        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
-             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>
-             <h3 className="text-xl font-bold text-primary">สั่งซื้อเรียบร้อยแล้วค่ะ! 🎉</h3>
-             <p className="text-xs text-gray-500 leading-relaxed">ระบบได้บันทึกออเดอร์หลังบ้านของร้านเรียบร้อยแล้ว และคัดลอกข้อความสรุปรายการไว้ในเครื่องของคุณแล้วค่ะ</p>
-             
-             <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
-                <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
-             </div>
-
-             <div className="space-y-2">
-                <button 
-                  onClick={() => {
-                     navigator.clipboard.writeText(successModalData.text);
-                     alert("คัดลอกข้อความออร์เดอร์สำเร็จ!");
-                  }}
-                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95"
-                >
-                   คัดลอกข้อความออเดอร์อีกครั้ง
-                </button>
-                <a 
-                  href={`https://line.me/R/ti/p/~${successModalData.adminLine}`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="block w-full bg-[#06C755] text-white py-3 rounded-full text-xs font-bold active:scale-95"
-                >
-                   เปิด LINE เพื่อส่งให้แอดมินร้านค้า
-                </a>
-                <button 
-                  onClick={() => {
-                     setSuccessModalData(null);
-                     setView('shop');
-                  }}
-                  className="w-full text-gray-400 py-2 text-xs font-bold"
-                >
-                   กลับไปหน้าร้านค้า
-                </button>
-             </div>
+      {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
+      {deliveryModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+          <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-lg text-primary">ยืนยันและถ่ายรูปจัดส่ง</h3>
+              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2"><X size={20}/></button>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
+               <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm">
+                  <Camera size={16}/> ถ่ายรูปหลักฐานการแขวนของ
+                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                     const file = e.target.files[0];
+                     if(file){ setDeliveryImage(await compressImage(file)); }
+                  }} />
+               </label>
+               {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm" alt="Delivery Proof"/>}
+            </div>
+            <button onClick={handleConfirmDelivery} disabled={!deliveryImage} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 bg-green-500 text-white ${!deliveryImage && 'opacity-50 cursor-not-allowed'}`}>อัปเดตสถานะบิลจัดส่งแล้ว</button>
           </div>
         </div>
       )}
 
-      {/* --- 🌟 [NEW] Modal แสดงรูปภาพที่สร้างเสร็จ --- */}
-      {generatedPreview && (
-        <div className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4 animate-in zoom-in backdrop-blur-md">
-          <button onClick={() => setGeneratedPreview(null)} className="absolute top-4 right-4 bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
-          
-          <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse">
-            <p className="text-white font-bold flex items-center justify-center gap-2"><Download size={20}/> สร้างป้ายเมนูสำเร็จ!</p>
-            <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพ ด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
-          </div>
-
-          <div className="relative w-full max-w-md max-h-[60vh] overflow-auto hide-scrollbar rounded-2xl shadow-2xl border bg-white">
-            <img src={generatedPreview.src} className="w-full object-contain" alt="Generated Poster" />
-          </div>
-
-          <a href={generatedPreview.src} download={generatedPreview.name} className="mt-8 bg-green-500 text-white px-8 py-4 rounded-full font-bold text-sm shadow-xl flex items-center gap-2 hover:bg-green-600 transition-all active:scale-95">
-             <Download size={20}/> ดาวน์โหลดรูปลงเครื่อง (PC)
-          </a>
+      {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
+      {selectedSlip && (
+        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4" onClick={() => setSelectedSlip(null)}>
+          <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl animate-in zoom-in" alt="slip preview" />
         </div>
       )}
 
-      {/* --- 🌟 [NEW] Layout ตารางแบบคลาสสิก (Table-Based) ป้องกันปัญหาการ overlapping ใน html2canvas --- */}
+      {/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
+      {showAdminModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4">
+          <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
+            <h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent shadow-inner" placeholder="••••••" />
+            <div className="flex gap-4">
+               <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl">ยกเลิก</button>
+               <button onClick={() => {
+                 if(adminPassword === '570402') { 
+                    localStorage.setItem('happycow_isAdmin', 'true');
+                    setView('admin'); setShowAdminModal(false); setAdminPassword(''); 
+                 } else { alert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
+               }} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg">ยืนยัน</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
       {showMenuBoardModal && (
-        <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/90 z-[300] flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
            {isGeneratingPoster ? (
-              <div className="bg-white p-8 rounded-3xl flex flex-col items-center gap-4 text-center">
-                 <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                 <h3 className="font-bold text-primary">กำลังวาดรูปป้ายเมนูรวม...</h3>
-                 <p className="text-[10px] text-gray-500">กรุณารอสักครู่ ห้ามปิดหน้าจอ</p>
+              <div className="bg-white p-10 rounded-[3rem] flex flex-col items-center gap-6 text-center shadow-2xl">
+                 <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                 <div>
+                    <h3 className="font-bold text-primary text-lg font-kanit">กำลังวาดรูปป้ายเมนู...</h3>
+                    <p className="text-xs text-gray-500 mt-2 font-kanit">อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้าจอนะครับ</p>
+                 </div>
+              </div>
+           ) : generatedPreview ? (
+              <div className="flex flex-col items-center w-full max-w-lg">
+                 <div className="bg-white/10 px-6 py-4 rounded-full mb-6 border border-white/20 text-center animate-pulse w-full">
+                    <p className="text-white font-bold flex items-center justify-center gap-2 font-kanit text-lg"><CheckCircle size={24}/> สร้างป้ายสำเร็จ!</p>
+                 </div>
+                 
+                 <div className="w-full max-h-[60vh] overflow-y-auto rounded-[2rem] shadow-2xl border-4 border-white/20 bg-white mb-6">
+                    <img src={generatedPreview.src} className="w-full h-auto object-contain" alt="Generated Poster Preview" />
+                 </div>
+                 
+                 <div className="w-full grid grid-cols-2 gap-3">
+                    <button onClick={() => { setGeneratedPreview(null); setShowMenuBoardModal(false); }} className="py-4 bg-white/20 text-white rounded-2xl font-bold font-kanit active:scale-95 transition-all">
+                       ปิดหน้าต่าง
+                    </button>
+                    <button onClick={handleSaveOrSharePoster} className="py-4 bg-green-500 text-white rounded-2xl font-bold font-kanit shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                       <Share2 size={18}/> แซร์ / บันทึกรูป
+                    </button>
+                 </div>
               </div>
            ) : (
-             <div className="w-full max-w-[800px] h-[80vh] bg-gray-100 rounded-3xl flex flex-col overflow-hidden relative">
-                <div className="flex justify-between items-center bg-white p-4 border-b">
-                   <h3 className="font-bold text-primary">ตัวอย่างป้ายเมนูรวม (Menu Board)</h3>
-                   <div className="flex gap-2">
-                     <button onClick={() => setShowMenuBoardModal(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">ปิด</button>
-                     <button onClick={generateMenuBoard} className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold flex items-center gap-1"><Download size={16}/> สร้างรูป</button>
+             <div className="w-full max-w-[850px] bg-gray-100 rounded-[3rem] flex flex-col overflow-hidden relative shadow-2xl max-h-[90vh]">
+                <div className="flex justify-between items-center bg-white p-5 border-b shadow-sm z-10">
+                   <h3 className="font-bold text-primary font-kanit text-lg flex items-center gap-2"><Palette size={20}/> ตัวอย่างป้ายเมนู (Menu Board)</h3>
+                   <div className="flex gap-3">
+                     <button onClick={() => setShowMenuBoardModal(false)} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold font-kanit hover:bg-gray-200 transition-colors">ยกเลิก</button>
+                     <button onClick={generateMenuBoard} className="px-5 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold font-kanit flex items-center gap-2 shadow-md hover:bg-red-600 active:scale-95 transition-all"><Camera size={16}/> บันทึกเป็นรูปภาพ</button>
                    </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto bg-gray-200 p-8 flex justify-center">
-                   {/* 🎨 ตารางวาดโปสเตอร์ A4 */}
+                <div className="flex-1 overflow-auto bg-gray-300 p-8 flex justify-center hide-scrollbar">
+                   {/* 🎨 [CORE POSTER DESIGN] - รื้อใหม่ ใช้ Flexbox และ Inline CSS ล้วนแบบเรียบง่าย ป้องกัน html2canvas คลาดเคลื่อน */}
                    <div 
                       id="menu-board-container"
                       ref={menuBoardRef} 
                       style={{
-                         width: '794px', 
-                         minHeight: '1123px', 
-                         backgroundColor: '#ffffff', 
-                         fontFamily: "'Sarabun', 'Mitr', sans-serif",
-                         position: 'relative',
-                         border: '10px solid #cc3333', 
-                         borderRadius: '30px',
-                         padding: '40px',
+                         width: '800px',
+                         minHeight: '1130px', 
+                         backgroundColor: '#fffdf6', // โทนสีครีมอ่อน
+                         fontFamily: "'Kanit', sans-serif",
+                         border: '6px solid #d32f2f', // ขอบสีแดง
+                         borderRadius: '25px',
+                         padding: '30px',
                          boxSizing: 'border-box',
                          display: 'flex',
-                         flexDirection: 'column',
-                         overflow: 'hidden'
+                         flexDirection: 'column'
                       }}
                    >
-                      {/* Header: Logo & Title */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '25px' }}>
-                         <tbody>
-                            <tr>
-                               <td style={{ width: '30%', textAlign: 'center', verticalAlign: 'middle' }}>
-                                 <div style={{ fontSize: '110px', lineHeight: '1' }}>🐮</div>
-                               </td>
-                               <td style={{ width: '70%', verticalAlign: 'middle', textAlign: 'left', paddingLeft: '20px' }}>
-                                  <h1 style={{ margin: '0', fontSize: '65px', color: '#cc3333', fontWeight: 'bold', fontFamily: "'Vollkorn', serif" }}>วัวนมอารมณ์ดี</h1>
-                                  <div style={{ fontSize: '32px', color: '#555555', margin: '5px 0' }}>— Happy Moo —</div>
-                                  <p style={{ margin: '0', fontSize: '20px', color: '#666666', fontWeight: 'bold' }}>♥ สดชื่น หวานมัน กลมกล่อม ♥</p>
-                               </td>
-                            </tr>
-                         </tbody>
-                      </table>
-
-                      {/* Main Content (Left Menu Table / Right Table Addons) */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', flex: 1 }}>
-                         <tbody>
-                            <tr>
-                               {/* คอลัมน์ซ้าย: รายการเมนูทั้งหมด */}
-                               <td style={{ width: '60%', verticalAlign: 'top', paddingRight: '25px', borderRight: '2px dashed #ddd' }}>
-                                  
-                                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
-                                     <tbody>
-                                        <tr>
-                                           <td style={{ width: '60%' }}>
-                                              <div style={{ backgroundColor: '#cc3333', color: 'white', padding: '8px 25px', borderRadius: '0 20px 20px 0', fontSize: '24px', fontWeight: 'bold', display: 'inline-block' }}>เมนู</div>
-                                           </td>
-                                           <td style={{ width: '20%', textAlign: 'center', fontSize: '20px', color: '#cc3333', fontWeight: 'bold' }}>เย็น</td>
-                                           <td style={{ width: '20%', textAlign: 'center', fontSize: '20px', color: '#cc3333', fontWeight: 'bold' }}>ปั่น</td>
-                                        </tr>
-                                     </tbody>
-                                  </table>
-
-                                  {/* รายการเครื่องดื่ม */}
-                                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                     <tbody>
-                                        {menuItems.filter(m => !m.isSoldOut).slice(0, 24).map((menu, i) => (
-                                           <tr key={i} style={{ height: '32px' }}>
-                                              <td style={{ width: '60%', verticalAlign: 'bottom', paddingBottom: '4px' }}>
-                                                 <div style={{ display: 'flex', alignItems: 'baseline', overflow: 'hidden' }}>
-                                                    <span style={{ fontSize: '15px', color: '#333333', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{menu.name}</span>
-                                                    <div style={{ flex: 1, borderBottom: '2px dotted #aaaaaa', margin: '0 8px', position: 'relative', top: '-4px' }}></div>
-                                                 </div>
-                                              </td>
-                                              <td style={{ width: '20%', textAlign: 'center', fontSize: '16px', color: '#333333', fontWeight: 'bold', verticalAlign: 'bottom' }}>
-                                                 {menu.isOnlyBlend ? '-' : menu.price}
-                                              </td>
-                                              <td style={{ width: '20%', textAlign: 'center', fontSize: '16px', color: '#333333', fontWeight: 'bold', verticalAlign: 'bottom' }}>
-                                                 {menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}
-                                              </td>
-                                           </tr>
-                                        ))}
-                                     </tbody>
-                                  </table>
-
-                               </td>
-
-                               {/* คอลัมน์ขวา: ท็อปปิ้ง และ QR Code */}
-                               <td style={{ width: '40%', verticalAlign: 'top', paddingLeft: '25px' }}>
-                                  
-                                  {/* กล่องท็อปปิ้ง */}
-                                  <div style={{ border: '2px solid #cc3333', borderRadius: '20px', overflow: 'hidden', marginBottom: '25px' }}>
-                                     <div style={{ backgroundColor: '#cc3333', color: 'white', padding: '10px', textAlign: 'center', fontSize: '22px', fontWeight: 'bold' }}>ท็อปปิ้ง</div>
-                                     <div style={{ padding: '15px' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                           <tbody>
-                                              {toppings.map((top, i) => (
-                                                 <tr key={i} style={{ height: '32px' }}>
-                                                    <td style={{ fontSize: '15px', color: '#333333', fontWeight: 'bold' }}>
-                                                       ✨ {top.name}
-                                                    </td>
-                                                    <td style={{ textAlign: 'right', fontSize: '16px', color: '#333333', fontWeight: 'bold' }}>
-                                                       {top.price} บาท
-                                                    </td>
-                                                 </tr>
-                                              ))}
-                                              {toppings.length === 0 && (
-                                                 <tr>
-                                                    <td colSpan={2} style={{ textAlign: 'center', fontSize: '13px', color: '#aaa', padding: '10px' }}>ยังไม่มีข้อมูลท็อปปิ้ง</td>
-                                                 </tr>
-                                              )}
-                                           </tbody>
-                                        </table>
-                                     </div>
-                                  </div>
-
-                                  {/* กล่องสแกนสั่งติดต่อ */}
-                                  <div style={{ border: '2px solid #ddd', borderRadius: '20px', padding: '15px', textAlign: 'center' }}>
-                                     <p style={{ margin: '0 0 10px 0', fontSize: '18px', color: '#cc3333', fontWeight: 'bold' }}>♥ ช่องทางติดต่อ ♥</p>
-                                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${storeSettings.promptPayNo}`} alt="QR" style={{ width: '130px', height: '130px', margin: '0 auto 8px auto', display: 'block', borderRadius: '8px' }} />
-                                     <p style={{ margin: '0', fontSize: '13px', color: '#666666', fontWeight: 'bold' }}>สแกนเพื่อสั่งเครื่องดื่มผ่าน LINE</p>
-                                  </div>
-
-                               </td>
-                            </tr>
-                         </tbody>
-                      </table>
-
-                      {/* Footer Conditions */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: '2px solid #eeeeee', marginTop: '20px', paddingTop: '15px' }}>
-                         <tbody>
-                            <tr>
-                               <td style={{ width: '25%', textAlign: 'center', padding: '10px 0' }}>
-                                  <div style={{ fontSize: '26px' }}>🛵</div>
-                                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#cc3333', marginTop: '2px' }}>กอล์ฟวิวส่งฟรี</div>
-                                  <div style={{ fontSize: '10px', color: '#777' }}>ส่งหน้าห้องแค่เข้าตึกได้</div>
-                               </td>
-                               <td style={{ width: '25%', textAlign: 'center', padding: '10px 0' }}>
-                                  <div style={{ fontSize: '26px' }}>🌧️</div>
-                                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#cc3333', marginTop: '2px' }}>ฝนตกหนัก</div>
-                                  <div style={{ fontSize: '10px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
-                               </td>
-                               <td style={{ width: '25%', textAlign: 'center', padding: '10px 0' }}>
-                                  <div style={{ fontSize: '26px' }}>⚡</div>
-                                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#cc3333', marginTop: '2px' }}>กรณีไฟดับ</div>
-                                  <div style={{ fontSize: '10px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
-                               </td>
-                               <td style={{ width: '25%', textAlign: 'center', padding: '10px 0' }}>
-                                  <div style={{ fontSize: '26px' }}>🏢</div>
-                                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#cc3333', marginTop: '2px' }}>ลิฟท์ชำรุด</div>
-                                  <div style={{ fontSize: '10px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
-                               </td>
-                            </tr>
-                         </tbody>
-                      </table>
-
-                      <div style={{ backgroundColor: '#cccc33', color: '#3D2C1E', textAlign: 'center', padding: '8px', borderRadius: '30px', marginTop: '15px', fontSize: '16px', fontWeight: 'bold' }}>
-                         🤍 ขอบคุณที่มาอุดหนุนวัวนมอารมณ์ดีนะคะ 🤍
+                      {/* --- Header Area --- */}
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px' }}>
+                         <div style={{ fontSize: '110px', lineHeight: '1', marginRight: '20px' }}>🐮🥤</div>
+                         <div style={{ flex: 1, textAlign: 'center' }}>
+                            <h1 style={{ margin: '0', fontSize: '65px', color: '#d32f2f', fontWeight: '900', letterSpacing: '-1px' }}>วัวนมอารมณ์ดี</h1>
+                            <h2 style={{ margin: '5px 0', fontSize: '30px', color: '#555', fontWeight: 'normal', letterSpacing: '2px' }}>— Happy Moo —</h2>
+                            <p style={{ margin: '0', fontSize: '20px', color: '#777', fontWeight: 'bold' }}>♥ สดชื่น หวานมัน กลมกล่อม ♥</p>
+                         </div>
                       </div>
 
+                      {/* --- Content Area (แบ่งซ้าย/ขวา) --- */}
+                      <div style={{ display: 'flex', gap: '20px', flex: 1 }}>
+                         
+                         {/* คอลัมน์ซ้าย: รายการเมนู */}
+                         <div style={{ flex: 6, border: '2px solid #e0e0e0', borderRadius: '20px', padding: '15px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+                            
+                            {/* หัวตาราง */}
+                            <div style={{ display: 'flex', backgroundColor: '#d32f2f', color: '#ffffff', padding: '10px 15px', borderRadius: '12px', marginBottom: '15px', alignItems: 'center' }}>
+                               <div style={{ flex: 1, fontSize: '26px', fontWeight: 'bold' }}>เมนู</div>
+                               <div style={{ width: '70px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold' }}>เย็น</div>
+                               <div style={{ width: '70px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold' }}>ปั่น</div>
+                            </div>
+
+                            {/* รายการเมนู */}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                               {menuItems.filter(m => !m.isSoldOut).slice(0, 24).map((menu, i) => (
+                                  <div key={i} style={{ display: 'flex', alignItems: 'flex-end', width: '100%' }}>
+                                     <span style={{ fontSize: '18px', color: '#333333', fontWeight: '600' }}>{menu.name}</span>
+                                     <span style={{ flexGrow: 1, borderBottom: '2px dotted #cccccc', margin: '0 10px', position: 'relative', top: '-4px' }}></span>
+                                     <span style={{ width: '70px', textAlign: 'center', fontSize: '20px', color: '#333333', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</span>
+                                     <span style={{ width: '70px', textAlign: 'center', fontSize: '20px', color: '#333333', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</span>
+                                  </div>
+                               ))}
+                            </div>
+                         </div>
+
+                         {/* คอลัมน์ขวา: ท็อปปิ้ง และ QR Code */}
+                         <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            
+                            {/* กล่องท็อปปิ้ง */}
+                            <div style={{ border: '2px solid #e0e0e0', borderRadius: '20px', padding: '15px', backgroundColor: '#ffffff' }}>
+                               <h3 style={{ margin: '0 0 15px 0', backgroundColor: '#d32f2f', color: '#ffffff', textAlign: 'center', padding: '10px', borderRadius: '12px', fontSize: '24px' }}>ท็อปปิ้ง</h3>
+                               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  {toppings.map((top, i) => (
+                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '18px', color: '#333333', fontWeight: '600' }}>✨ {top.name}</span>
+                                        <span style={{ fontSize: '18px', color: '#333333', fontWeight: 'bold' }}>{top.price} บ.</span>
+                                     </div>
+                                  ))}
+                                  {toppings.length === 0 && <div style={{ textAlign: 'center', color: '#aaa', fontSize: '14px' }}>ไม่มีข้อมูลท็อปปิ้ง</div>}
+                               </div>
+                            </div>
+
+                            {/* กล่อง QR Code */}
+                            <div style={{ border: '2px solid #e0e0e0', borderRadius: '20px', padding: '20px', backgroundColor: '#ffffff', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                               <h3 style={{ margin: '0 0 15px 0', color: '#d32f2f', fontSize: '22px' }}>♥ ช่องทางติดต่อ ♥</h3>
+                               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${storeSettings.promptPayNo}`} alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
+                               <p style={{ margin: '0', fontSize: '16px', color: '#555555', fontWeight: 'bold' }}>สแกนเพื่อสั่งเครื่องดื่มผ่าน LINE</p>
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* --- Footer Area --- */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #e0e0e0', paddingTop: '15px', marginTop: '20px' }}>
+                         <div style={{ textAlign: 'center', width: '25%' }}>
+                            <div style={{ fontSize: '28px' }}>🛵</div>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d32f2f', marginTop: '5px' }}>กอล์ฟวิวส่งฟรี</div>
+                            <div style={{ fontSize: '11px', color: '#777' }}>ส่งหน้าห้องแค่เข้าตึกได้</div>
+                         </div>
+                         <div style={{ textAlign: 'center', width: '25%' }}>
+                            <div style={{ fontSize: '28px' }}>🌧️</div>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d32f2f', marginTop: '5px' }}>ฝนตกหนัก</div>
+                            <div style={{ fontSize: '11px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
+                         </div>
+                         <div style={{ textAlign: 'center', width: '25%' }}>
+                            <div style={{ fontSize: '28px' }}>⚡</div>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d32f2f', marginTop: '5px' }}>กรณีไฟดับ</div>
+                            <div style={{ fontSize: '11px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
+                         </div>
+                         <div style={{ textAlign: 'center', width: '25%' }}>
+                            <div style={{ fontSize: '28px' }}>🏢</div>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d32f2f', marginTop: '5px' }}>ลิฟท์ชำรุด</div>
+                            <div style={{ fontSize: '11px', color: '#777' }}>จัดส่งใต้ตึกเท่านั้น</div>
+                         </div>
+                      </div>
+                      
+                      <div style={{ backgroundColor: '#d32f2f', color: '#ffffff', textAlign: 'center', padding: '12px', borderRadius: '15px', marginTop: '15px', fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' }}>
+                         🤍 ขอบคุณที่มาอุดหนุนวัวนมอารมณ์ดีนะคะ 🤍
+                      </div>
                    </div>
                 </div>
              </div>
            )}
-        </div>
-      )}
-
-      {/* Admin Login Modal */}
-      {showAdminModal && (
-        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
-            <h3 className="font-bold text-lg mb-6">ผู้ดูแลระบบเข้าใช้งาน</h3>
-            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border p-4 rounded-xl text-center text-xl tracking-[0.3em] outline-none" placeholder="••••••" />
-            <div className="flex gap-3 mt-6">
-               <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-3 bg-gray-100 rounded-xl text-xs font-bold">ยกเลิก</button>
-               <button onClick={() => {
-                  if (adminPassword === '570402') {
-                     localStorage.setItem('happycow_isAdmin', 'true');
-                     setView('admin'); setShowAdminModal(false); setAdminPassword('');
-                  } else { alert("รหัสผ่านไม่ถูกต้อง"); setAdminPassword(''); }
-               }} className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold">เข้าสู่ระบบ</button>
-            </div>
-          </div>
         </div>
       )}
 
