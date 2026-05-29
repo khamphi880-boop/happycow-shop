@@ -3,8 +3,7 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Image as ImageIcon,
-  CloudRain, ZapOff, ArrowDownToLine
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, ArrowDownToLine 
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
@@ -38,7 +37,7 @@ const THEMES = {
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
-// --- 3. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ช่วยให้โหลดเร็วขึ้น ---
+// --- 3. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
 const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -69,7 +68,6 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
   
-  // โหลดตะกร้าสินค้าจาก LocalStorage
   const [cart, setCart] = useState(() => {
     try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
     catch(e) { return []; }
@@ -117,12 +115,11 @@ export default function App() {
 
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
-  
-  // State สำหรับฟีเจอร์สร้างรูปป้าย
-  const [posterMenu, setPosterMenu] = useState(null); // สำหรับป้ายเมนูเดี่ยว
-  const [showMenuBoardModal, setShowMenuBoardModal] = useState(false); // สำหรับป้ายเมนูรวม (Menu Board)
+
+  // --- 🌟 State สำหรับฟีเจอร์ป้าย Menu Board ---
+  const [showMenuBoardModal, setShowMenuBoardModal] = useState(false);
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
-  const [generatedPreview, setGeneratedPreview] = useState(null); // 🌟 [NEW] เก็บรูปที่สร้างเสร็จเพื่อแสดงบนจอ
+  const [generatedPreview, setGeneratedPreview] = useState(null);
 
   // --- States: จัดการตัวเลือกตอนสั่งสินค้า ---
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -143,10 +140,9 @@ export default function App() {
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
-  const posterRef = useRef(null);
   const menuBoardRef = useRef(null);
 
-  // ฟังก์ชันคำนวณราคาปั่นเพิ่ม
+  // คำนวณราคาปั่นเพิ่ม
   const getAddedBlendPrice = (item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
@@ -167,7 +163,7 @@ export default function App() {
     }
   }, [isLoadingOrders]);
 
-  // --- 🌟 ดึงข้อมูลจาก Firebase แบบ Real-time และ Init LINE LIFF ---
+  // --- ดึงข้อมูลจาก Firebase แบบ Real-time ---
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -183,7 +179,7 @@ export default function App() {
         } else {
           window.liff.login({ redirectUri: window.location.href });
         }
-      }).catch(err => console.error("LIFF Error:", err));
+      }).catch(err => console.error("LIFF Error", err));
     };
 
     if (window.liff) initializeLiff();
@@ -198,7 +194,7 @@ export default function App() {
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
       setIsLoading(false); 
     }, error => {
-      alert("ไม่สามารถโหลดเมนูได้: " + error.message);
+      console.log("Error loading menus", error);
       setIsLoading(false);
     });
 
@@ -259,9 +255,9 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // --- ฟังก์ชันสร้างภาพแบบอเนกประสงค์ (รองรับทั้งป้ายเดี่ยวและป้ายรวม) ---
-  const generateImageFromRef = async (targetRef, fileName) => {
-    if (!targetRef.current) return;
+  // --- ฟังก์ชันสร้างภาพป้ายเมนูรวม (Menu Board) ---
+  const generateMenuBoard = async () => {
+    if (!menuBoardRef.current) return;
     setIsGeneratingPoster(true);
 
     try {
@@ -275,26 +271,28 @@ export default function App() {
         });
       }
 
-      // ให้เวลาเรนเดอร์ภาพสักครู่ก่อน Capture เพื่อให้แน่ใจว่าโหลดฟอนต์/รูปครบ
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1500));
 
-      // ปรับ scale เป็น 2 เพื่อป้องกัน Memory มือถือเต็ม แต่ยังคมชัดสูง
-      const canvas = await window.html2canvas(targetRef.current, { 
-         scale: 2, 
+      const canvas = await window.html2canvas(menuBoardRef.current, { 
+         scale: 3, 
          useCORS: true,
          allowTaint: true,
-         backgroundColor: '#ffffff'
+         backgroundColor: '#ffffff',
+         logging: false,
+         onclone: (clonedDoc) => {
+           const element = clonedDoc.getElementById('menu-board-container');
+           if (element) {
+              element.style.transform = 'none'; 
+           }
+         }
       });
 
-      const imageBase64 = canvas.toDataURL("image/png");
-      
-      // 🌟 เปลี่ยนจากการดาวน์โหลดอัตโนมัติ (ที่มักโดนบล็อกในมือถือ) 
-      // เป็นการโชว์รูปบนหน้าจอให้ลูกค้ากดค้างเพื่อบันทึกแทน
-      setGeneratedPreview({ src: imageBase64, name: fileName });
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.9);
+      setGeneratedPreview({ src: imageBase64, name: `MenuBoard_HappyCow_${Date.now()}.jpg` });
       
     } catch (err) {
-      console.error("Error generating image:", err);
-      alert("เกิดข้อผิดพลาดในการสร้างรูปภาพครับ: " + err.message);
+      console.error("Error generating menu board:", err);
+      alert("เกิดข้อผิดพลาดในการสร้างป้ายเมนู: " + err.message);
     } finally {
       setIsGeneratingPoster(false);
     }
@@ -370,7 +368,7 @@ export default function App() {
     const cleanTerm = term.trim().toLowerCase();
     setSearchHistory(prev => [cleanTerm, ...prev.filter(t => t !== cleanTerm)].slice(0, 5));
     setIsSearchFocused(false); setSearchQuery(term);
-    try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error(e); }
+    try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
   const handleConfirmDelivery = async () => {
@@ -504,15 +502,13 @@ export default function App() {
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&family=Kanit:wght@300;400;600;700&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght=700&display=swap');
         :root {
           --theme-primary: ${currentThemeData.primary};
           --theme-accent: ${currentThemeData.accent};
           --theme-bg: ${currentThemeData.bg};
         }
         .font-serif { font-family: 'Vollkorn', serif; }
-        .font-kanit { font-family: 'Kanit', sans-serif; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
         .bg-primary { background-color: var(--theme-primary); color: #fff; }
@@ -538,7 +534,6 @@ export default function App() {
         .falling-icon { position: fixed; z-index: 10; animation: fall linear infinite; pointer-events: none; font-size: 1.5rem; opacity: 0.6; }
       `}</style>
 
-      {/* --- Floating Theme Decorations --- */}
       {storeSettings.theme && storeSettings.theme !== 'default' && currentThemeData.icons && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
           {[...Array(12)].map((_, i) => (
@@ -588,7 +583,6 @@ export default function App() {
       {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/10 backdrop-blur-sm" onClick={() => setIsSearchFocused(false)}></div>}
 
       <main className="flex-1 pb-10 relative z-10">
-        {/* --- Shop View --- */}
         {view === 'shop' && (
           <div className="animate-in fade-in">
             <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: currentThemeData.bg }}>
@@ -757,7 +751,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Cart View (หน้าตะกร้าสินค้าและการส่งบิลเข้า LINE ส่วนตัว) --- */}
+        {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl animate-in slide-in-from-bottom-10 relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
@@ -845,7 +839,7 @@ export default function App() {
                           )}
                           {slipStatus === 'valid' && (
                              <div className="bg-green-50 text-green-600 p-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 border border-green-100 animate-in zoom-in">
-                               <CheckCircle size={14}/> แนบสลิปเรียบร้อย
+                               <CheckCircle size={14}/> ยอดเงินตรงกับออร์เดอร์ (จำลองตรวจ AI)
                              </div>
                           )}
                        </div>
@@ -977,7 +971,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- My Orders View (ประวัติบิลคำสั่งซื้อฝั่งลูกค้า) --- */}
+        {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
@@ -1025,24 +1019,24 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Admin Tab (ระบบหลังบ้านแอดมินร้าน) --- */}
+        {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
                <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
-               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงเตือน</button>
+               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงระบบเตือนบิล</button>
             </div>
             
-            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner overflow-x-auto hide-scrollbar">
+            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner">
               {['orders', 'menus', 'dashboard', 'settings'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 min-w-[70px] py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary'}`}>
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary'}`}>
                   {t === 'orders' ? 'ออร์เดอร์' : t === 'menus' ? 'เมนู' : t === 'dashboard' ? 'รายรับ' : 'ตั้งค่า'}
                 </button>
               ))}
             </div>
 
-            {/* TAB: Dashboard รายรับ */}
+            {/* TAB: Dashboard */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl">
@@ -1082,7 +1076,7 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
+            {/* TAB: Orders */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
                 {orders.map((o, idx) => (
@@ -1120,21 +1114,23 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB: ระบบจัดการคลังเมนูของร้าน */}
+            {/* TAB: Menus */}
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
-                {/* 🌟 ส่วน Header จัดการเมนู และ ปุ่มสร้างป้ายเมนูรวม (Menu Board) */}
-                <div className="bg-gradient-to-br from-[var(--theme-accent)] to-[var(--theme-primary)] p-6 rounded-[2.5rem] shadow-lg flex flex-col items-center justify-center gap-3 relative overflow-hidden">
-                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl pointer-events-none"></div>
-                   <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black opacity-20 rounded-full blur-2xl pointer-events-none"></div>
-                   
-                   <h3 className="text-white font-bold text-lg font-serif z-10 flex items-center gap-2"><ClipboardList/> จัดการเมนู & โปรโมท</h3>
-                   <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white py-4 rounded-2xl font-bold text-sm shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/30 z-10">
-                      <ImageIcon size={18}/> 🖨️ สร้างป้ายเมนูรวม (Menu Board)
-                   </button>
+                
+                {/* 🌟 [NEW] ปุ่มสร้างป้าย Menu Board */}
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-[2rem] border border-red-100 shadow-sm flex flex-col items-center justify-center text-center">
+                  <div className="bg-white p-3 rounded-full shadow-md text-red-500 mb-3">
+                     <Palette size={24} />
+                  </div>
+                  <h3 className="font-bold text-sm text-red-800 mb-1">สร้างป้ายเมนูรวม (Menu Board)</h3>
+                  <p className="text-[10px] text-red-600 mb-4">ระบบจะนำเมนูและท็อปปิ้งทั้งหมดมาสร้างเป็นรูปป้าย A4 แนวตั้งอัตโนมัติ สำหรับโพสต์โซเชียลหรือปริ้นต์</p>
+                  <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
+                     <Upload size={16} /> สร้างและดูรูปตัวอย่าง
+                  </button>
                 </div>
 
-                <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative mt-4">
+                <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative">
                    <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
                    <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหาชื่อเมนู..." className="w-full pl-12 pr-10 py-4 rounded-2xl text-sm outline-none bg-white focus:ring-2 focus:ring-[var(--theme-accent)] transition-all"/>
                 </div>
@@ -1185,11 +1181,7 @@ export default function App() {
                                 <p className="text-xs text-accent font-bold">฿{item.price}</p>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              {/* ปุ่มสร้างป้ายโปรโมทแบบเดี่ยว (Instagram Poster) */}
-                              <button onClick={() => setPosterMenu(item)} className="p-2 text-indigo-500 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors" title="สร้างป้ายโปรโมทแบบเดี่ยว"><ImageIcon size={16}/></button>
-                              <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"><Trash2 size={16}/></button>
-                            </div>
+                            <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={16}/></button>
                           </div>
                         ))}
                       </div>
@@ -1199,7 +1191,7 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB: ตั้งค่าบัญชีและธีมร้าน */}
+            {/* TAB: Settings */}
             {adminTab === 'settings' && (
               <div className="space-y-6 animate-in fade-in">
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-[2.5rem] border border-indigo-100 space-y-4 shadow-sm">
@@ -1234,237 +1226,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- 🌟 [ใหม่] Modal สร้างป้ายเมนูรวม (Menu Board) --- */}
-      {showMenuBoardModal && (
-        <div className="fixed inset-0 bg-black/85 z-[200] flex flex-col items-center p-4 animate-in fade-in backdrop-blur-md overflow-y-auto">
-          
-          {/* Action Bar (Top) */}
-          <div className="w-full max-w-[800px] flex justify-between items-center mb-4 sticky top-0 z-50 p-2">
-            <button onClick={() => setShowMenuBoardModal(false)} className="bg-white/10 text-white p-3 rounded-full hover:bg-white/20 transition-all backdrop-blur-md"><X size={24}/></button>
-            <button 
-               onClick={() => generateImageFromRef(menuBoardRef, 'ป้ายเมนูรวม_วัวนมอารมณ์ดี.png')} 
-               disabled={isGeneratingPoster}
-               className={`py-3 px-6 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg transition-all active:scale-95 backdrop-blur-md ${isGeneratingPoster ? 'bg-gray-500 text-gray-300' : 'bg-green-500 text-white hover:bg-green-600 border border-green-400'}`}
-            >
-               {isGeneratingPoster ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Download size={20}/>}
-               {isGeneratingPoster ? 'กำลังเรนเดอร์ภาพ (รอสักครู่)...' : 'ดาวน์โหลดป้าย (ความละเอียดสูง)'}
-            </button>
-          </div>
-
-          {/* 
-            The Menu Board Container
-            กำหนดขนาด Fixed (800x1131) อัตราส่วนคล้าย A4 เพื่อให้ html2canvas จับภาพออกมาชัดและไม่แตก
-            ใช้ CSS Transform เพื่อย่อขนาดให้พอดีกับหน้าจอมือถือเวลา Preview
-          */}
-          <div className="relative w-[800px] h-[1131px] bg-white rounded-xl shadow-2xl flex-shrink-0 overflow-hidden transform origin-top scale-[0.4] sm:scale-[0.6] md:scale-90 lg:scale-100" style={{ transformOrigin: 'top center' }}>
-             
-             {/* ซ่อนเนื้อหาจริงๆ ใน Ref เพื่อนำไป Render */}
-             <div ref={menuBoardRef} className="absolute inset-0 w-[800px] h-[1131px] flex flex-col font-kanit" style={{ background: `linear-gradient(180deg, ${currentThemeData.bg} 0%, #ffffff 40%, #ffffff 100%)` }}>
-                
-                {/* 1. ส่วน Header (โลโก้ + ชื่อร้าน) */}
-                <div className="relative w-full h-[220px] flex items-center justify-center border-b-[8px]" style={{ borderColor: currentThemeData.primary }}>
-                   <div className="absolute top-0 left-0 w-full h-full opacity-10" style={{ backgroundColor: currentThemeData.accent }}></div>
-                   
-                   {/* ไอคอน/โลโก้วัว */}
-                   <div className="absolute left-[50px] bottom-0 flex items-end">
-                      <div className="text-[120px] leading-none z-10" style={{ filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.2))' }}>🐮</div>
-                      <div className="text-[60px] leading-none -ml-8 mb-4 z-20" style={{ filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.2))' }}>🧋</div>
-                   </div>
-
-                   {/* ข้อความชื่อร้าน */}
-                   <div className="flex flex-col items-center ml-[180px] z-10">
-                      <h1 className="font-serif font-bold text-[85px] leading-none tracking-tight" style={{ color: currentThemeData.primary, textShadow: '2px 2px 0px #fff, 4px 4px 0px rgba(0,0,0,0.1)' }}>วัวนมอารมณ์ดี</h1>
-                      <div className="flex items-center gap-4 mt-2">
-                         <div className="w-16 h-[2px]" style={{ backgroundColor: currentThemeData.accent }}></div>
-                         <h2 className="font-serif text-[40px] leading-none text-gray-700 uppercase tracking-widest">Happy Moo</h2>
-                         <div className="w-16 h-[2px]" style={{ backgroundColor: currentThemeData.accent }}></div>
-                      </div>
-                      <p className="text-[20px] font-bold mt-3 text-gray-600 tracking-widest flex items-center gap-2">
-                         <span style={{ color: currentThemeData.accent }}>♥</span> สดชื่น หวานมัน กลมกล่อม <span style={{ color: currentThemeData.accent }}>♥</span>
-                      </p>
-                   </div>
-                </div>
-
-                {/* 2. ส่วน Main Body (แบ่ง 2 คอลัมน์ 60/40) */}
-                <div className="flex-1 flex px-[40px] py-[30px] gap-[40px]">
-                   
-                   {/* 2.1 ฝั่งซ้าย (รายการเมนูเครื่องดื่ม) */}
-                   <div className="w-[60%] flex flex-col relative z-10">
-                      
-                      {/* หัวตารางราคา */}
-                      <div className="flex justify-between items-end border-b-4 pb-2 mb-4" style={{ borderColor: currentThemeData.accent }}>
-                         <div className="font-bold text-[32px] text-white px-8 py-1 rounded-t-3xl rounded-br-3xl inline-block" style={{ backgroundColor: currentThemeData.primary }}>เมนู</div>
-                         <div className="flex gap-6 pr-2">
-                            <span className="font-bold text-[22px] w-16 text-center" style={{ color: currentThemeData.primary }}>เย็น</span>
-                            <span className="font-bold text-[22px] w-16 text-center" style={{ color: currentThemeData.primary }}>ปั่น</span>
-                         </div>
-                      </div>
-
-                      {/* รายการเครื่องดื่ม (ดึงเฉพาะที่เปิดขาย) */}
-                      <div className="flex flex-col gap-1.5 flex-1">
-                         {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(cat => {
-                            const items = menuItems.filter(i => i.category === cat && !i.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0));
-                            if(!items.length) return null;
-                            return (
-                               <div key={cat} className="mb-3">
-                                  {/* ชื่อหมวดหมู่ย่อย */}
-                                  <h4 className="font-bold text-[18px] mb-1 pl-2 opacity-80" style={{ color: currentThemeData.primary }}>{cat}</h4>
-                                  
-                                  {items.map(item => {
-                                     const coldPrice = item.isOnlyBlend ? '-' : item.price;
-                                     const blendPrice = item.allowBlend === false ? '-' : (item.price + getAddedBlendPrice(item));
-                                     return (
-                                        <div key={item.id} className="flex justify-between items-end w-full mb-1">
-                                           <div className="font-semibold text-[20px] text-gray-800 bg-white pr-2 whitespace-nowrap">{item.name}</div>
-                                           {/* เส้นประ Dotted Line */}
-                                           <div className="flex-grow border-b-[3px] border-dotted border-gray-300 relative top-[-8px] mx-1"></div>
-                                           <div className="flex gap-6 bg-white pl-2">
-                                              <div className="font-bold text-[22px] text-gray-700 w-16 text-center">{coldPrice}</div>
-                                              <div className="font-bold text-[22px] text-gray-700 w-16 text-center">{blendPrice}</div>
-                                           </div>
-                                        </div>
-                                     )
-                                  })}
-                               </div>
-                            )
-                         })}
-                      </div>
-                   </div>
-
-                   {/* 2.2 ฝั่งขวา (ท็อปปิ้ง + QR Code) */}
-                   <div className="w-[40%] flex flex-col gap-[30px] relative z-10">
-                      
-                      {/* กล่องท็อปปิ้ง */}
-                      <div className="border-[3px] rounded-3xl overflow-hidden bg-white/80" style={{ borderColor: currentThemeData.accent }}>
-                         <div className="py-2 text-center text-white font-bold text-[28px]" style={{ backgroundColor: currentThemeData.accent }}>ท็อปปิ้ง</div>
-                         <div className="p-5 flex flex-col gap-3">
-                            {toppings.map(t => (
-                               <div key={t.id} className="flex justify-between items-center text-[22px]">
-                                  <span className="font-bold text-gray-700 flex items-center gap-2">
-                                     <span className="text-[24px]">✨</span> {t.name}
-                                  </span>
-                                  <span className="font-bold text-gray-800">{t.price} <span className="text-[18px] font-normal text-gray-500">บาท</span></span>
-                               </div>
-                            ))}
-                            {toppings.length === 0 && <div className="text-center text-gray-400 py-4">ไม่มีท็อปปิ้งเสริม</div>}
-                         </div>
-                      </div>
-
-                      {/* กล่อง QR Code ติดต่อ */}
-                      <div className="border-[3px] rounded-3xl p-5 flex flex-col items-center bg-white" style={{ borderColor: currentThemeData.primary }}>
-                         <h3 className="font-bold text-[24px] mb-4 flex items-center gap-2" style={{ color: currentThemeData.primary }}>
-                            <span style={{ color: currentThemeData.accent }}>♥</span> ช่องทางติดต่อ <span style={{ color: currentThemeData.accent }}>♥</span>
-                         </h3>
-                         {storeSettings.qrCodeImage ? (
-                            <img src={storeSettings.qrCodeImage} className="w-[200px] h-[200px] object-contain border border-gray-100 rounded-xl" alt="Contact QR" />
-                         ) : (
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://lin.ee/your-line-link`} className="w-[200px] h-[200px] p-2 border border-gray-100 rounded-xl" alt="Default QR" />
-                         )}
-                         <div className="bg-[#06C755] text-white px-6 py-2 rounded-full font-bold text-[20px] mt-4 shadow-md flex items-center gap-2">
-                            <MessageSquare size={20}/> สั่งซื้อผ่าน LINE
-                         </div>
-                      </div>
-
-                   </div>
-                </div>
-
-                {/* 3. ส่วน Footer (เงื่อนไขการจัดส่ง) */}
-                <div className="mt-auto px-[40px] pb-[30px] pt-4">
-                   <div className="grid grid-cols-3 gap-4 border-[3px] rounded-2xl bg-white" style={{ borderColor: currentThemeData.bg }}>
-                      {/* الشرط 1 */}
-                      <div className="flex items-center gap-3 p-3 border-r-[3px]" style={{ borderColor: currentThemeData.bg }}>
-                         <div className="p-3 rounded-full bg-orange-100 text-orange-600"><Home size={32}/></div>
-                         <div>
-                            <p className="font-bold text-[18px] text-gray-800 leading-none">กอล์ฟวิวส่งฟรี</p>
-                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งหน้าห้องแค่เข้าตึกได้</p>
-                         </div>
-                      </div>
-                      {/* الشرط 2 */}
-                      <div className="flex items-center gap-3 p-3 border-r-[3px]" style={{ borderColor: currentThemeData.bg }}>
-                         <div className="p-3 rounded-full bg-blue-100 text-blue-600"><CloudRain size={32}/></div>
-                         <div>
-                            <p className="font-bold text-[18px] text-gray-800 leading-none">ฝนตก</p>
-                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งใต้ตึกเท่านั้น</p>
-                         </div>
-                      </div>
-                      {/* الشرط 3 */}
-                      <div className="flex items-center gap-3 p-3">
-                         <div className="p-3 rounded-full bg-red-100 text-red-600"><ZapOff size={32}/></div>
-                         <div>
-                            <p className="font-bold text-[18px] text-gray-800 leading-none">ไฟดับ / ลิฟต์พัง</p>
-                            <p className="text-[14px] text-gray-500 leading-tight mt-1">ส่งใต้ตึกเท่านั้น</p>
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* Thank you bar */}
-                   <div className="w-full text-center text-white py-2 rounded-b-2xl font-bold text-[18px] tracking-widest mt-2" style={{ backgroundColor: currentThemeData.primary }}>
-                      <span style={{ color: currentThemeData.accent }}>♥</span> ขอบคุณที่อุดหนุนค่ะ <span style={{ color: currentThemeData.accent }}>♥</span>
-                   </div>
-                </div>
-
-             </div>
-          </div>
-          {/* พื้นที่ดัน Scroll ด้านล่างให้มือถือเลื่อนดูได้สุด */}
-          <div className="h-[20vh] w-full flex-shrink-0"></div>
-        </div>
-      )}
-
-      {/* --- Modal สร้างป้ายโปรโมทอัตโนมัติแบบเดี่ยว (Poster Generator - IG Story Style) --- */}
-      {posterMenu && (
-        <div className="fixed inset-0 bg-black/80 z-[150] flex flex-col items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
-          <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl flex flex-col relative">
-            
-            <button onClick={() => setPosterMenu(null)} className="absolute top-4 right-4 z-10 bg-black/50 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/70 transition-colors">
-               <X size={20}/>
-            </button>
-
-            {/* โซนที่ต้องการถ่ายภาพ Capture Area */}
-            <div ref={posterRef} className="w-full bg-gradient-to-br from-[#F5EEDC] to-[#ffffff] relative flex flex-col items-center p-8 text-center" style={{ aspectRatio: '3/4' }}>
-               {/* องค์ประกอบตกแต่ง */}
-               <div className="absolute top-0 left-0 w-full h-32 bg-[var(--theme-accent)] opacity-10 rounded-b-[50%]"></div>
-               <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-               
-               <h1 className="font-serif font-bold text-2xl text-[var(--theme-primary)] mb-6 z-10">วัวนมอารมณ์ดี 🐮</h1>
-               
-               <div className="relative z-10 w-48 h-48 mb-6">
-                 <div className="absolute inset-0 bg-white rounded-[2rem] shadow-xl transform rotate-3"></div>
-                 <img src={posterMenu.image} className="absolute inset-0 w-full h-full object-cover rounded-[2rem] shadow-lg transform -rotate-3 border-4 border-white" alt="menu poster" crossOrigin="anonymous" />
-                 {posterMenu.isPromoted && (
-                    <div className="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg transform rotate-12 border-2 border-white">
-                      แนะนำ! 🔥
-                    </div>
-                 )}
-               </div>
-
-               <h2 className="font-kanit font-bold text-3xl text-[var(--theme-primary)] leading-tight mb-2 z-10 line-clamp-2">{posterMenu.name}</h2>
-               
-               <div className="mt-auto mb-4 z-10">
-                 <p className="text-[10px] font-bold text-[var(--theme-accent)] uppercase tracking-[0.2em] mb-1">เพียงแก้วละ</p>
-                 <div className="bg-[var(--theme-primary)] text-white px-8 py-3 rounded-full font-bold text-4xl shadow-2xl inline-block border-4 border-[#F5EEDC]">
-                    ฿{posterMenu.price}
-                 </div>
-               </div>
-
-               {posterMenu.hasFreePearl && (
-                  <p className="font-kanit text-orange-600 font-bold text-sm bg-orange-100 px-4 py-1.5 rounded-full z-10 border border-orange-200">
-                    ✨ ฟรีไข่มุกหนึบหนับ!
-                  </p>
-               )}
-            </div>
-
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
-               <button onClick={() => generateImageFromRef(posterRef, `ป้ายโปรโมท_${posterMenu.name}.png`)} disabled={isGeneratingPoster} className={`flex-1 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${isGeneratingPoster ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                  {isGeneratingPoster ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Download size={18}/>}
-                  {isGeneratingPoster ? 'กำลังสร้างรูปภาพ...' : 'บันทึกรูปป้ายลงเครื่อง'}
-               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
+      {/* --- Modal เลือกออปชันเมนู --- */}
       {optionModalItem && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
@@ -1500,7 +1262,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
+      {/* Modal ถ่ายรูปส่งของ */}
       {deliveryModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
@@ -1523,7 +1285,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
+      {/* Modal ดูสลิป */}
       {selectedSlip && (
         <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4" onClick={() => setSelectedSlip(null)}>
           <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl animate-in zoom-in" alt="slip preview" />
@@ -1549,23 +1311,203 @@ export default function App() {
         </div>
       )}
 
-      {/* --- 🌟 [NEW] Modal แสดงรูปภาพที่สร้างเสร็จ (ป้องกันปัญหาโหลดไม่ลงในมือถือ) --- */}
+      {/* --- 🌟 [NEW] Modal แสดงรูปภาพที่สร้างเสร็จ --- */}
       {generatedPreview && (
         <div className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4 animate-in zoom-in backdrop-blur-md">
           <button onClick={() => setGeneratedPreview(null)} className="absolute top-4 right-4 bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
           
           <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse">
-            <p className="text-white font-bold flex items-center justify-center gap-2"><ArrowDownToLine size={20}/> สร้างรูปภาพสำเร็จ!</p>
+            <p className="text-white font-bold flex items-center justify-center gap-2"><Download size={20}/> สร้างป้ายเมนูสำเร็จ!</p>
             <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพ ด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
           </div>
 
-          <div className="relative w-full max-w-lg max-h-[60vh] overflow-auto hide-scrollbar rounded-2xl shadow-2xl border-4 border-white/20 bg-white">
+          <div className="relative w-full max-w-md max-h-[60vh] overflow-auto hide-scrollbar rounded-2xl shadow-2xl border-4 border-white/20 bg-white">
             <img src={generatedPreview.src} className="w-full object-contain" alt="Generated Poster" />
           </div>
 
           <a href={generatedPreview.src} download={generatedPreview.name} className="mt-8 bg-green-500 text-white px-8 py-4 rounded-full font-bold text-sm shadow-xl flex items-center gap-2 hover:bg-green-600 transition-all active:scale-95">
-             <Download size={20}/> ดาวน์โหลด (สำหรับ PC)
+             <Download size={20}/> ดาวน์โหลดรูปลงเครื่อง (PC)
           </a>
+        </div>
+      )}
+
+      {/* --- 🌟 [NEW] Hidden Container สำหรับวาดป้าย Menu Board (ใช้วิธี Traditional HTML/CSS แบบ Table เพื่อป้องกันการเละตอน Render ด้วย html2canvas) --- */}
+      {showMenuBoardModal && (
+        <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col items-center justify-center p-4">
+           {isGeneratingPoster ? (
+              <div className="bg-white p-8 rounded-3xl flex flex-col items-center gap-4 text-center">
+                 <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                 <h3 className="font-bold text-primary">กำลังวาดรูปป้ายเมนู...</h3>
+                 <p className="text-[10px] text-gray-500">กรุณารอสักครู่ ห้ามปิดหน้าจอ</p>
+              </div>
+           ) : (
+             <div className="w-full max-w-[800px] h-[80vh] bg-gray-100 rounded-3xl flex flex-col overflow-hidden relative">
+                <div className="flex justify-between items-center bg-white p-4 border-b">
+                   <h3 className="font-bold text-primary">ตัวอย่างป้ายเมนูรวม</h3>
+                   <div className="flex gap-2">
+                     <button onClick={() => setShowMenuBoardModal(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">ปิด</button>
+                     <button onClick={generateMenuBoard} className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold flex items-center gap-1"><Download size={16}/> สร้างรูป</button>
+                   </div>
+                </div>
+                
+                <div className="flex-1 overflow-auto bg-gray-200 p-8 flex justify-center">
+                   {/* 🎨 [CORE POSTER DESIGN] - ใช้ CSS ล้วนๆ ห้ามใช้ Tailwind เพื่อความชัวร์ของ html2canvas */}
+                   <div 
+                      id="menu-board-container"
+                      ref={menuBoardRef} 
+                      style={{
+                         width: '794px', // A4 Width
+                         minHeight: '1123px', // A4 Height
+                         backgroundColor: '#fffdf9', // โทนครีมอ่อนๆ แบบในเรฟ
+                         fontFamily: "'Sarabun', 'Mitr', sans-serif",
+                         position: 'relative',
+                         border: '10px solid #cc3333', // ขอบสีแดงเลือดหมู
+                         borderRadius: '30px',
+                         padding: '40px',
+                         boxSizing: 'border-box',
+                         display: 'flex',
+                         flexDirection: 'column',
+                         overflow: 'hidden'
+                      }}
+                   >
+                      {/* --- Header: Logo & Title --- */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
+                         <tbody>
+                            <tr>
+                               <td style={{ width: '35%', verticalAlign: 'middle', textAlign: 'center' }}>
+                                 {/* ใช้ Emoji หรือรูปวัวง่ายๆ แทนเพื่อไม่ให้ Error */}
+                                 <div style={{ fontSize: '100px', lineHeight: '1' }}>🐮🥤</div>
+                               </td>
+                               <td style={{ width: '65%', verticalAlign: 'middle', textAlign: 'left', paddingLeft: '20px' }}>
+                                  <h1 style={{ margin: '0', fontSize: '80px', color: '#cc3333', fontWeight: '900', letterSpacing: '-2px' }}>วัวนมอารมณ์ดี</h1>
+                                  <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0' }}>
+                                     <div style={{ flex: 1, height: '2px', backgroundColor: '#555' }}></div>
+                                     <span style={{ padding: '0 20px', fontSize: '40px', color: '#555', fontFamily: 'serif' }}>Happy Moo</span>
+                                     <div style={{ flex: 1, height: '2px', backgroundColor: '#555' }}></div>
+                                  </div>
+                                  <p style={{ margin: '0', fontSize: '24px', color: '#333', textAlign: 'center' }}>🤎 สดชื่น หวานมัน กลมกล่อม 🤎</p>
+                               </td>
+                            </tr>
+                         </tbody>
+                      </table>
+
+                      {/* --- Main Content (Left Menu / Right Addons) --- */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', flex: 1 }}>
+                         <tbody>
+                            <tr>
+                               {/* คอลัมน์ซ้าย: รายการเมนู */}
+                               <td style={{ width: '60%', verticalAlign: 'top', paddingRight: '30px', borderRight: '2px dashed #ddd' }}>
+                                  
+                                  {/* Header เมนู เย็น ปั่น */}
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                                     <tbody>
+                                        <tr>
+                                           <td style={{ width: '60%' }}>
+                                              <div style={{ backgroundColor: '#cc3333', color: 'white', padding: '10px 30px', borderRadius: '0 20px 20px 0', display: 'inline-block', fontSize: '28px', fontWeight: 'bold' }}>เมนู</div>
+                                           </td>
+                                           <td style={{ width: '20%', textAlign: 'center', fontSize: '24px', color: '#cc3333', fontWeight: 'bold' }}>เย็น</td>
+                                           <td style={{ width: '20%', textAlign: 'center', fontSize: '24px', color: '#cc3333', fontWeight: 'bold' }}>ปั่น</td>
+                                        </tr>
+                                     </tbody>
+                                  </table>
+
+                                  {/* รายการเมนูทั้งหมด (รันด้วย Loop) */}
+                                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                     <tbody>
+                                        {menuItems.filter(m => !m.isSoldOut).slice(0, 30).map((menu, i) => (
+                                           <tr key={i}>
+                                              <td style={{ width: '60%', padding: '8px 0', verticalAlign: 'bottom' }}>
+                                                 <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                                                    <span style={{ fontSize: '20px', color: '#333', fontWeight: '600', whiteSpace: 'nowrap' }}>{menu.name}</span>
+                                                    <div style={{ flex: 1, borderBottom: '2px dotted #aaa', margin: '0 10px', position: 'relative', top: '-6px' }}></div>
+                                                 </div>
+                                              </td>
+                                              <td style={{ width: '20%', textAlign: 'center', fontSize: '22px', color: '#333', fontWeight: 'bold', padding: '8px 0' }}>
+                                                 {menu.isOnlyBlend ? '-' : menu.price}
+                                              </td>
+                                              <td style={{ width: '20%', textAlign: 'center', fontSize: '22px', color: '#333', fontWeight: 'bold', padding: '8px 0' }}>
+                                                 {menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}
+                                              </td>
+                                           </tr>
+                                        ))}
+                                     </tbody>
+                                  </table>
+
+                               </td>
+
+                               {/* คอลัมน์ขวา: ท็อปปิ้ง & QR Code */}
+                               <td style={{ width: '40%', verticalAlign: 'top', paddingLeft: '30px' }}>
+                                  
+                                  {/* กล่องท็อปปิ้ง */}
+                                  {toppings.length > 0 && (
+                                     <div style={{ border: '2px solid #cc3333', borderRadius: '20px', overflow: 'hidden', marginBottom: '40px' }}>
+                                        <div style={{ backgroundColor: '#cc3333', color: 'white', padding: '15px 0', textAlign: 'center', fontSize: '28px', fontWeight: 'bold' }}>ท็อปปิ้ง</div>
+                                        <div style={{ padding: '20px' }}>
+                                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                              <tbody>
+                                                 {toppings.map((top, i) => (
+                                                    <tr key={i}>
+                                                       <td style={{ padding: '8px 0', fontSize: '20px', color: '#333', fontWeight: '600' }}>
+                                                          <span style={{ display: 'inline-block', width: '20px', textAlign: 'center', marginRight: '10px' }}>✨</span> 
+                                                          {top.name}
+                                                       </td>
+                                                       <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '22px', color: '#333', fontWeight: 'bold' }}>{top.price} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>บาท</span></td>
+                                                    </tr>
+                                                 ))}
+                                              </tbody>
+                                           </table>
+                                        </div>
+                                     </div>
+                                  )}
+
+                                  {/* กล่อง QR Code ช่องทางติดต่อ */}
+                                  <div style={{ border: '2px solid #ddd', borderRadius: '20px', padding: '20px', textAlign: 'center' }}>
+                                     <p style={{ margin: '0 0 15px 0', fontSize: '24px', color: '#cc3333', fontWeight: 'bold' }}>🤎 ช่องทางติดต่อ 🤎</p>
+                                     {storeSettings.qrCodeImage ? (
+                                        <img src={storeSettings.qrCodeImage} alt="QR" style={{ width: '80%', height: 'auto', borderRadius: '10px', marginBottom: '10px' }} />
+                                     ) : (
+                                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${storeSettings.promptPayNo}`} alt="QR Default" style={{ width: '80%', height: 'auto', borderRadius: '10px', marginBottom: '10px' }} />
+                                     )}
+                                     <p style={{ margin: '0', fontSize: '18px', color: '#555', fontWeight: 'bold' }}>สแกนเพื่อสั่งเครื่องดื่ม</p>
+                                  </div>
+
+                               </td>
+                            </tr>
+                         </tbody>
+                      </table>
+
+                      {/* --- Footer Conditions --- */}
+                      <div style={{ borderTop: '2px solid #eee', paddingTop: '20px', marginTop: '30px', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+                         <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '30px' }}>🛵</div>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#cc3333' }}>กอล์ฟวิวส่งฟรี</p>
+                            <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>ส่งหน้าห้องแค่เข้าตึกได้</p>
+                         </div>
+                         <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '30px' }}>🌧️</div>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#cc3333' }}>ฝนตก</p>
+                            <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>ส่งใต้ตึกเท่านั้น</p>
+                         </div>
+                         <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '30px' }}>⚡</div>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#cc3333' }}>ไฟดับ</p>
+                            <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>ส่งใต้ตึกเท่านั้น</p>
+                         </div>
+                         <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '30px' }}>🏢</div>
+                            <p style={{ margin: '5px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#cc3333' }}>ลิฟท์พัง</p>
+                            <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>ส่งใต้ตึกเท่านั้น</p>
+                         </div>
+                      </div>
+
+                      <div style={{ backgroundColor: '#cc3333', color: 'white', textAlign: 'center', padding: '10px', borderRadius: '30px', marginTop: '20px', fontSize: '20px', fontWeight: 'bold' }}>
+                         🤍 ขอบคุณที่อุดหนุนค่ะ 🤍
+                      </div>
+
+                   </div>
+                </div>
+             </div>
+           )}
         </div>
       )}
 
