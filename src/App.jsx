@@ -928,7 +928,7 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* 🌟 Failsafe Safe Order Function */}
+                {/* 🌟 ใช้งานปุ่มสั่งซื้อ Smart Fail-Safe 100% */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -974,7 +974,7 @@ export default function App() {
 
                         if (liffSuccess) {
                            setView('myOrders');
-                           showAlert("สั่งซื้อสำเร็จและแชร์บิลเรียบร้อยแล้ว! 🐮🎉");
+                           showAlert("สั่งซื้อสำเร็จและแชร์บิลเข้าไลน์แอดมินเรียบร้อยแล้ว! 🐮🎉");
                         } else {
                            setSuccessModalData({
                               orderId: orderRef.id,
@@ -1136,11 +1136,11 @@ export default function App() {
                         
                         {o.status === 'cooking' && (
                           <button onClick={() => { setDeliveryModal(o); setDeliveryImage(''); setDeliveryLocation('room'); }} className="flex-1 bg-green-500 text-white py-4 rounded-xl text-[11px] font-bold shadow-md flex items-center justify-center gap-1 active:scale-95 transition-all">
-                             <Check size={14}/> ส่งสินค้าแล้ว
+                             <Check size={14}/> จัดส่ง/ลูกค้ารับแล้ว
                           </button>
                         )}
                         
-                        {o.status === 'completed' && <div className="flex-1 text-center text-[10px] font-bold text-green-600 py-2 border border-green-200 rounded-xl bg-green-50">ส่งเรียบร้อย</div>}
+                        {o.status === 'completed' && <div className="flex-1 text-center text-[10px] font-bold text-green-600 py-2 border border-green-200 rounded-xl bg-green-50">สำเร็จเรียบร้อย</div>}
                       </div>
                     </div>
                 ))}
@@ -1152,7 +1152,7 @@ export default function App() {
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ปุ่ม Export CSV ย้ายมาอยู่บนสุดแทนบอร์ดเมนู */}
+                {/* 🌟 ปุ่ม Export CSV เมนู */}
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
                      <ClipboardList size={28} />
@@ -1288,7 +1288,7 @@ export default function App() {
                     let itemsInCategory = menuItems
                       .filter(item => {
                          if (category === 'สมูทตี้โยเกิร์ต') return item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้';
-                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || i.category === 'เมนูพิเศษ';
+                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
                          return item.category === category;
                       })
                       .sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
@@ -1574,7 +1574,7 @@ export default function App() {
             <div className="space-y-8">
               <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
                 <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
-                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>
+                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>{l}</button>
                 ))}</div>
               </div>
 
