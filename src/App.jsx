@@ -98,7 +98,7 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
   const [selectedSlip, setSelectedSlip] = useState(null); 
-  const [downloadPreview, setDownloadPreview] = useState(null); // 🌟 State ใหม่สำหรับโชว์รูปให้กดเซฟ (Fallback)
+  const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
   const [deliveryModal, setDeliveryModal] = useState(null);
@@ -248,15 +248,11 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // --- 🌟 ฟังก์ชันจัดการการดาวน์โหลดรูปภาพให้รองรับทุกเบราว์เซอร์ ---
   const handleDownloadImage = async (base64String, fileName) => {
-    // 1. ตรวจสอบว่าเปิดผ่าน LINE LIFF หรือไม่ (เพราะ LINE บล็อกการดาวน์โหลด)
     if (window.liff && window.liff.isInClient()) {
-      setDownloadPreview(base64String); // เด้งรูปขึ้นมาเต็มจอให้กดค้างเซฟ
+      setDownloadPreview(base64String); 
       return;
     }
-    
-    // 2. ถ้าเป็นเบราว์เซอร์ปกติ ลองแปลง Base64 -> Blob แล้วสั่งโหลด
     try {
       const res = await fetch(base64String);
       const blob = await res.blob();
@@ -270,7 +266,6 @@ export default function App() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download Error:", error);
-      // 3. ถ้าพัง (เช่น Cross-Origin หรือบล็อก) ให้โชว์รูปเต็มจอเพื่อให้กดค้างเซฟเอง
       setDownloadPreview(base64String);
     }
   };
@@ -619,11 +614,13 @@ export default function App() {
            {lineProfile.pictureUrl ? <img src={lineProfile.pictureUrl} className="w-10 h-10 rounded-full border-2 border-orange-100" alt="profile" /> : <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">🐮</div>}
            <div>
              <h1 className="font-serif font-bold text-lg leading-tight text-primary">วัวนมอารมณ์ดี</h1>
+             
+             {/* 🌟 ส่วนที่แก้ไข: สลับตำแหน่ง ชื่อ LINE และ ป้ายสถานะร้านค้า */}
              <div className="flex items-center gap-1 mt-1">
+               <p className="text-[9px] font-bold text-green-700 uppercase tracking-tighter">คุณ {(lineProfile.displayName || 'ลูกค้าทั่วไป').slice(0, 10)}</p>
                <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold text-white shadow-sm flex items-center gap-1 ${storeSettings.isStoreOpen !== false ? 'bg-green-500' : 'bg-red-500'}`}>
                  {storeSettings.isStoreOpen !== false ? '🟢 เปิดแล้วค่ะ' : '🔴 ปิดแล้วค่ะ'}
                </span>
-               <p className="text-[9px] font-bold text-green-700 uppercase tracking-tighter">คุณ {(lineProfile.displayName || 'ลูกค้าทั่วไป').slice(0, 10)}</p>
              </div>
            </div>
         </div>
@@ -1338,7 +1335,6 @@ export default function App() {
                                 </button>
                                 <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteMenu(item.id); }} className="p-3 text-red-500 hover:bg-red-100 active:scale-90 transition-all bg-red-50 rounded-xl"><Trash2 size={16}/></button>
                                 
-                                {/* 🌟 ส่วนที่แก้ไขเพิ่มใหม่: เรียกใช้ปุ่มดาวน์โหลดที่รองรับการใช้งานในแอป LINE ด้วยการโชว์ภาพเต็มจอให้กดเซฟ */}
                                 <button type="button" onClick={(e) => { 
                                   e.stopPropagation(); 
                                   handleDownloadImage(item.image, `menu_${item.name}.jpg`);
