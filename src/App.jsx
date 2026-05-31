@@ -327,6 +327,7 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
+  // --- 🌟 แอดมิน: กดยอมรับออร์เดอร์ พร้อมแชร์ลงแชทลูกค้าอัตโนมัติ ---
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
@@ -347,7 +348,7 @@ export default function App() {
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} 
+          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste หาใน LINE
           
           const res = await window.liff.shareTargetPicker([{
               type: "flex",
@@ -365,6 +366,7 @@ export default function App() {
     }
   };
 
+  // --- 🌟 แอดมิน: กดยืนยันการจัดส่ง พร้อมแชร์ภาพลงแชทลูกค้าอัตโนมัติ (แก้ไขเพิ่มเติมส่วน Fallback Modal) ---
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -385,6 +387,7 @@ export default function App() {
          deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
       });
 
+      // 🌟 สร้างข้อความสรุปสำหรับแชร์แบบธรรมดา (ใช้ตอนอยู่นอก LINE หรือแชร์ Flex ไม่ได้)
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders`;
 
@@ -411,7 +414,7 @@ export default function App() {
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} 
+          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste
           try {
               const res = await window.liff.shareTargetPicker([{
                   type: "flex",
@@ -423,15 +426,18 @@ export default function App() {
                   setDeliveryModal(null);
                   showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`);
               } else {
+                  // 🌟 แอดมินกดยกเลิกการแชร์ Flex ให้แสดง Modal สำรอง
                   setDeliveryModal(null);
                   setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
               }
           } catch (err) {
               console.error(err);
+              // 🌟 API Error ให้แสดง Modal สำรอง
               setDeliveryModal(null);
               setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
           }
       } else {
+          // 🌟 เปิดใช้งานนอกแอป LINE ให้แสดง Modal สำรอง
           setDeliveryModal(null);
           setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
       }
@@ -1351,6 +1357,18 @@ export default function App() {
                                   {editingMenu && editingMenu.id === item.id ? <X size={16}/> : <Edit size={16}/>}
                                 </button>
                                 <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteMenu(item.id); }} className="p-3 text-red-500 hover:bg-red-100 active:scale-90 transition-all bg-red-50 rounded-xl"><Trash2 size={16}/></button>
+                                
+                                {/* 🌟 ส่วนที่เพิ่มใหม่: ปุ่มดาวน์โหลดรูปภาพเมนู */}
+                                <button type="button" onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  const link = document.createElement("a");
+                                  link.href = item.image;
+                                  link.download = `menu_${item.name}.jpg`;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  showAlert('กำลังดาวน์โหลดรูปภาพ ' + item.name);
+                                }} className="p-3 text-green-500 hover:bg-green-100 active:scale-90 transition-all bg-green-50 rounded-xl" title="บันทึกรูปภาพเมนู"><Download size={16}/></button>
                               </div>
                             </div>
                             
@@ -1420,10 +1438,6 @@ export default function App() {
                                     if (file) { try { setEditingMenu({...editingMenu, image: await compressImage(file)}); } catch(err) { console.error(err); } }
                                   }} />
                                 </label>
-                                {/* 🌟 ปุ่มบันทึกรูปเมนู (เพิ่มตามคำสั่ง) */}
-                                <button onClick={handleUpdateMenu} className="w-full bg-blue-500 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition-all mt-2 mb-2 flex items-center justify-center gap-2 hover:bg-blue-600">
-                                  <Save size={16}/> บันทึกรูปเมนู
-                                </button>
                                 <div className="flex gap-2">
                                   <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm">ยกเลิก</button>
                                   <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"><Save size={18}/> บันทึกการแก้ไข</button>
@@ -1574,26 +1588,21 @@ export default function App() {
         )}
       </main>
 
-      {/* --- 🌟 Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ (อัปเดตมีรูปภาพ) --- */}
+      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-t-[3.5rem] sm:rounded-[3.5rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden relative">
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
+          
+          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
             
-            {/* รูปภาพสินค้า 30vh (ประมาณ 30% ของหน้าจอ) */}
-            <div className="w-full h-[30vh] min-h-[220px] relative flex-shrink-0 bg-gray-100">
+            {/* 🌟 ส่วนที่แก้ไขเพิ่มใหม่: รูปภาพเมนูด้านบน 30% ของจอ */}
+            <div className="w-full h-[30vh] relative flex-shrink-0 bg-gray-50">
               <img src={optionModalItem.image} alt={optionModalItem.name} className="w-full h-full object-cover" />
-              <button onClick={() => setOptionModalItem(null)} className="absolute top-6 right-6 p-3 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-colors shadow-lg active:scale-95">
-                <X size={20} />
-              </button>
+              {/* ไล่สีให้สมูทตอนต่อกับเนื้อหาด้านล่าง */}
+              <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent"></div>
             </div>
 
-            {/* พื้นที่ตัวเลือกด้านล่าง */}
-            <div className="p-8 pb-10 space-y-8 overflow-y-auto hide-scrollbar flex-1">
-              <div className="flex justify-between items-center">
-                <h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3>
-                <p className="text-xl font-bold text-accent">฿{optionModalItem.price}</p>
-              </div>
-
+            <div className="p-10 pt-6 space-y-10 overflow-y-auto hide-scrollbar">
+              <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400"><X/></button></div>
               <div className="space-y-8">
                 <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
                   <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
