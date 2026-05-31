@@ -324,7 +324,7 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
-  // --- 🌟 [UPDATED] Smart Fallback & Order Acceptance ---
+  // --- 🌟 [UPDATED] Smart Redirect & Order Acceptance ---
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
@@ -347,35 +347,23 @@ export default function App() {
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
           try { await navigator.clipboard.writeText(order.lineName); } catch(e){}
           
-          try {
-              const res = await window.liff.shareTargetPicker([{
-                  type: "flex",
-                  altText: `ออร์เดอร์ #${order.id.slice(0,6)} กำลังเตรียม!`,
-                  contents: flexPayload
-              }]);
-              
-              if (res) showAlert(`รับออร์เดอร์และแจ้งสถานะให้คุณ ${order.lineName} สำเร็จ! 🎉`);
-              else showAlert("อัปเดตสถานะในระบบแล้ว (แอดมินยกเลิกการส่งแชท)");
-          } catch (err) {
-              // กรณีอยู่ในแอปที่ไม่รองรับ Share (Fallback)
-              const fallbackText = `รับออร์เดอร์แล้ว 🐮\nบิล: #${order.id.slice(0,6)}\nลูกค้า: คุณ ${order.lineName}\nสถานะ: กำลังเตรียมเครื่องดื่มนะคะ 👩‍🍳`;
-              showConfirm(`อัปเดตสถานะสำเร็จ!\n\nคุณกำลังใช้งานแอปนอกระบบ LINE (เบราว์เซอร์ปกติ)\nต้องการส่งข้อความแจ้งลูกค้าผ่านแอป LINE หรือไม่?`, () => {
-                  window.open(`https://line.me/R/share?text=${encodeURIComponent(fallbackText)}`, '_blank');
-              });
-          }
+          const res = await window.liff.shareTargetPicker([{
+              type: "flex",
+              altText: `ออร์เดอร์ #${order.id.slice(0,6)} กำลังเตรียม!`,
+              contents: flexPayload
+          }]);
+          
+          if (res) showAlert(`รับออร์เดอร์และแจ้งสถานะให้คุณ ${order.lineName} สำเร็จ! 🎉`);
+          else showAlert("อัปเดตสถานะในระบบแล้ว (แอดมินยกเลิกการส่งแชท)");
       } else {
-          // Fallback เต็มรูปแบบสำหรับเบราว์เซอร์นอก LINE
-          const fallbackText = `รับออร์เดอร์แล้ว 🐮\nบิล: #${order.id.slice(0,6)}\nลูกค้า: คุณ ${order.lineName}\nสถานะ: กำลังเตรียมเครื่องดื่มนะคะ 👩‍🍳`;
-          showConfirm(`อัปเดตสถานะสำเร็จ!\n\nคุณกำลังใช้งานแอปนอกระบบ LINE (เบราว์เซอร์ปกติ)\nต้องการส่งข้อความแจ้งลูกค้าผ่านแอป LINE หรือไม่?`, () => {
-              window.open(`https://line.me/R/share?text=${encodeURIComponent(fallbackText)}`, '_blank');
-          });
+          showAlert("รับออร์เดอร์สำเร็จ! (แอดมินเปิดนอกแอป LINE จึงแชร์ข้อความไม่ได้)");
       }
     } catch (e) {
         showAlert("เกิดข้อผิดพลาด: " + e.message);
     }
   };
 
-  // --- 🌟 [UPDATED] Smart Fallback & Pickup Delivery Logic ---
+  // --- 🌟 [UPDATED] Smart Redirect & Pickup Delivery Logic ---
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -435,18 +423,13 @@ export default function App() {
                   showAlert("อัปเดตสถานะในระบบแล้ว (แอดมินยกเลิกการส่งแชท)");
               }
           } catch (err) {
+              console.error(err);
               setDeliveryModal(null);
-              const fallbackText = `ส่งออร์เดอร์แล้ว 🛵\nบิล: #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\nจุดส่ง: ${deliveryLocation === 'pickup' ? 'หน้าร้าน' : deliveryLocation}\nสถานะ: ${deliveryMessage}`;
-              showConfirm(`อัปเดตสถานะสำเร็จ!\n\nคุณกำลังใช้งานแอปนอกระบบ LINE (เบราว์เซอร์ปกติ)\nต้องการส่งข้อความแจ้งลูกค้าผ่านแอป LINE หรือไม่?`, () => {
-                  window.open(`https://line.me/R/share?text=${encodeURIComponent(fallbackText)}`, '_blank');
-              });
+              showAlert("อัปเดตสถานะสำเร็จ แต่การเปิดหน้าต่างส่งแชทล้มเหลว: " + err.message);
           }
       } else {
           setDeliveryModal(null);
-          const fallbackText = `ส่งออร์เดอร์แล้ว 🛵\nบิล: #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\nจุดส่ง: ${deliveryLocation === 'pickup' ? 'หน้าร้าน' : deliveryLocation}\nสถานะ: ${deliveryMessage}`;
-          showConfirm(`อัปเดตสถานะสำเร็จ!\n\nคุณกำลังใช้งานแอปนอกระบบ LINE (เบราว์เซอร์ปกติ)\nต้องการส่งข้อความแจ้งลูกค้าผ่านแอป LINE หรือไม่?`, () => {
-              window.open(`https://line.me/R/share?text=${encodeURIComponent(fallbackText)}`, '_blank');
-          });
+          showAlert("อัปเดตสถานะสำเร็จ! (เปิดนอกแอป LINE จึงแชร์ข้อความไม่ได้)");
       }
       
     } catch (e) { 
@@ -1550,7 +1533,7 @@ export default function App() {
                 });
                 setOptionModalItem(null);
               }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
-                <Plus size={24}/> เพิ่มลงตะกร้าเครื่องดื่ม
+                <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
             </button>
           </div>
         </div>
@@ -1603,7 +1586,51 @@ export default function App() {
         </div>
       )}
 
-      {/* แอดมินล็อกอิน Modal */}
+      {/* 🌟 [NEW] Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
+      {successModalData && (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
+             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>
+             <h3 className="text-xl font-bold text-primary">สั่งซื้อเรียบร้อยแล้วค่ะ! 🎉</h3>
+             <p className="text-xs text-gray-500 leading-relaxed">ระบบได้บันทึกออเดอร์ของท่านแล้ว กรุณาส่งข้อความยืนยันนี้ให้แอดมินร้านค่ะ</p>
+             
+             <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
+                <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
+             </div>
+
+             <div className="space-y-3">
+                <a 
+                  href={`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95"
+                >
+                   <Share2 size={18}/> แชร์บิลผ่านแอป LINE
+                </a>
+                <button 
+                  onClick={() => {
+                     navigator.clipboard.writeText(successModalData.text);
+                     showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชทร้านค้าได้เลยครับ");
+                  }}
+                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95"
+                >
+                   คัดลอกข้อความ
+                </button>
+                <button 
+                  onClick={() => {
+                     setSuccessModalData(null);
+                     setView('shop');
+                  }}
+                  className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
+                >
+                   ปิดหน้าต่าง
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
       {showAdminModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
           <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
@@ -1623,7 +1650,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Custom Message Box แทน Alert/Confirm */}
+      {/* 🌟 Custom Message Box แทนที่ Alert ดั้งเดิม */}
       {msgBox.isOpen && (
         <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
@@ -1657,6 +1684,7 @@ export default function App() {
               <button 
                 onClick={() => {
                   setMsgBox({ ...msgBox, isOpen: false });
+                  // เช็คว่าถ้าเป็นข้อความหลังส่งให้ลูกค้าสำเร็จ ควรสั่งปิดหน้าต่างให้เพื่อกลับไปหน้าแชท
                   if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
                       window.liff.closeWindow();
                   }
