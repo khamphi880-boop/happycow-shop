@@ -262,21 +262,12 @@ export default function App() {
       // รอให้ฟอนต์และ DOM นิ่ง
       await new Promise(r => setTimeout(r, 1500));
 
-      // ⚠️ แก้ไข: ห้ามใส่ allowTaint: true เด็ดขาด เพราะจะทำให้ Canvas ติด Security Error และค้าง
+      // ⚠️ แก้ไข: ห้ามใช้ allowTaint: true เด็ดขาด เพราะจะทำให้ Canvas ติด Security Error (undefined error)
       const canvas = await window.html2canvas(menuBoardRef.current, { 
          scale: 2, 
          useCORS: true, 
          backgroundColor: '#fffdf6',
-         logging: false,
-         onclone: (doc) => {
-            const el = doc.getElementById('menu-board-container');
-            if (el) {
-                el.style.transform = 'none';
-                el.style.position = 'relative';
-                el.style.top = '0';
-                el.style.left = '0';
-            }
-         }
+         logging: false
       });
 
       const imageBase64 = canvas.toDataURL("image/png");
@@ -284,43 +275,9 @@ export default function App() {
       
     } catch (err) {
       console.error("Error generating menu board:", err);
-      alert("เกิดข้อผิดพลาดในการสร้างรูปป้ายครับ: " + err.message);
+      alert("เกิดข้อผิดพลาดในการสร้างรูปป้ายครับ: " + (err.message || "Canvas Error"));
     } finally {
       setIsGeneratingPoster(false);
-    }
-  };
-
-  const handleSaveOrSharePoster = async () => {
-    if (!generatedPreview) return;
-    try {
-        if (navigator.share) {
-            const response = await fetch(generatedPreview.src);
-            const blob = await response.blob();
-            const file = new File([blob], generatedPreview.name, { type: 'image/png' });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'ป้ายเมนู วัวนมอารมณ์ดี',
-                    text: 'ป้ายเมนูอัปเดตล่าสุดครับ'
-                });
-                return; 
-            }
-        }
-        
-        const link = document.createElement("a");
-        link.href = generatedPreview.src;
-        link.download = generatedPreview.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-    } catch (error) {
-        console.error("Share failed", error);
-        const link = document.createElement("a");
-        link.href = generatedPreview.src;
-        link.download = generatedPreview.name;
-        link.click();
     }
   };
 
@@ -822,7 +779,9 @@ export default function App() {
                     {storeSettings.qrCodeImage ? (
                       <img src={storeSettings.qrCodeImage} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
                     ) : (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
+                      <div className="w-40 h-40 mx-auto mb-4 bg-gray-200 p-2 rounded-xl flex items-center justify-center border border-gray-300 text-gray-400 text-[10px] text-center">
+                         กรุณาตั้งค่า<br/>QR Code ในระบบแอดมิน
+                      </div>
                     )}
                     
                     <div className="flex items-center justify-center gap-2 mb-6">
@@ -882,7 +841,7 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* --- 🛠️ ปุ่มสั่งซื้อ Smart Fail-Safe 100% พร้อมแนบลิงก์ออเดอร์ --- */}
+                {/* --- 🛠️ ปุ่มสั่งซื้อ Smart Fail-Safe 100% --- */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -899,11 +858,9 @@ export default function App() {
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
-                        // 🌟 แทรกลิงก์เข้าไปในข้อความสรุปออเดอร์
-                        const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders`;
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
-                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 ดูสถานะออร์เดอร์ของคุณได้ที่:\n${orderLink}`;
+                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 ดูสถานะออร์เดอร์ของคุณได้ที่:\nhttps://liff.line.me/${LIFF_ID}?action=viewOrders`;
 
                         try {
                           await navigator.clipboard.writeText(orderSummaryText);
@@ -911,37 +868,40 @@ export default function App() {
                           console.log("Clipboard bypass", cErr);
                         }
 
-                        let isLiffShared = false;
+                        // พยายามส่งผ่าน LIFF
                         if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient() && window.liff.isApiAvailable('shareTargetPicker')) {
-                          try {
-                            const res = await window.liff.shareTargetPicker([{
-                              type: "flex",
-                              altText: `🐮 ออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"} (฿${total})`,
-                              contents: {
-                                type: "bubble",
-                                header: { type: "box", layout: "vertical", backgroundColor: "#3D2C1E", contents: [{ type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" }] },
-                                body: { type: "box", layout: "vertical", spacing: "md", contents: [{ type: "text", text: `คุณ: ${lineProfile.displayName || "ลูกค้าทั่วไป"}`, weight: "bold" }, { type: "text", text: `ยอดรวม: ฿${total}`, color: "#dc2626", weight: "bold" }] }
-                              }
-                            }]);
-                            if (res) isLiffShared = true;
-                          } catch (err) {
-                            console.log("LIFF picker failed", err);
-                          }
-                        }
-
-                        setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
-
-                        if (isLiffShared) {
-                          setView('myOrders');
-                          alert("ส่งใบเสร็จเรียบร้อย! 🐮🎉");
+                          window.liff.shareTargetPicker([{
+                            type: "flex",
+                            altText: `🐮 ออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"} (฿${total})`,
+                            contents: {
+                              type: "bubble",
+                              header: { type: "box", layout: "vertical", backgroundColor: "#3D2C1E", contents: [{ type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" }] },
+                              body: { type: "box", layout: "vertical", spacing: "md", contents: [{ type: "text", text: `คุณ: ${lineProfile.displayName || "ลูกค้าทั่วไป"}`, weight: "bold" }, { type: "text", text: `ยอดรวม: ฿${total}`, color: "#dc2626", weight: "bold" }] }
+                            }
+                          }]).then((res) => {
+                             if (res) {
+                                setView('myOrders');
+                                alert("ส่งใบเสร็จเรียบร้อย! 🐮🎉");
+                                setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
+                             } else {
+                                setSuccessModalData({ orderId: orderRef.id, text: orderSummaryText });
+                                setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
+                             }
+                          }).catch(err => {
+                             console.error("LIFF picker error", err);
+                             setSuccessModalData({ orderId: orderRef.id, text: orderSummaryText });
+                             setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
+                          });
                         } else {
+                          // ไม่ได้อยู่ใน LINE โชว์ Failsafe Modal ทันที
                           setSuccessModalData({
                             orderId: orderRef.id,
                             text: orderSummaryText
                           });
+                          setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
                         }
                       } catch (err) {
-                        alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
+                        alert("เกิดข้อผิดพลาดในการบันทึก: " + (err.message || err));
                       } finally {
                         setIsLoading(false);
                       }
@@ -983,7 +943,8 @@ export default function App() {
                           
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
-                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''})
+                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''})
+                                {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
                               </p>
                           ))}</div>
 
@@ -1285,7 +1246,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 [NEW] Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
+      {/* 🌟 Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
       {successModalData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
@@ -1376,6 +1337,7 @@ export default function App() {
           
           <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse w-full max-w-md">
             <p className="text-white font-bold flex items-center justify-center gap-2 font-kanit text-lg"><CheckCircle size={24}/> สร้างป้ายสำเร็จ!</p>
+            <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพ ด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
           </div>
           
           <div className="w-full max-w-md max-h-[60vh] overflow-y-auto rounded-[2rem] shadow-2xl border-4 border-white/20 bg-white mb-6">
@@ -1386,14 +1348,14 @@ export default function App() {
             <button onClick={() => { setGeneratedPreview(null); setShowMenuBoardModal(false); }} className="py-4 bg-white/20 text-white rounded-2xl font-bold font-kanit active:scale-95 transition-all">
                ปิดหน้าต่าง
             </button>
-            <button onClick={handleSaveOrSharePoster} className="py-4 bg-green-500 text-white rounded-2xl font-bold font-kanit shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
-               <Share2 size={18}/> แซร์ / บันทึกรูป
-            </button>
+            <a href={generatedPreview.src} download={generatedPreview.name} className="py-4 bg-green-500 text-white rounded-2xl font-bold font-kanit shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+               <Download size={18}/> โหลดลงเครื่อง
+            </a>
           </div>
         </div>
       )}
 
-      {/* 🌟 [FIXED] Hidden Container สำหรับวาดป้าย Menu Board ป้องกันปัญหา Security CORS ที่ทำให้ Canvas เอ๋อ */}
+      {/* 🌟 [FIXED] Hidden Container สำหรับวาดป้าย Menu Board ป้องกันปัญหา UI ยับด้วย flexShrink: 0 และ ลบรูปภายนอกกัน error */}
       {showMenuBoardModal && (
         <div className="fixed inset-0 bg-black/90 z-[250] flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
            {isGeneratingPoster ? (
@@ -1414,13 +1376,17 @@ export default function App() {
                    </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto bg-gray-300 p-8 flex justify-center hide-scrollbar">
+                {/* 🌟 [CRITICAL FIX]: ใช้ overflow-auto กว้างเต็มจอเพื่อให้แบนเนอร์กางได้สุด แล้วค่อยเลื่อนดู ไม่โดนมือถือบีบอัด */}
+                <div className="flex-1 overflow-auto bg-gray-300 p-8 flex justify-start items-start">
                    <div 
                       id="menu-board-container"
                       ref={menuBoardRef} 
                       style={{
-                         width: '800px',
-                         minHeight: '1130px', 
+                         width: '794px',
+                         minWidth: '794px', 
+                         height: '1123px',
+                         minHeight: '1123px',
+                         flexShrink: 0, /* ป้องกันการบีบอัดหน้าจอ */
                          backgroundColor: '#fffdf6',
                          fontFamily: "'Kanit', sans-serif",
                          border: '6px solid #d32f2f',
@@ -1479,11 +1445,14 @@ export default function App() {
                             </div>
                             <div style={{ border: '2px solid #e0e0e0', borderRadius: '20px', padding: '20px', backgroundColor: '#ffffff', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                                <h3 style={{ margin: '0 0 15px 0', color: '#d32f2f', fontSize: '22px' }}>♥ ช่องทางติดต่อ ♥</h3>
-                               {/* 🌟 [FIXED] เพิ่ม crossOrigin เพื่อป้องกัน canvas taint ทำให้เซฟรูปไม่ได้ */}
+                               
+                               {/* 🌟 [FIXED] ตัด API ของ qrserver ออก เพื่อแก้ปัญหา 400 Bad Request และ Canvas Taint Error ชะงักตอนเซฟ */}
                                {storeSettings.qrCodeImage ? (
-                                  <img src={storeSettings.qrCodeImage} crossOrigin="anonymous" alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
+                                  <img src={storeSettings.qrCodeImage} alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
                                ) : (
-                                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${storeSettings.promptPayNo}`} crossOrigin="anonymous" alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
+                                  <div style={{ width: '160px', height: '160px', backgroundColor: '#f9f9f9', border: '1px dashed #ccc', borderRadius: '10px', marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                                     <span style={{ fontSize: '14px', color: '#999' }}>อัปโหลดรูป QR ในระบบหลังบ้าน</span>
+                                  </div>
                                )}
                                <p style={{ margin: '0', fontSize: '16px', color: '#555555', fontWeight: 'bold' }}>สแกนเพื่อสั่งเครื่องดื่มผ่าน LINE</p>
                             </div>
