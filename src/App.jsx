@@ -62,7 +62,6 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 };
 
 export default function App() {
-  // --- States: จัดการข้อมูลหลักของแอป ---
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
@@ -577,7 +576,7 @@ export default function App() {
       {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/10 backdrop-blur-sm" onClick={() => setIsSearchFocused(false)}></div>}
 
       <main className="flex-1 pb-10 relative z-10">
-        {}
+        {/* --- Shop View --- */}
         {view === 'shop' && (
           <div className="animate-in fade-in">
             <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: currentThemeData.bg }}>
@@ -745,8 +744,8 @@ export default function App() {
           </div>
         )}
 
-        {}
         {/* --- Cart View --- */}
+        {}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
@@ -791,9 +790,9 @@ export default function App() {
                   <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 text-center relative overflow-hidden">
                     <p className="text-xs font-bold mb-4 text-primary">สแกนชำระเงิน พร้อมแนบสลิป</p>
                     {storeSettings.qrCodeImage ? (
-                      <img src={storeSettings.qrCodeImage} crossOrigin="anonymous" className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
+                      <img src={storeSettings.qrCodeImage} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
                     ) : (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} crossOrigin="anonymous" className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
                     )}
                     
                     <div className="flex items-center justify-center gap-2 mb-6">
@@ -853,7 +852,7 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* 🌟 Failsafe Safe Order Function */}
+                {/* 🌟 [NEW] Failsafe Safe Order Function */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -928,6 +927,7 @@ export default function App() {
         )}
 
         {/* --- My Orders View --- */}
+        {}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
@@ -1159,7 +1159,7 @@ export default function App() {
                     let itemsInCategory = menuItems
                       .filter(item => {
                          if (category === 'สมูทตี้โยเกิร์ต') return item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้';
-                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || i.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
+                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
                          return item.category === category;
                       })
                       .sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
@@ -1308,6 +1308,7 @@ export default function App() {
             {/* TAB: ตั้งค่าบัญชีและธีมร้าน */}
             {adminTab === 'settings' && (
               <div className="space-y-6 animate-in fade-in">
+                {/* 1. Theme */}
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-[2.5rem] border border-indigo-100 space-y-4 shadow-sm">
                   <h3 className="font-bold text-sm text-indigo-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><Palette size={16}/> เลือกธีมร้านค้าดิจิทัล</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -1319,14 +1320,29 @@ export default function App() {
                   </div>
                 </div>
                 
+                {/* 2. Store Status & Blend Status */}
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border border-orange-200 space-y-4">
-                  <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะการเปิดรับบิลหน้าร้าน</h3>
+                  <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะร้าน และ วัตถุดิบ</h3>
                   <div className="flex gap-3">
                     <button onClick={() => updateStoreStatus(true)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400'}`}><CheckCircle size={18}/> เปิดร้าน</button>
                     <button onClick={() => updateStoreStatus(false)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 ${storeSettings.isStoreOpen === false ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400'}`}><X size={18}/> ปิดร้าน</button>
                   </div>
+                  
+                  {/* 🌟 [กู้คืน] ปุ่มปิด/เปิดเมนูปั่น */}
+                  <div className="mt-4 pt-4 border-t border-orange-200/50">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-orange-100 cursor-pointer transition-all hover:bg-orange-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🚫 วันนี้ไม่มีเมนูปั่น</p>
+                        <p className="text-[10px] text-gray-500 mt-1">ปิดรับออร์เดอร์ที่เป็นเมนูปั่นทั้งหมดชั่วคราว</p>
+                      </div>
+                      <input type="checkbox" checked={storeSettings.isBlendOut || false} onChange={async (e) => {
+                         try { await setDoc(doc(db, 'settings', 'store'), { isBlendOut: e.target.checked }, { merge: true }); showAlert('อัปเดตสถานะเมนูปั่นเรียบร้อย!'); } catch(err) { showAlert(err.message); }
+                      }} className="w-5 h-5 accent-orange-500 cursor-pointer" />
+                    </label>
+                  </div>
                 </div>
 
+                {/* 3. PromptPay */}
                 <div className="bg-gray-50 p-6 rounded-[2.5rem] border border-gray-200 space-y-4 shadow-inner">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">ตั้งค่าพร้อมเพย์สำหรับสร้าง QR</h3>
                   <input type="text" placeholder="หมายเลขพร้อมเพย์" className="w-full p-4 rounded-2xl text-sm border-transparent focus:ring-accent bg-white shadow-sm" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
@@ -1334,6 +1350,38 @@ export default function App() {
                     try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage }, { merge: true }); showAlert('อัปเดตการชำระเงินของร้านสำเร็จ! 🐮'); } catch(e) { showAlert("Error: " + e.message); }
                   }} className="w-full bg-primary text-white py-4 rounded-2xl font-bold text-sm active:scale-95 shadow-md">บันทึกข้อมูลธนาคาร</button>
                 </div>
+                
+                {/* 4. 🌟 [กู้คืน] Admin Notification Settings */}
+                <div className="bg-blue-50 p-6 rounded-[2.5rem] border-2 border-dashed border-blue-200 space-y-4 shadow-inner relative">
+                  <h3 className="font-bold text-sm text-blue-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><BellRing size={16}/> แจ้งเตือนออร์เดอร์ (LINE แอดมิน)</h3>
+                  
+                  <div className="mt-2">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🔔 เปิดแจ้งเตือนผ่าน LINE</p>
+                        <p className="text-[10px] text-gray-500 mt-1">บอทจะทักไปบอกทันทีที่มีออร์เดอร์</p>
+                      </div>
+                      <input type="checkbox" checked={editNotifyAdmin} onChange={e => setEditNotifyAdmin(e.target.checked)} className="w-5 h-5 accent-blue-500 cursor-pointer" />
+                    </label>
+                  </div>
+
+                  <div className={`transition-all ${editNotifyAdmin ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
+                    <label className="text-[11px] text-gray-500 mb-2 block font-bold">LINE User ID ของแอดมิน</label>
+                    <div className="flex gap-2">
+                       <input type="text" placeholder="ระบบจะดึงให้อัตโนมัติ..." className="flex-1 p-4 rounded-2xl text-[10px] outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all bg-white text-gray-500" value={editAdminLineId} onChange={e => setEditAdminLineId(e.target.value)} readOnly />
+                       <button onClick={() => setEditAdminLineId(lineProfile.userId)} className="bg-blue-500 text-white px-3 rounded-2xl text-[10px] font-bold shadow-sm active:scale-95 whitespace-nowrap hover:bg-blue-600 transition-colors">ดึง LINE ID ของฉัน</button>
+                    </div>
+                    <p className="text-[9px] text-blue-600 font-bold mt-2 leading-relaxed bg-blue-100/50 p-2 rounded-lg border border-blue-100">* ให้คุณแอดมินเปิดระบบนี้จาก <b>มือถือเครื่องที่จะรับแจ้งเตือน</b> แล้วกดปุ่ม "ดึง LINE ID ของฉัน" จากนั้นกดบันทึกด้านล่างได้เลยครับ</p>
+                  </div>
+
+                  <button onClick={async () => {
+                    if (editNotifyAdmin && !editAdminLineId) return showAlert('กรุณากดดึง LINE ID ก่อนบันทึกครับ');
+                    try { await setDoc(doc(db, 'settings', 'store'), { notifyAdmin: editNotifyAdmin, adminLineId: editAdminLineId }, { merge: true }); showAlert('อัปเดตการแจ้งเตือนสำเร็จ! 🎉'); } catch(e) { showAlert("Error: " + e.message); }
+                  }} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
+                    บันทึกการแจ้งเตือน
+                  </button>
+                </div>
+                
               </div>
             )}
           </div>
@@ -1473,13 +1521,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal ถ่ายรูปยืนยันการส่งของ / ลูกค้ารับเอง (แอดมินหลังบ้าน) */}
+      {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
       {deliveryModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-primary">ยืนยันการจัดส่งสินค้า</h3>
-              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2"><X size={20}/></button>
+              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
             </div>
             
             <div className="space-y-3">
@@ -1500,7 +1548,7 @@ export default function App() {
                          if(file){ setDeliveryImage(await compressImage(file)); }
                       }} />
                    </label>
-                   {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm" alt="Delivery Proof"/>}
+                   {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm border border-gray-100" alt="Delivery Proof"/>}
                 </div>
             )}
 
@@ -1510,7 +1558,7 @@ export default function App() {
                 </div>
             )}
 
-            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
                 {isDelivering ? 'กำลังบันทึกข้อมูล...' : 'อัปเดตสถานะบิลจัดส่งแล้ว'}
             </button>
           </div>
@@ -1518,53 +1566,33 @@ export default function App() {
       )}
 
       {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
-      {selectedSlip && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4" onClick={() => setSelectedSlip(null)}>
-          <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl animate-in zoom-in" alt="slip preview" />
+      {selectedSlip && selectedSlip !== 'cash_payment' && (
+        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
+          <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
         </div>
       )}
 
       {/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
       {showAdminModal && (
-        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
-            <h3 className="font-bold text-lg mb-6">ผู้ดูแลระบบเข้าใช้งาน</h3>
-            <input 
-              type="password" 
-              value={adminPassword} 
-              onChange={e => setAdminPassword(e.target.value)} 
-              className="w-full bg-gray-50 border p-4 rounded-xl text-center text-xl tracking-[0.3em] outline-none" 
-              placeholder="••••••" 
-            />
-            <div className="flex gap-3 mt-6">
-              <button 
-                onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} 
-                className="flex-1 py-3 bg-gray-100 rounded-xl text-xs font-bold"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                onClick={() => {
-                  if (adminPassword === '570402') {
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
+            <h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner" placeholder="••••••" />
+            <div className="flex gap-4">
+               <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
+               <button onClick={() => {
+                 if(adminPassword === '570402') { 
                     localStorage.setItem('happycow_isAdmin', 'true');
-                    setView('admin'); 
-                    setShowAdminModal(false); 
-                    setAdminPassword('');
-                  } else { 
-                    showAlert("รหัสผ่านไม่ถูกต้อง"); 
-                    setAdminPassword(''); 
-                  }
-                }} 
-                className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-bold"
-              >
-                เข้าสู่ระบบ
-              </button>
+                    setView('admin'); setShowAdminModal(false); setAdminPassword(''); 
+                 }
+                 else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
+               }} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 hover:opacity-90">ยืนยัน</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Custom Message Box */}
+      {/* 🌟 Custom Message Box แทนที่ Alert ดั้งเดิม */}
       {msgBox.isOpen && (
         <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
