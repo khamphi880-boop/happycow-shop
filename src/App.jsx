@@ -3,11 +3,12 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2 
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck 
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 
+// --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
   apiKey: "AIzaSyALI9gWvkoSfaGZd5tVxA-INr4QV5Cmf-w",
   authDomain: "happycowshop-fd7b0.firebaseapp.com",
@@ -35,6 +36,7 @@ const THEMES = {
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
+// --- 2. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
 const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -60,6 +62,7 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 };
 
 export default function App() {
+  // --- States: จัดการข้อมูลหลักของแอป ---
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
@@ -85,13 +88,13 @@ export default function App() {
   const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('happycow_paymentMethod') || 'promptpay'); 
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  
+
   // Custom Alert / Confirm Box State
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
   const showAlert = (message) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm: null });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
-
-  // Admin States
+  
+  // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
@@ -117,7 +120,7 @@ export default function App() {
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
 
-  // States: Failsafe Order Success
+  // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -322,13 +325,26 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
-  // --- 🌟 Smart Redirect: ระบบพาแอดมินเด้งกลับหน้าแชทเมื่อกดส่งสินค้าสำเร็จ ---
+  // --- 🌟 [UPDATED] Smart Redirect & Pickup Delivery Logic ---
   const handleConfirmDelivery = async () => {
-    if (!deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
+    if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
     try {
-      const deliveryMessage = deliveryLocation === 'room' ? 'ขอบคุณที่สั่งออเดอร์นะคะ 💖' : 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
-      await updateDoc(doc(db, 'orders', deliveryModal.id), { status: 'completed', deliveryLocation: deliveryLocation, deliveryMessage: deliveryMessage, deliveryImage: deliveryImage });
+      let deliveryMessage = '';
+      if (deliveryLocation === 'pickup') {
+         deliveryMessage = 'ลูกค้ารับสินค้าที่หน้าร้านเรียบร้อยแล้ว ขอบคุณที่อุดหนุนนะคะ 💖';
+      } else if (deliveryLocation === 'room') {
+         deliveryMessage = 'จัดส่งถึงหน้าห้องเรียบร้อยแล้ว ขอบคุณที่สั่งออเดอร์นะคะ 💖';
+      } else {
+         deliveryMessage = 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
+      }
+
+      await updateDoc(doc(db, 'orders', deliveryModal.id), { 
+         status: 'completed', 
+         deliveryLocation: deliveryLocation, 
+         deliveryMessage: deliveryMessage, 
+         deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
+      });
       
       setDeliveryModal(null);
       
@@ -378,7 +394,7 @@ export default function App() {
     completedOrders.forEach(o => {
       const date = new Date(o.timestamp).toLocaleString('th-TH');
       const payment = o.paymentMethod === 'cash' ? 'เงินสด' : 'โอนเงิน';
-      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : '-');
+      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
       csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -729,6 +745,8 @@ export default function App() {
           </div>
         )}
 
+        {}
+        {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
@@ -773,9 +791,9 @@ export default function App() {
                   <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 text-center relative overflow-hidden">
                     <p className="text-xs font-bold mb-4 text-primary">สแกนชำระเงิน พร้อมแนบสลิป</p>
                     {storeSettings.qrCodeImage ? (
-                      <img src={storeSettings.qrCodeImage} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
+                      <img src={storeSettings.qrCodeImage} crossOrigin="anonymous" className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl object-contain shadow-sm" alt="QR Code ร้าน" />
                     ) : (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} crossOrigin="anonymous" className="w-40 h-40 mx-auto mb-4 bg-white p-2 rounded-xl" alt="QR Code อัตโนมัติ" />
                     )}
                     
                     <div className="flex items-center justify-center gap-2 mb-6">
@@ -909,6 +927,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
@@ -957,6 +976,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
@@ -1139,7 +1159,7 @@ export default function App() {
                     let itemsInCategory = menuItems
                       .filter(item => {
                          if (category === 'สมูทตี้โยเกิร์ต') return item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้';
-                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
+                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || i.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
                          return item.category === category;
                       })
                       .sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
@@ -1429,55 +1449,70 @@ export default function App() {
               )}
             </div>
             
-            {storeSettings.isStoreOpen !== false ? (
-              <button onClick={() => {
-                  const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-                  const shotPrice = tempOptions.addShot ? 20 : 0;
-                  const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
-                  const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
-                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
-                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
-                  const shotStr = tempOptions.addShot ? `-addShot` : '';
-                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
-                  
-                  setCart(prev => {
-                    const ex = prev.find(i => i.cartId === cartId);
-                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
-                  });
-                  setOptionModalItem(null);
-                }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl transition-all sticky bottom-0 hover:opacity-90">
-                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
-              </button>
-            ) : (
-              <button disabled className="w-full py-6 bg-gray-300 text-white rounded-[2.5rem] font-bold text-lg flex items-center justify-center gap-3 shadow-xl sticky bottom-0 cursor-not-allowed">
-                  <AlertCircle size={20}/> ร้านปิดรับออเดอร์ชั่วคราว
-              </button>
-            )}
+            <button onClick={() => {
+                const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+                const shotPrice = tempOptions.addShot ? 20 : 0;
+                const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
+                const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
+                const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
+                const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
+                const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
+                const shotStr = tempOptions.addShot ? `-addShot` : '';
+                const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
+                
+                setCart(prev => {
+                  const ex = prev.find(i => i.cartId === cartId);
+                  if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+                  return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
+                });
+                setOptionModalItem(null);
+              }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl transition-all sticky bottom-0 hover:opacity-90">
+                <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
+      {/* Modal ถ่ายรูปยืนยันการส่งของ / ลูกค้ารับเอง (แอดมินหลังบ้าน) */}
       {deliveryModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-lg text-primary">ยืนยันและถ่ายรูปจัดส่ง</h3>
+              <h3 className="font-bold text-lg text-primary">ยืนยันการจัดส่งสินค้า</h3>
               <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2"><X size={20}/></button>
             </div>
-            <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
-               <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm">
-                  <Camera size={16}/> ถ่ายรูปหลักฐานการแขวนของ
-                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                     const file = e.target.files[0];
-                     if(file){ setDeliveryImage(await compressImage(file)); }
-                  }} />
-               </label>
-               {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm" alt="Delivery Proof"/>}
+            
+            <div className="space-y-3">
+               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block text-center">เลือกวิธีรับสินค้า</label>
+               <div className="grid grid-cols-3 gap-2">
+                 <button onClick={() => setDeliveryLocation('room')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'room' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Home size={20}/><span className="text-[10px]">หน้าห้อง</span></button>
+                 <button onClick={() => setDeliveryLocation('building')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'building' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Building size={20}/><span className="text-[10px]">หน้าตึก</span></button>
+                 <button onClick={() => { setDeliveryLocation('pickup'); setDeliveryImage(''); }} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'pickup' ? 'border-green-400 bg-green-50 text-green-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><UserCheck size={20}/><span className="text-[10px]">รับเอง</span></button>
+               </div>
             </div>
-            <button onClick={handleConfirmDelivery} disabled={!deliveryImage} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 bg-green-500 text-white ${!deliveryImage && 'opacity-50 cursor-not-allowed'}`}>อัปเดตสถานะบิลจัดส่งแล้ว</button>
+
+            {deliveryLocation !== 'pickup' && (
+                <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center animate-in fade-in zoom-in-95">
+                   <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm">
+                      <Camera size={16}/> ถ่ายรูปหลักฐานการแขวน
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={async e => {
+                         const file = e.target.files[0];
+                         if(file){ setDeliveryImage(await compressImage(file)); }
+                      }} />
+                   </label>
+                   {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm" alt="Delivery Proof"/>}
+                </div>
+            )}
+
+            {deliveryLocation === 'pickup' && (
+                <div className="bg-green-50 p-4 rounded-2xl border-2 border-dashed border-green-200 text-center text-green-700 font-bold text-sm animate-in fade-in zoom-in-95">
+                   ลูกค้ารับสินค้าด้วยตัวเองที่ร้าน ไม่ต้องแนบรูปถ่ายครับ ✅
+                </div>
+            )}
+
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+                {isDelivering ? 'กำลังบันทึกข้อมูล...' : 'อัปเดตสถานะบิลจัดส่งแล้ว'}
+            </button>
           </div>
         </div>
       )}
@@ -1529,7 +1564,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Custom Message Box (แทนที่ alert/confirm ป้องกันการบล็อกและเพิ่มความสวยงาม) */}
+      {/* Custom Message Box */}
       {msgBox.isOpen && (
         <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
