@@ -561,7 +561,7 @@ export default function App() {
       {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/10 backdrop-blur-sm" onClick={() => setIsSearchFocused(false)}></div>}
 
       <main className="flex-1 pb-10 relative z-10">
-        {/* --- Shop View --- */}
+        {}
         {view === 'shop' && (
           <div className="animate-in fade-in">
             <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: currentThemeData.bg }}>
@@ -729,7 +729,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
@@ -836,7 +835,7 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* 🌟 [NEW] Failsafe Safe Order Function */}
+                {/* 🌟 Failsafe Safe Order Function */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -910,7 +909,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
@@ -959,7 +957,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
@@ -1335,26 +1332,129 @@ export default function App() {
                 ))}</div>
               </div>
 
-              <div className="grid grid-cols-2 gap-5">
-                 <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
-                 <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Zap size={32}/><span className="text-xs uppercase text-center">ปั่น (+฿{getAddedBlendPrice(optionModalItem)})</span></button>
-              </div>
+              {/* ส่วนเลือกระดับการคั่ว (เฉพาะเมนูกาแฟ) */}
+              {optionModalItem.category === 'กาแฟ' && (
+                <div className="space-y-4">
+                   <div>
+                     <label className="text-[10px] font-bold block mb-4 text-[#5c3a21] uppercase tracking-widest flex items-center gap-1"><Coffee size={14} fill="currentColor"/> เลือกระดับการคั่วเมล็ดกาแฟ</label>
+                     <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วกลาง'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วกลาง' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วกลาง<br/><span className="text-[9px] font-normal">หอมนุ่ม ละมุน</span></button>
+                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วเข้ม'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วเข้ม' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วเข้ม<br/><span className="text-[9px] font-normal">เข้มข้น ถึงใจ</span></button>
+                     </div>
+                   </div>
+                   
+                   {/* ส่วนเพิ่มช็อตกาแฟ */}
+                   <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.addShot ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.addShot ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                          {tempOptions.addShot && <CheckCircle size={14} />}
+                        </div>
+                        <span className={`text-sm font-bold ${tempOptions.addShot ? 'text-primary' : 'text-gray-500'}`}>เพิ่มช็อตกาแฟ</span>
+                      </div>
+                      <span className="text-sm font-bold text-accent">+฿20</span>
+                      <input type="checkbox" className="hidden" checked={tempOptions.addShot || false} onChange={(e) => setTempOptions({...tempOptions, addShot: e.target.checked})} />
+                   </label>
+                </div>
+              )}
+
+              {/* ส่วนเลือกผงชา (เฉพาะเมนูที่มีให้เลือกรสชาติมัทฉะ) */}
+              {optionModalItem.hasTeaType && (
+                <div className="space-y-4">
+                   <div>
+                     <label className="text-[10px] font-bold block mb-4 text-[#4a5d23] uppercase tracking-widest flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
+                     <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-[#4a5d23] text-white border-[#4a5d23] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>มัทฉะ<br/><span className="text-[9px] font-normal">หอมเข้มข้น ดั้งเดิม</span></button>
+                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal">หอมคั่ว ละมุน</span></button>
+                     </div>
+                   </div>
+                </div>
+              )}
+
+              {optionModalItem.hasFreePearl && (
+                <div>
+                   <label className="text-sm font-bold block mb-4 text-orange-400 uppercase tracking-widest text-[10px] flex items-center gap-1"><Star size={12} fill="currentColor"/> แถมมุกฟรี!</label>
+                   <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => setTempOptions({...tempOptions, addPearl: true})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.addPearl ? 'bg-orange-400 text-white border-orange-400 shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>รับมุก (ฟรี)</button>
+                     <button onClick={() => setTempOptions({...tempOptions, addPearl: false})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${!tempOptions.addPearl ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>ไม่รับมุกฟรี</button>
+                   </div>
+                </div>
+              )}
+
+              {toppings.length > 0 && optionModalItem.allowTopping !== false && (
+                <div>
+                  <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">เพิ่มท็อปปิ้งอื่นๆ</label>
+                  <div className="space-y-2">
+                    {toppings.map(t => {
+                      const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
+                      return (
+                        <label key={t.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                              {isSelected && <CheckCircle size={14} />}
+                            </div>
+                            <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500'}`}>{t.name}</span>
+                          </div>
+                          <span className="text-sm font-bold text-accent">+฿{t.price}</span>
+                          <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
+                            setTempOptions(prev => {
+                              const currentToppings = prev.selectedToppings || [];
+                              if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
+                              return { ...prev, selectedToppings: [...currentToppings, t] };
+                            });
+                          }} />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ส่วนกำหนดประเภทการเสิร์ฟ (เย็น/ปั่น) */}
+              {optionModalItem.isOnlyBlend ? (
+                <div className="grid grid-cols-1 gap-5">
+                   <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
+                     <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
+                     {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
+                   </button>
+                </div>
+              ) : optionModalItem.allowBlend !== false ? (
+                <div className="grid grid-cols-2 gap-5">
+                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
+                   <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-5">
+                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
+                </div>
+              )}
             </div>
             
-            <button onClick={() => {
-                const isItemBlended = tempOptions.isBlended;
-                const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0);
-                const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}`;
-                
-                setCart(prev => {
-                  const ex = prev.find(i => i.cartId === cartId);
-                  if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                  return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, qty: 1 }];
-                });
-                setOptionModalItem(null);
-              }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
-                <Plus size={24}/> เพิ่มลงตะกร้าเครื่องดื่ม
-            </button>
+            {storeSettings.isStoreOpen !== false ? (
+              <button onClick={() => {
+                  const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+                  const shotPrice = tempOptions.addShot ? 20 : 0;
+                  const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
+                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
+                  const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
+                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
+                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
+                  const shotStr = tempOptions.addShot ? `-addShot` : '';
+                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
+                  
+                  setCart(prev => {
+                    const ex = prev.find(i => i.cartId === cartId);
+                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
+                  });
+                  setOptionModalItem(null);
+                }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl transition-all sticky bottom-0 hover:opacity-90">
+                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
+              </button>
+            ) : (
+              <button disabled className="w-full py-6 bg-gray-300 text-white rounded-[2.5rem] font-bold text-lg flex items-center justify-center gap-3 shadow-xl sticky bottom-0 cursor-not-allowed">
+                  <AlertCircle size={20}/> ร้านปิดรับออเดอร์ชั่วคราว
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1386,50 +1486,6 @@ export default function App() {
       {selectedSlip && (
         <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4" onClick={() => setSelectedSlip(null)}>
           <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl animate-in zoom-in" alt="slip preview" />
-        </div>
-      )}
-
-      {/* 🌟 Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
-      {successModalData && (
-        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
-             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl">✓</div>
-             <h3 className="text-xl font-bold text-primary">สั่งซื้อเรียบร้อยแล้วค่ะ! 🎉</h3>
-             <p className="text-xs text-gray-500 leading-relaxed">ระบบได้บันทึกออเดอร์ของท่านแล้ว กรุณาส่งข้อความยืนยันนี้ให้แอดมินร้านค่ะ</p>
-             
-             <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
-                <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
-             </div>
-
-             <div className="space-y-3">
-                <a 
-                  href={`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95"
-                >
-                   <Share2 size={18}/> แชร์บิลผ่านแอป LINE
-                </a>
-                <button 
-                  onClick={() => {
-                     navigator.clipboard.writeText(successModalData.text);
-                     showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชทร้านค้าได้เลยครับ");
-                  }}
-                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95"
-                >
-                   คัดลอกข้อความ
-                </button>
-                <button 
-                  onClick={() => {
-                     setSuccessModalData(null);
-                     setView('shop');
-                  }}
-                  className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
-                >
-                   ปิดหน้าต่าง
-                </button>
-             </div>
-          </div>
         </div>
       )}
 
@@ -1473,7 +1529,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Custom Message Box (แทนที่ alert/confirm ป้องกันการบล็อกและเพิ่มความสวยงาม) */}
+      {/* Custom Message Box (แทนที่ alert/confirm ป้องกันการบล็อกและเพิ่มความสวยงาม) */}
       {msgBox.isOpen && (
         <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
           <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
