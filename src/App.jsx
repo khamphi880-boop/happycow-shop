@@ -88,7 +88,7 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
-  // --- States: หมวดแอดมิน (Admin) ---
+  // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
@@ -243,6 +243,7 @@ export default function App() {
     previousOrderCount.current = orders.length;
   }, [orders, view]);
 
+  // --- 🌟 [FIXED] ฟังก์ชันสร้างภาพป้ายเมนู Menu Board ---
   const generateMenuBoard = async () => {
     if (!menuBoardRef.current) return;
     setIsGeneratingPoster(true);
@@ -258,14 +259,24 @@ export default function App() {
         });
       }
 
-      await new Promise(r => setTimeout(r, 1000));
+      // รอให้ฟอนต์และ DOM นิ่ง
+      await new Promise(r => setTimeout(r, 1500));
 
+      // ⚠️ แก้ไข: ห้ามใส่ allowTaint: true เด็ดขาด เพราะจะทำให้ Canvas ติด Security Error และค้าง
       const canvas = await window.html2canvas(menuBoardRef.current, { 
          scale: 2, 
-         useCORS: true,
-         allowTaint: true,
+         useCORS: true, 
          backgroundColor: '#fffdf6',
-         logging: false
+         logging: false,
+         onclone: (doc) => {
+            const el = doc.getElementById('menu-board-container');
+            if (el) {
+                el.style.transform = 'none';
+                el.style.position = 'relative';
+                el.style.top = '0';
+                el.style.left = '0';
+            }
+         }
       });
 
       const imageBase64 = canvas.toDataURL("image/png");
@@ -871,7 +882,7 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* --- 🛠️ ใช้งานปุ่มสั่งซื้อ Smart Fail-Safe 100% --- */}
+                {/* --- 🛠️ ปุ่มสั่งซื้อ Smart Fail-Safe 100% พร้อมแนบลิงก์ออเดอร์ --- */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -888,7 +899,7 @@ export default function App() {
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
-                        // 🌟 [แก้ไข]: เพิ่มลิงก์ดูบิลต่อท้ายข้อความสรุปออเดอร์
+                        // 🌟 แทรกลิงก์เข้าไปในข้อความสรุปออเดอร์
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders`;
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
@@ -924,7 +935,6 @@ export default function App() {
                           setView('myOrders');
                           alert("ส่งใบเสร็จเรียบร้อย! 🐮🎉");
                         } else {
-                          // โชว์หน้าต่างสั่งซื้อสำเร็จ พร้อมปุ่มแชร์เข้าไลน์
                           setSuccessModalData({
                             orderId: orderRef.id,
                             text: orderSummaryText
@@ -1383,7 +1393,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Hidden Container สำหรับวาดป้าย Menu Board แบบตารางป้องกัน UI เพี้ยน */}
+      {/* 🌟 [FIXED] Hidden Container สำหรับวาดป้าย Menu Board ป้องกันปัญหา Security CORS ที่ทำให้ Canvas เอ๋อ */}
       {showMenuBoardModal && (
         <div className="fixed inset-0 bg-black/90 z-[250] flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
            {isGeneratingPoster ? (
@@ -1469,10 +1479,11 @@ export default function App() {
                             </div>
                             <div style={{ border: '2px solid #e0e0e0', borderRadius: '20px', padding: '20px', backgroundColor: '#ffffff', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                                <h3 style={{ margin: '0 0 15px 0', color: '#d32f2f', fontSize: '22px' }}>♥ ช่องทางติดต่อ ♥</h3>
+                               {/* 🌟 [FIXED] เพิ่ม crossOrigin เพื่อป้องกัน canvas taint ทำให้เซฟรูปไม่ได้ */}
                                {storeSettings.qrCodeImage ? (
-                                  <img src={storeSettings.qrCodeImage} alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
+                                  <img src={storeSettings.qrCodeImage} crossOrigin="anonymous" alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
                                ) : (
-                                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${storeSettings.promptPayNo}`} alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
+                                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${storeSettings.promptPayNo}`} crossOrigin="anonymous" alt="QR" style={{ width: '160px', height: '160px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #eee' }} />
                                )}
                                <p style={{ margin: '0', fontSize: '16px', color: '#555555', fontWeight: 'bold' }}>สแกนเพื่อสั่งเครื่องดื่มผ่าน LINE</p>
                             </div>
