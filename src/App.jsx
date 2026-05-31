@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 
-// --- 1. Firebase Configuration ---
+// --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
   apiKey: "AIzaSyALI9gWvkoSfaGZd5tVxA-INr4QV5Cmf-w",
   authDomain: "happycowshop-fd7b0.firebaseapp.com",
@@ -36,6 +36,7 @@ const THEMES = {
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
+// --- 2. ฟังก์ชันบีบอัดรูปภาพ ---
 const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -61,6 +62,7 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 };
 
 export default function App() {
+  // --- States: จัดการข้อมูลหลักของแอป ---
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
@@ -87,7 +89,7 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
-  // --- States: แอดมิน (Admin) ---
+  // --- States: หมวดแอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
@@ -106,18 +108,13 @@ export default function App() {
   const [editNotifyAdmin, setEditNotifyAdmin] = useState(false);
   const [editAdminLineId, setEditAdminLineId] = useState('');
   
+  // States: การจัดการเมนูและท็อปปิ้ง (รวมถึงการแก้ไข)
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
   const [newTopping, setNewTopping] = useState({ name: '', price: '' }); 
 
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
-
-  // --- 🌟 [NEW] States สำหรับระบบสร้าง Menu Board ---
-  const [showMenuBoardModal, setShowMenuBoardModal] = useState(false);
-  const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
-  const [generatedPreview, setGeneratedPreview] = useState(null);
-  const menuBoardRef = useRef(null);
 
   // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
@@ -242,80 +239,9 @@ export default function App() {
     previousOrderCount.current = orders.length;
   }, [orders, view]);
 
-  // --- 🌟 [FIXED] ฟังก์ชันสร้างภาพป้ายเมนู Menu Board 100% Mobile Safe ---
-  const generateMenuBoard = async () => {
-    if (!menuBoardRef.current) return;
-    setIsGeneratingPoster(true);
-
-    try {
-      if (!window.html2canvas) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          script.onload = resolve;
-          script.onerror = () => reject(new Error("เบราว์เซอร์ของคุณบล็อกการโหลดตัววาดรูปภาพ"));
-          document.body.appendChild(script);
-        });
-      }
-
-      await new Promise(r => setTimeout(r, 1500));
-
-      const canvas = await window.html2canvas(menuBoardRef.current, { 
-         scale: 2.5, 
-         useCORS: true,
-         backgroundColor: currentThemeData.bg, 
-         windowWidth: 900, 
-         logging: false
-      });
-
-      const imageBase64 = canvas.toDataURL("image/jpeg", 0.9);
-      setGeneratedPreview({ src: imageBase64, name: `MenuBoard_HappyCow_${Date.now()}.jpg` });
-      
-    } catch (err) {
-      console.error("Error generating menu board:", err);
-      const errorMsg = err.message || (typeof err === 'string' ? err : "การตั้งค่าความปลอดภัยของมือถือบล็อกการทำงาน");
-      alert("เกิดข้อผิดพลาดในการวาดป้าย: " + errorMsg);
-    } finally {
-      setIsGeneratingPoster(false);
-    }
-  };
-
-  const handleSaveOrSharePoster = async () => {
-    if (!generatedPreview) return;
-    try {
-        if (navigator.share) {
-            const response = await fetch(generatedPreview.src);
-            const blob = await response.blob();
-            const file = new File([blob], generatedPreview.name, { type: 'image/jpeg' });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'ป้ายเมนู วัวนมอารมณ์ดี',
-                    text: 'ป้ายเมนูอัปเดตล่าสุดครับ'
-                });
-                return; 
-            }
-        }
-        
-        const link = document.createElement("a");
-        link.href = generatedPreview.src;
-        link.download = generatedPreview.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-    } catch (error) {
-        console.error("Share failed", error);
-        const link = document.createElement("a");
-        link.href = generatedPreview.src;
-        link.download = generatedPreview.name;
-        link.click();
-    }
-  };
-
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
+  // --- ฟังก์ชันแก้ไข/จัดการเมนู (Admin Tools) ---
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return alert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return alert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -441,7 +367,7 @@ export default function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
-  // 🌟 ฟังก์ชันส่งออกเมนูเป็นตาราง CSV
+  // 🌟 ฟังก์ชันส่งออกเมนูเป็นตาราง CSV (แทนที่ Menu Board แบบรูปภาพ)
   const exportMenuToCSV = () => {
     if (menuItems.length === 0) return alert('ยังไม่มีเมนูในระบบครับ');
     let csv = "\uFEFFหมวดหมู่,ชื่อเมนู,ราคาปกติ (เย็น),ราคาปั่น,สถานะ\n";
@@ -458,7 +384,7 @@ export default function App() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `รายการเมนู_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `รายการเมนู_วัวนมอารมณ์ดี_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link); 
     link.click(); 
     document.body.removeChild(link);
@@ -525,7 +451,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, promotedItems.length, searchQuery]);
 
-  const revData = calculateRevenue();
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
@@ -917,7 +842,6 @@ export default function App() {
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
                           `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
-                        // พยายามก๊อปปี้แบบเงียบๆ
                         try { await navigator.clipboard.writeText(orderSummaryText); } catch (e) { console.warn(e); }
 
                         let liffSuccess = false;
@@ -992,7 +916,8 @@ export default function App() {
                           
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
-                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''})
+                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''})
+                                {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
                               </p>
                           ))}</div>
 
@@ -1117,26 +1042,15 @@ export default function App() {
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ปุ่มสร้างป้าย Menu Board โฉมใหม่ */}
-                <div className="bg-gradient-to-br from-[#b89047]/10 to-[#b89047]/5 p-6 rounded-[2.5rem] border border-[#b89047]/20 shadow-sm flex flex-col items-center justify-center text-center">
-                  <div className="bg-white p-4 rounded-full shadow-md text-[#b89047] mb-4">
-                     <Palette size={28} />
-                  </div>
-                  <h3 className="font-bold text-base text-[#3d2c1e] mb-2 font-kanit">สร้างป้ายเมนูรวม (Menu Board)</h3>
-                  <p className="text-[11px] text-[#665a48] mb-5 leading-relaxed font-kanit">
-                    ระบบจะรวบรวมเมนูทั้งหมดมาจัดหน้ากระดาษแนวตั้ง<br/>แบบ 3 คอลัมน์สไตล์คาเฟ่พรีเมียม
-                  </p>
-                  <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-[#3d2c1e] text-white py-4 rounded-2xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
-                     <Share2 size={18} /> สร้างป้ายเมนู (สไตล์มินิมอล)
-                  </button>
-                </div>
-
-                {/* 🌟 ปุ่ม Export CSV ย้ายลงมาด้านล่าง */}
+                {/* 🌟 ปรับเปลี่ยนปุ่มเป็นระบบส่งออกข้อมูลแทน (Export CSV) */}
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
                      <ClipboardList size={28} />
                   </div>
                   <h3 className="font-bold text-sm text-primary mb-1">ส่งออกรายการเมนู (Excel/CSV)</h3>
+                  <p className="text-[10px] text-gray-500 mb-5 leading-relaxed">
+                    ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา และสถานะทั้งหมด <br/>ออกเป็นไฟล์ตาราง นำไปใช้งานต่อได้ทันที
+                  </p>
                   <button onClick={exportMenuToCSV} className="w-full bg-blue-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-600">
                      <Download size={18} /> โหลดรายการเมนูลงเครื่อง
                   </button>
@@ -1176,30 +1090,186 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="space-y-4">
+                <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 shadow-inner relative mt-8">
+                  {!showAddToppingForm ? (
+                     <button onClick={() => setShowAddToppingForm(true)} className="w-full py-2 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-100 rounded-2xl transition-all">
+                        <Plus size={18}/> คลิกเพื่อเพิ่มท็อปปิ้งเสริม
+                     </button>
+                  ) : (
+                    <div className="space-y-4 text-center animate-in fade-in slide-in-from-top-2">
+                      <div className="flex justify-between items-center border-b border-orange-200 pb-3 mb-2">
+                        <h3 className="font-bold text-sm text-orange-600 uppercase tracking-widest flex items-center gap-2"><Plus size={16}/> เพิ่มท็อปปิ้งเสริม</h3>
+                        <button onClick={() => setShowAddToppingForm(false)} className="text-orange-400 p-1 hover:bg-orange-200 rounded-full transition-colors"><X size={16}/></button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input type="text" placeholder="ชื่อท็อปปิ้ง (เช่น วิปครีม)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent" value={newTopping.name} onChange={e => setNewTopping({...newTopping, name: e.target.value})} />
+                        <input type="number" placeholder="ราคา" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent" value={newTopping.price} onChange={e => setNewTopping({...newTopping, price: e.target.value})} />
+                      </div>
+                      <button onClick={handleAddTopping} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all hover:bg-orange-600">บันทึกท็อปปิ้งใหม่</button>
+                    </div>
+                  )}
+
+                  {toppings.length > 0 && (
+                    <div className="space-y-2 mt-4 text-left pt-4 border-t border-orange-200/50">
+                      <p className="text-xs font-bold text-orange-500 mb-2">ท็อปปิ้งที่มีในระบบ</p>
+                      {toppings.map(t => (
+                        <div key={t.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
+                          <span className="text-sm font-bold text-primary">{t.name} <span className="text-orange-500 text-xs">(+฿{t.price})</span></span>
+                          <button onClick={() => handleDeleteTopping(t.id)} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-8 mt-8">
                   {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(category => {
-                    let itemsInCategory = menuItems.filter(item => item.category === category);
+                    let itemsInCategory = menuItems
+                      .filter(item => {
+                         if (category === 'สมูทตี้โยเกิร์ต') return item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้';
+                         if (category === 'วิปครีมและครีมชีส') return item.category === 'วิปครีมและครีมชีส' || item.category === 'ครีมและครีมชีส' || item.category === 'เมนูพิเศษ';
+                         return item.category === category;
+                      })
+                      .sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
+
                     if (adminSearchQuery) itemsInCategory = itemsInCategory.filter(item => item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()));
                     if (itemsInCategory.length === 0) return null;
 
                     return (
-                      <div key={category} className="space-y-2">
-                        <h4 className="font-bold text-md text-primary ml-1">{category}</h4>
-                        {itemsInCategory.map((item) => (
-                          <div key={item.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <img src={item.image} className="w-12 h-12 rounded-xl object-cover" alt="drink" />
-                              <div>
-                                <p className="font-bold text-sm text-primary">{item.name}</p>
-                                <p className="text-xs text-accent font-bold">฿{item.price}</p>
+                      <div key={category} className="space-y-3">
+                        <h4 className="font-bold text-lg text-primary border-b-2 border-accent/20 pb-2 ml-1">{category}</h4>
+                        {itemsInCategory.map((item, idx) => (
+                          <div key={item.id} className="flex flex-col gap-1">
+                            <div 
+                              draggable={!(editingMenu && editingMenu.id === item.id)}
+                              onDragStart={(e) => { dragItem.current = idx; e.currentTarget.classList.add('opacity-50', 'scale-95'); }}
+                              onDragEnter={(e) => dragOverItem.current = idx}
+                              onDragEnd={(e) => { e.currentTarget.classList.remove('opacity-50', 'scale-95'); handleSortDrop(itemsInCategory); }}
+                              onDragOver={(e) => e.preventDefault()}
+                              className="flex justify-between items-center bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm transition-all hover:shadow-md cursor-grab active:cursor-grabbing"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex flex-col items-center gap-1 z-10">
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'up', itemsInCategory); }} disabled={idx === 0 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === 0 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowUp size={14}/></button>
+                                  <div className="text-gray-300 flex-col items-center justify-center px-1 hidden sm:flex">
+                                    <div className="w-1 h-1 bg-gray-300 rounded-full mb-1"></div>
+                                    <div className="w-1 h-1 bg-gray-300 rounded-full mb-1"></div>
+                                    <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                                  </div>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowDown size={14}/></button>
+                                </div>
+                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
+                                <div>
+                                  <p className="font-bold text-sm text-primary flex items-center gap-1 flex-wrap">
+                                    {item.name} 
+                                    {item.isPromoted && <span className="text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded-full">แนะนำ</span>}
+                                    {item.isSoldOut && <span className="text-[8px] bg-gray-500 text-white px-1.5 py-0.5 rounded-full">หมด</span>}
+                                  </p>
+                                  <p className="text-xs text-accent font-bold">฿{item.price} {item.hasFreePearl && !item.isSoldOut ? '🌟' : ''}</p>
+                                  <div className="flex gap-1 mt-1">
+                                    {item.isOnlyBlend && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-sm">เฉพาะปั่น</span>}
+                                    {item.allowBlend === false && !item.isOnlyBlend && <p className="text-[9px] text-blue-400 bg-blue-50 px-1 rounded-sm">ไม่มีปั่น</p>}
+                                    {item.allowTopping === false && <p className="text-[9px] text-red-400 bg-red-50 px-1 rounded-sm">ห้ามเพิ่มท็อปปิ้ง</p>}
+                                    {item.hasTeaType && <p className="text-[9px] text-green-600 bg-green-50 px-1 rounded-sm border border-green-200">เลือกผงชาได้</p>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 z-10">
+                                <button type="button" onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  if (editingMenu && editingMenu.id === item.id) {
+                                    setEditingMenu(null); 
+                                  } else {
+                                    setEditingMenu(item); 
+                                  }
+                                }} className={`p-3 active:scale-90 transition-all rounded-xl ${editingMenu && editingMenu.id === item.id ? 'bg-orange-500 text-white shadow-md' : 'text-blue-500 hover:bg-blue-100 bg-blue-50'}`}>
+                                  {editingMenu && editingMenu.id === item.id ? <X size={16}/> : <Edit size={16}/>}
+                                </button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteMenu(item.id); }} className="p-3 text-red-500 hover:bg-red-100 active:scale-90 transition-all bg-red-50 rounded-xl"><Trash2 size={16}/></button>
                               </div>
                             </div>
-                            <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={16}/></button>
+                            
+                            {/* --- ฟอร์มแก้ไขเมนู --- */}
+                            {editingMenu && editingMenu.id === item.id && (
+                              <div className="bg-orange-50 p-5 rounded-3xl border border-orange-200 shadow-inner mt-2 mb-4 mx-1 animate-in slide-in-from-top-4 space-y-4">
+                                <div className="flex justify-between items-center mb-1 border-b border-orange-100 pb-2">
+                                   <h4 className="font-bold text-sm text-orange-600 flex items-center gap-2"><Edit size={16}/> แก้ไขเมนู</h4>
+                                </div>
+                                <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={editingMenu.name} onChange={e => setEditingMenu({...editingMenu, name: e.target.value})} />
+                                <div className="flex gap-2">
+                                  <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={editingMenu.price} onChange={e => setEditingMenu({...editingMenu, price: e.target.value})} />
+                                  <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-orange-400 border border-transparent" value={editingMenu.category} onChange={e => setEditingMenu({...editingMenu, category: e.target.value})}>
+                                    {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-blue-50 rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-100">
+                                    <input type="checkbox" checked={editingMenu.isOnlyBlend} onChange={e => setEditingMenu({...editingMenu, isOnlyBlend: e.target.checked, allowBlend: e.target.checked ? true : editingMenu.allowBlend})} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                                    <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1"><Zap size={14} className="text-blue-500" fill="currentColor"/> เป็นเมนูเฉพาะปั่นเท่านั้น (เช่น สมูทตี้)</span>
+                                  </label>
+
+                                  <label className={`flex items-center justify-center gap-1 p-3 rounded-2xl shadow-sm border cursor-pointer transition-all ${editingMenu.isOnlyBlend ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-white border-blue-50 hover:bg-blue-50'}`}>
+                                    <input type="checkbox" disabled={editingMenu.isOnlyBlend} checked={editingMenu.isOnlyBlend || editingMenu.allowBlend !== false} onChange={e => setEditingMenu({...editingMenu, allowBlend: e.target.checked})} className="w-4 h-4 accent-blue-400 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500">มีเมนูปั่น</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-gray-50 cursor-pointer transition-all hover:bg-gray-50">
+                                    <input type="checkbox" checked={editingMenu.allowTopping !== false} onChange={e => setEditingMenu({...editingMenu, allowTopping: e.target.checked})} className="w-4 h-4 accent-[#A67C52] cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-orange-50 cursor-pointer transition-all hover:bg-orange-50">
+                                    <input type="checkbox" checked={editingMenu.hasFreePearl} onChange={e => setEditingMenu({...editingMenu, hasFreePearl: e.target.checked})} className="w-4 h-4 accent-orange-400 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1"><Star size={12} className="text-orange-400" fill="currentColor"/> มุกฟรี</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-gray-100 rounded-2xl shadow-sm border border-gray-200 cursor-pointer transition-all hover:bg-gray-200">
+                                    <input type="checkbox" checked={editingMenu.isSoldOut} onChange={e => setEditingMenu({...editingMenu, isSoldOut: e.target.checked})} className="w-4 h-4 accent-gray-600 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-600 flex items-center gap-1">ปิดขายชั่วคราว</span>
+                                  </label>
+
+                                  <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-red-50 rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-100">
+                                    <input type="checkbox" checked={editingMenu.isPromoted} onChange={e => setEditingMenu({...editingMenu, isPromoted: e.target.checked})} className="w-4 h-4 accent-red-500 cursor-pointer" />
+                                    <span className="text-[11px] font-bold text-red-600 flex items-center gap-1"><Star size={14} className="text-red-500" fill="currentColor"/> ตั้งเป็นเมนูแนะนำ (โชว์แบนเนอร์สไลด์)</span>
+                                  </label>
+
+                                  {editingMenu.category === 'มัทฉะ' && (
+                                    <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-green-50 rounded-2xl shadow-sm border border-green-100 cursor-pointer transition-all hover:bg-green-100">
+                                      <input type="checkbox" checked={editingMenu.hasTeaType} onChange={e => setEditingMenu({...editingMenu, hasTeaType: e.target.checked})} className="w-4 h-4 accent-green-600 cursor-pointer" />
+                                      <span className="text-[11px] font-bold text-green-700 flex items-center gap-1">🍵 ให้ลูกค้าเลือกผงชา (มัทฉะ / โฮจิฉะ) ได้</span>
+                                    </label>
+                                  )}
+                                </div>
+
+                                {editingMenu.allowBlend !== false && editingMenu.category !== 'สมูทตี้โยเกิร์ต' && editingMenu.category !== 'ผลไม้และสมูทตี้' && (
+                                  <div className="mt-2 text-left">
+                                    <label className="text-[10px] font-bold text-gray-400 ml-2">บวกราคาเพิ่มสำหรับเมนูปั่น (บาท)</label>
+                                    <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 transition-all bg-white border border-transparent" value={editingMenu.blendPrice} onChange={e => setEditingMenu({...editingMenu, blendPrice: e.target.value})} />
+                                  </div>
+                                )}
+
+                                <label className="cursor-pointer bg-white border border-gray-200 p-4 rounded-2xl text-xs font-bold block shadow-sm text-gray-400 hover:text-orange-500 hover:border-orange-300 transition-all mt-4">
+                                  <Upload size={18} className="inline mr-2"/> {editingMenu.image ? 'เปลี่ยนรูปเมนู' : 'อัปโหลดรูปภาพเมนู'}
+                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                    const file = e.target.files[0];
+                                    if (file) { try { setEditingMenu({...editingMenu, image: await compressImage(file)}); } catch(err) { console.error(err); } }
+                                  }} />
+                                </label>
+                                <div className="flex gap-2">
+                                  <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm">ยกเลิก</button>
+                                  <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"><Save size={18}/> บันทึกการแก้ไข</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                     );
                   })}
+                  {adminSearchQuery && menuItems.filter(item => item.name.toLowerCase().includes(adminSearchQuery.toLowerCase())).length === 0 && (
+                     <div className="py-10 text-center opacity-30 italic font-bold">ไม่พบเมนูที่ตรงกับ "{adminSearchQuery}"</div>
+                  )}
                 </div>
               </div>
             )}
@@ -1305,7 +1375,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 [NEW] Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
+      {/* 🌟 Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
       {successModalData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
@@ -1386,193 +1456,6 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* --- 🌟 Modal แสดงรูปภาพ Menu Board ที่สร้างเสร็จ --- */}
-      {generatedPreview && (
-        <div className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4 animate-in zoom-in backdrop-blur-md">
-          <button onClick={() => setGeneratedPreview(null)} className="absolute top-4 right-4 bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
-          
-          <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse w-full max-w-md">
-            <p className="text-white font-bold flex items-center justify-center gap-2 font-kanit text-lg"><CheckCircle size={24}/> สร้างป้ายสำเร็จ!</p>
-            <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
-          </div>
-          
-          <div className="w-full max-w-md max-h-[60vh] overflow-y-auto rounded-[2rem] shadow-2xl border-4 border-white/20 bg-white mb-6">
-            <img src={generatedPreview.src} className="w-full h-auto object-contain" alt="Generated Poster Preview" />
-          </div>
-          
-          <div className="w-full max-w-md grid grid-cols-1">
-             <a href={generatedPreview.src} download={generatedPreview.name} className="py-4 bg-green-500 text-white rounded-2xl font-bold font-kanit shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all w-full text-center">
-                <Download size={18}/> ดาวน์โหลดรูปลงเครื่อง (สำหรับ PC)
-             </a>
-             <button onClick={() => { setGeneratedPreview(null); setShowMenuBoardModal(false); }} className="py-3 text-gray-400 mt-2 font-bold font-kanit text-sm active:scale-95 transition-all">
-                ปิดหน้าต่าง
-             </button>
-          </div>
-        </div>
-      )}
-
-      {/* --- 🌟 โครงสร้างป้าย Menu Board 3 Columns แบบตารางดั้งเดิม --- */}
-      {showMenuBoardModal && (
-        <div className="fixed inset-0 bg-black/90 z-[250] flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-           {isGeneratingPoster ? (
-              <div className="bg-white p-10 rounded-[3rem] flex flex-col items-center gap-6 text-center shadow-2xl">
-                 <div className="w-16 h-16 border-4 border-[#b89047] border-t-transparent rounded-full animate-spin"></div>
-                 <div>
-                    <h3 className="font-bold text-[#3d2c1e] text-lg font-kanit">กำลังวาดรูปป้ายเมนู...</h3>
-                    <p className="text-xs text-gray-500 mt-2 font-kanit">อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้าจอ</p>
-                 </div>
-              </div>
-           ) : (
-             <div className="w-full max-w-[900px] bg-gray-100 rounded-[2rem] flex flex-col overflow-hidden relative shadow-2xl max-h-[90vh]">
-                <div className="flex justify-between items-center bg-white p-5 border-b shadow-sm z-10">
-                   <h3 className="font-bold text-primary font-kanit text-lg flex items-center gap-2"><Palette size={20}/> ตัวอย่างป้ายเมนู 3 คอลัมน์</h3>
-                   <div className="flex gap-3">
-                     <button onClick={() => setShowMenuBoardModal(false)} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold font-kanit hover:bg-gray-200 transition-colors">ยกเลิก</button>
-                     <button onClick={generateMenuBoard} className="px-5 py-2.5 bg-[#b89047] text-white rounded-xl text-sm font-bold font-kanit flex items-center gap-2 shadow-md hover:bg-[#a67c3b] active:scale-95 transition-all"><Camera size={16}/> บันทึกรูปภาพ</button>
-                   </div>
-                </div>
-                
-                <div className="flex-1 overflow-auto bg-[#e5e5e5] p-4 sm:p-8 flex justify-center hide-scrollbar">
-                   <div 
-                      id="menu-board-container"
-                      ref={menuBoardRef} 
-                      style={{
-                         width: '850px',
-                         minHeight: '1200px', 
-                         backgroundColor: currentThemeData.bg,
-                         fontFamily: "'Kanit', sans-serif",
-                         padding: '40px',
-                         boxSizing: 'border-box',
-                         display: 'flex',
-                         flexDirection: 'column'
-                      }}
-                   >
-                      {/* --- Header (โลโก้ + ชื่อร้าน) --- */}
-                      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                         <h1 style={{ margin: '0', fontSize: '55px', color: '#4a4a4a', fontWeight: 'bold', fontFamily: "'Vollkorn', serif", letterSpacing: '2px' }}>
-                            วัวนมอารมณ์ดี
-                         </h1>
-                         <p style={{ margin: '5px 0 0 0', fontSize: '18px', color: '#888', letterSpacing: '8px', textTransform: 'uppercase' }}>
-                            PREMIUM CAFE MENU
-                         </p>
-                      </div>
-
-                      {/* --- Main Content (3 Columns Layout using Flex) --- */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flex: 1 }}>
-                         
-                         {/* === คอลัมน์ที่ 1 (ซ้าย) === */}
-                         <div style={{ width: '31%', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                            {/* กาแฟ */}
-                            {menuItems.filter(m => m.category === 'กาแฟ' && !m.isSoldOut).length > 0 && (
-                               <div>
-                                  <div style={{ display: 'flex', borderBottom: '2px solid #b89047', paddingBottom: '5px', marginBottom: '15px' }}>
-                                     <div style={{ width: '60%', fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>กาแฟ (COFFEE)</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>เย็น</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>ปั่น</div>
-                                  </div>
-                                  {menuItems.filter(m => m.category === 'กาแฟ' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
-                                     <div key={i} style={{ display: 'flex', marginBottom: '8px', alignItems: 'baseline' }}>
-                                        <div style={{ width: '60%', fontSize: '14px', color: '#444', paddingRight: '5px', wordBreak: 'break-word', lineHeight: '1.2' }}>{menu.name}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</div>
-                                     </div>
-                                  ))}
-                               </div>
-                            )}
-
-                            {/* ชา */}
-                            {menuItems.filter(m => m.category === 'ชา' && !m.isSoldOut).length > 0 && (
-                               <div>
-                                  <div style={{ display: 'flex', borderBottom: '2px solid #b89047', paddingBottom: '5px', marginBottom: '15px' }}>
-                                     <div style={{ width: '60%', fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>ชา (TEA)</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>เย็น</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>ปั่น</div>
-                                  </div>
-                                  {menuItems.filter(m => m.category === 'ชา' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
-                                     <div key={i} style={{ display: 'flex', marginBottom: '8px', alignItems: 'baseline' }}>
-                                        <div style={{ width: '60%', fontSize: '14px', color: '#444', paddingRight: '5px', wordBreak: 'break-word', lineHeight: '1.2' }}>{menu.name}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</div>
-                                     </div>
-                                  ))}
-                               </div>
-                            )}
-                         </div>
-
-                         {/* === คอลัมน์ที่ 2 (กลาง) === */}
-                         <div style={{ width: '31%', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                            {/* นม */}
-                            {menuItems.filter(m => m.category === 'นม' && !m.isSoldOut).length > 0 && (
-                               <div>
-                                  <div style={{ display: 'flex', borderBottom: '2px solid #b89047', paddingBottom: '5px', marginBottom: '15px' }}>
-                                     <div style={{ width: '60%', fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>นม (MILK)</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>เย็น</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>ปั่น</div>
-                                  </div>
-                                  {menuItems.filter(m => m.category === 'นม' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
-                                     <div key={i} style={{ display: 'flex', marginBottom: '8px', alignItems: 'baseline' }}>
-                                        <div style={{ width: '60%', fontSize: '14px', color: '#444', paddingRight: '5px', wordBreak: 'break-word', lineHeight: '1.2' }}>{menu.name}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</div>
-                                     </div>
-                                  ))}
-                               </div>
-                            )}
-                         </div>
-
-                         {/* === คอลัมน์ที่ 3 (ขวา) === */}
-                         <div style={{ width: '31%', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                            {/* ผลไม้และสมูทตี้ */}
-                            {menuItems.filter(m => (m.category === 'สมูทตี้โยเกิร์ต' || m.category === 'ผลไม้และสมูทตี้') && !m.isSoldOut).length > 0 && (
-                               <div>
-                                  <div style={{ display: 'flex', borderBottom: '2px solid #b89047', paddingBottom: '5px', marginBottom: '15px' }}>
-                                     <div style={{ width: '60%', fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>ผลไม้และสมูทตี้</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>เย็น</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>ปั่น</div>
-                                  </div>
-                                  {menuItems.filter(m => (m.category === 'สมูทตี้โยเกิร์ต' || m.category === 'ผลไม้และสมูทตี้') && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
-                                     <div key={i} style={{ display: 'flex', marginBottom: '8px', alignItems: 'baseline' }}>
-                                        <div style={{ width: '60%', fontSize: '14px', color: '#444', paddingRight: '5px', wordBreak: 'break-word', lineHeight: '1.2' }}>{menu.name}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</div>
-                                     </div>
-                                  ))}
-                               </div>
-                            )}
-
-                            {/* มัทฉะ */}
-                            {menuItems.filter(m => m.category === 'มัทฉะ' && !m.isSoldOut).length > 0 && (
-                               <div>
-                                  <div style={{ display: 'flex', borderBottom: '2px solid #b89047', paddingBottom: '5px', marginBottom: '15px' }}>
-                                     <div style={{ width: '60%', fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>มัทฉะ (MATCHA)</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>เย็น</div>
-                                     <div style={{ width: '20%', textAlign: 'center', fontSize: '12px', color: '#999', alignSelf: 'flex-end' }}>ปั่น</div>
-                                  </div>
-                                  {menuItems.filter(m => m.category === 'มัทฉะ' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
-                                     <div key={i} style={{ display: 'flex', marginBottom: '8px', alignItems: 'baseline' }}>
-                                        <div style={{ width: '60%', fontSize: '14px', color: '#444', paddingRight: '5px', wordBreak: 'break-word', lineHeight: '1.2' }}>{menu.name}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</div>
-                                        <div style={{ width: '20%', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</div>
-                                     </div>
-                                  ))}
-                               </div>
-                            )}
-                         </div>
-
-                      </div>
-                      
-                      {/* --- Footer Note --- */}
-                      <div style={{ marginTop: 'auto', textAlign: 'center', color: '#999', fontSize: '11px', borderTop: '1px solid #e0dfdb', paddingTop: '15px' }}>
-                         ราคาเมนูอาจมีการเปลี่ยนแปลง | *ราคาปกติ (เย็น) / ราคาปั่น
-                      </div>
-
-                   </div>
-                </div>
-             </div>
-           )}
         </div>
       )}
 
