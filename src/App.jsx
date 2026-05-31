@@ -327,7 +327,6 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
-  // --- 🌟 แอดมิน: กดยอมรับออร์เดอร์ พร้อมแชร์ลงแชทลูกค้าอัตโนมัติ ---
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
@@ -348,7 +347,7 @@ export default function App() {
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste หาใน LINE
+          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} 
           
           const res = await window.liff.shareTargetPicker([{
               type: "flex",
@@ -366,7 +365,6 @@ export default function App() {
     }
   };
 
-  // --- 🌟 แอดมิน: กดยืนยันการจัดส่ง พร้อมแชร์ภาพลงแชทลูกค้าอัตโนมัติ (แก้ไขเพิ่มเติมส่วน Fallback Modal) ---
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -387,7 +385,6 @@ export default function App() {
          deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
       });
 
-      // 🌟 สร้างข้อความสรุปสำหรับแชร์แบบธรรมดา (ใช้ตอนอยู่นอก LINE หรือแชร์ Flex ไม่ได้)
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders`;
 
@@ -414,7 +411,7 @@ export default function App() {
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste
+          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} 
           try {
               const res = await window.liff.shareTargetPicker([{
                   type: "flex",
@@ -426,18 +423,15 @@ export default function App() {
                   setDeliveryModal(null);
                   showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`);
               } else {
-                  // 🌟 แอดมินกดยกเลิกการแชร์ Flex ให้แสดง Modal สำรอง
                   setDeliveryModal(null);
                   setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
               }
           } catch (err) {
               console.error(err);
-              // 🌟 API Error ให้แสดง Modal สำรอง
               setDeliveryModal(null);
               setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
           }
       } else {
-          // 🌟 เปิดใช้งานนอกแอป LINE ให้แสดง Modal สำรอง
           setDeliveryModal(null);
           setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
       }
@@ -1426,6 +1420,10 @@ export default function App() {
                                     if (file) { try { setEditingMenu({...editingMenu, image: await compressImage(file)}); } catch(err) { console.error(err); } }
                                   }} />
                                 </label>
+                                {/* 🌟 ปุ่มบันทึกรูปเมนู (เพิ่มตามคำสั่ง) */}
+                                <button onClick={handleUpdateMenu} className="w-full bg-blue-500 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition-all mt-2 mb-2 flex items-center justify-center gap-2 hover:bg-blue-600">
+                                  <Save size={16}/> บันทึกรูปเมนู
+                                </button>
                                 <div className="flex gap-2">
                                   <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm">ยกเลิก</button>
                                   <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"><Save size={18}/> บันทึกการแก้ไข</button>
@@ -1576,131 +1574,147 @@ export default function App() {
         )}
       </main>
 
-      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
+      {/* --- 🌟 Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ (อัปเดตมีรูปภาพ) --- */}
       {optionModalItem && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
-            <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400"><X/></button></div>
-            <div className="space-y-8">
-              <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
-                <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
-                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>{l}</button>
-                ))}</div>
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-[3.5rem] sm:rounded-[3.5rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden relative">
+            
+            {/* รูปภาพสินค้า 30vh (ประมาณ 30% ของหน้าจอ) */}
+            <div className="w-full h-[30vh] min-h-[220px] relative flex-shrink-0 bg-gray-100">
+              <img src={optionModalItem.image} alt={optionModalItem.name} className="w-full h-full object-cover" />
+              <button onClick={() => setOptionModalItem(null)} className="absolute top-6 right-6 p-3 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-colors shadow-lg active:scale-95">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* พื้นที่ตัวเลือกด้านล่าง */}
+            <div className="p-8 pb-10 space-y-8 overflow-y-auto hide-scrollbar flex-1">
+              <div className="flex justify-between items-center">
+                <h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3>
+                <p className="text-xl font-bold text-accent">฿{optionModalItem.price}</p>
               </div>
 
-              {optionModalItem.category === 'กาแฟ' && (
-                <div className="space-y-4">
-                   <div>
-                     <label className="text-[10px] font-bold block mb-4 text-[#5c3a21] uppercase tracking-widest flex items-center gap-1"><Coffee size={14} fill="currentColor"/> เลือกระดับการคั่วเมล็ดกาแฟ</label>
-                     <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วกลาง'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วกลาง' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วกลาง<br/><span className="text-[9px] font-normal">หอมนุ่ม ละมุน</span></button>
-                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วเข้ม'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วเข้ม' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วเข้ม<br/><span className="text-[9px] font-normal">เข้มข้น ถึงใจ</span></button>
+              <div className="space-y-8">
+                <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
+                  <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
+                      <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>{l}</button>
+                  ))}</div>
+                </div>
+
+                {optionModalItem.category === 'กาแฟ' && (
+                  <div className="space-y-4">
+                     <div>
+                       <label className="text-[10px] font-bold block mb-4 text-[#5c3a21] uppercase tracking-widest flex items-center gap-1"><Coffee size={14} fill="currentColor"/> เลือกระดับการคั่วเมล็ดกาแฟ</label>
+                       <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วกลาง'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วกลาง' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วกลาง<br/><span className="text-[9px] font-normal">หอมนุ่ม ละมุน</span></button>
+                         <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วเข้ม'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วเข้ม' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วเข้ม<br/><span className="text-[9px] font-normal">เข้มข้น ถึงใจ</span></button>
+                       </div>
                      </div>
-                   </div>
-                   
-                   <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.addShot ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.addShot ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
-                          {tempOptions.addShot && <CheckCircle size={14} />}
-                        </div>
-                        <span className={`text-sm font-bold ${tempOptions.addShot ? 'text-primary' : 'text-gray-500'}`}>เพิ่มช็อตกาแฟ</span>
-                      </div>
-                      <span className="text-sm font-bold text-accent">+฿20</span>
-                      <input type="checkbox" className="hidden" checked={tempOptions.addShot || false} onChange={(e) => setTempOptions({...tempOptions, addShot: e.target.checked})} />
-                   </label>
-                </div>
-              )}
-
-              {optionModalItem.hasTeaType && (
-                <div className="space-y-4">
-                   <div>
-                     <label className="text-[10px] font-bold block mb-4 text-[#4a5d23] uppercase tracking-widest flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
-                     <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-[#4a5d23] text-white border-[#4a5d23] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>มัทฉะ<br/><span className="text-[9px] font-normal">หอมเข้มข้น ดั้งเดิม</span></button>
-                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal">หอมคั่ว ละมุน</span></button>
-                     </div>
-                   </div>
-                </div>
-              )}
-
-              {optionModalItem.hasFreePearl && (
-                <div>
-                   <label className="text-sm font-bold block mb-4 text-orange-400 uppercase tracking-widest text-[10px] flex items-center gap-1"><Star size={12} fill="currentColor"/> แถมมุกฟรี!</label>
-                   <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setTempOptions({...tempOptions, addPearl: true})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.addPearl ? 'bg-orange-400 text-white border-orange-400 shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>รับมุก (ฟรี)</button>
-                     <button onClick={() => setTempOptions({...tempOptions, addPearl: false})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${!tempOptions.addPearl ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>ไม่รับมุกฟรี</button>
-                   </div>
-                </div>
-              )}
-
-              {toppings.length > 0 && optionModalItem.allowTopping !== false && (
-                <div>
-                  <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">เพิ่มท็อปปิ้งอื่นๆ</label>
-                  <div className="space-y-2">
-                    {toppings.map(t => {
-                      const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
-                      return (
-                        <label key={t.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
-                              {isSelected && <CheckCircle size={14} />}
-                            </div>
-                            <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500'}`}>{t.name}</span>
+                     
+                     <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.addShot ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.addShot ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                            {tempOptions.addShot && <CheckCircle size={14} />}
                           </div>
-                          <span className="text-sm font-bold text-accent">+฿{t.price}</span>
-                          <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
-                            setTempOptions(prev => {
-                              const currentToppings = prev.selectedToppings || [];
-                              if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
-                              return { ...prev, selectedToppings: [...currentToppings, t] };
-                            });
-                          }} />
-                        </label>
-                      );
-                    })}
+                          <span className={`text-sm font-bold ${tempOptions.addShot ? 'text-primary' : 'text-gray-500'}`}>เพิ่มช็อตกาแฟ</span>
+                        </div>
+                        <span className="text-sm font-bold text-accent">+฿20</span>
+                        <input type="checkbox" className="hidden" checked={tempOptions.addShot || false} onChange={(e) => setTempOptions({...tempOptions, addShot: e.target.checked})} />
+                     </label>
                   </div>
-                </div>
-              )}
+                )}
 
-              {optionModalItem.isOnlyBlend ? (
-                <div className="grid grid-cols-1 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
-                     <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
-                     {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
-                   </button>
-                </div>
-              ) : optionModalItem.allowBlend !== false ? (
-                <div className="grid grid-cols-2 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
-                   <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
-                </div>
-              )}
+                {optionModalItem.hasTeaType && (
+                  <div className="space-y-4">
+                     <div>
+                       <label className="text-[10px] font-bold block mb-4 text-[#4a5d23] uppercase tracking-widest flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
+                       <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-[#4a5d23] text-white border-[#4a5d23] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>มัทฉะ<br/><span className="text-[9px] font-normal">หอมเข้มข้น ดั้งเดิม</span></button>
+                         <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal">หอมคั่ว ละมุน</span></button>
+                       </div>
+                     </div>
+                  </div>
+                )}
+
+                {optionModalItem.hasFreePearl && (
+                  <div>
+                     <label className="text-sm font-bold block mb-4 text-orange-400 uppercase tracking-widest text-[10px] flex items-center gap-1"><Star size={12} fill="currentColor"/> แถมมุกฟรี!</label>
+                     <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => setTempOptions({...tempOptions, addPearl: true})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.addPearl ? 'bg-orange-400 text-white border-orange-400 shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>รับมุก (ฟรี)</button>
+                       <button onClick={() => setTempOptions({...tempOptions, addPearl: false})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${!tempOptions.addPearl ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>ไม่รับมุกฟรี</button>
+                     </div>
+                  </div>
+                )}
+
+                {toppings.length > 0 && optionModalItem.allowTopping !== false && (
+                  <div>
+                    <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">เพิ่มท็อปปิ้งอื่นๆ</label>
+                    <div className="space-y-2">
+                      {toppings.map(t => {
+                        const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
+                        return (
+                          <label key={t.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                                {isSelected && <CheckCircle size={14} />}
+                              </div>
+                              <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500'}`}>{t.name}</span>
+                            </div>
+                            <span className="text-sm font-bold text-accent">+฿{t.price}</span>
+                            <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
+                              setTempOptions(prev => {
+                                const currentToppings = prev.selectedToppings || [];
+                                if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
+                                return { ...prev, selectedToppings: [...currentToppings, t] };
+                              });
+                            }} />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {optionModalItem.isOnlyBlend ? (
+                  <div className="grid grid-cols-1 gap-5">
+                     <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
+                       <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
+                       {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
+                     </button>
+                  </div>
+                ) : optionModalItem.allowBlend !== false ? (
+                  <div className="grid grid-cols-2 gap-5">
+                     <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
+                     <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-5">
+                     <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
+                  </div>
+                )}
+              </div>
+              
+              <button onClick={() => {
+                  const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+                  const shotPrice = tempOptions.addShot ? 20 : 0;
+                  const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
+                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
+                  const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
+                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
+                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
+                  const shotStr = tempOptions.addShot ? `-addShot` : '';
+                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
+                  
+                  setCart(prev => {
+                    const ex = prev.find(i => i.cartId === cartId);
+                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
+                  });
+                  setOptionModalItem(null);
+                }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
+                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
+              </button>
             </div>
-            
-            <button onClick={() => {
-                const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-                const shotPrice = tempOptions.addShot ? 20 : 0;
-                const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-                const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
-                const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
-                const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
-                const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
-                const shotStr = tempOptions.addShot ? `-addShot` : '';
-                const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
-                
-                setCart(prev => {
-                  const ex = prev.find(i => i.cartId === cartId);
-                  if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                  return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
-                });
-                setOptionModalItem(null);
-              }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
-                <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
-            </button>
           </div>
         </div>
       )}
