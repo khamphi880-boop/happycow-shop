@@ -121,6 +121,9 @@ export default function App() {
 
   // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
+  
+  // 🌟 [NEW] State: Failsafe สำหรับแอดมินตอนกดยืนยันจัดส่งแล้วแชร์ไม่ได้
+  const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
   const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [] });
@@ -363,7 +366,7 @@ export default function App() {
     }
   };
 
-  // --- 🌟 แอดมิน: กดยืนยันการจัดส่ง พร้อมแชร์ภาพลงแชทลูกค้าอัตโนมัติ ---
+  // --- 🌟 แอดมิน: กดยืนยันการจัดส่ง พร้อมแชร์ภาพลงแชทลูกค้าอัตโนมัติ (แก้ไขเพิ่มเติมส่วน Fallback Modal) ---
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -384,6 +387,10 @@ export default function App() {
          deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
       });
 
+      // 🌟 สร้างข้อความสรุปสำหรับแชร์แบบธรรมดา (ใช้ตอนอยู่นอก LINE หรือแชร์ Flex ไม่ได้)
+      const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
+      const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders`;
+
       const flexPayload = {
         type: "bubble",
         header: { type: "box", layout: "vertical", backgroundColor: "#4caf50", contents: [{ type: "text", text: "จัดส่งเครื่องดื่มแล้ว! 🛵", color: "#ffffff", weight: "bold", align: "center", size: "md" }] },
@@ -394,7 +401,7 @@ export default function App() {
             { type: "text", text: `คุณลูกค้า: ${deliveryModal.lineName}`, weight: "bold", size: "sm", color: "#333333" },
             { type: "text", text: deliveryMessage, wrap: true, size: "sm", weight: "bold", color: "#333333" },
             { type: "separator", margin: "md" },
-            { type: "box", layout: "horizontal", margin: "md", contents: [{ type: "text", text: "📍 จุดส่ง:", size: "xs", color: "#888888", flex: 1 }, { type: "text", text: deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน'), size: "xs", weight: "bold", flex: 3 }] },
+            { type: "box", layout: "horizontal", margin: "md", contents: [{ type: "text", text: "📍 จุดส่ง:", size: "xs", color: "#888888", flex: 1 }, { type: "text", text: locationText, size: "xs", weight: "bold", flex: 3 }] },
             deliveryLocation !== 'pickup' ? { type: "text", text: "📌 สามารถกดดูรูปถ่ายการจัดส่งได้ที่ปุ่มด้านล่างนะคะ", wrap: true, size: "xxs", color: "#aaaaaa", margin: "md" } : { type: "spacer", size: "xs" }
           ]
         },
@@ -419,17 +426,20 @@ export default function App() {
                   setDeliveryModal(null);
                   showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`);
               } else {
+                  // 🌟 แอดมินกดยกเลิกการแชร์ Flex ให้แสดง Modal สำรอง
                   setDeliveryModal(null);
-                  showAlert("อัปเดตสถานะในระบบแล้ว (แอดมินยกเลิกการส่งแชท)");
+                  setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
               }
           } catch (err) {
               console.error(err);
+              // 🌟 API Error ให้แสดง Modal สำรอง
               setDeliveryModal(null);
-              showAlert("อัปเดตสถานะสำเร็จ แต่การเปิดหน้าต่างส่งแชทล้มเหลว: " + err.message);
+              setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
           }
       } else {
+          // 🌟 เปิดใช้งานนอกแอป LINE ให้แสดง Modal สำรอง
           setDeliveryModal(null);
-          showAlert("อัปเดตสถานะสำเร็จ! (เปิดนอกแอป LINE จึงแชร์ข้อความไม่ได้)");
+          setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
       }
       
     } catch (e) { 
@@ -1742,7 +1752,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE */}
+      {/* 🌟 Failsafe Modal สำหรับสั่งซื้อเมื่ออยู่นอก LINE (ของลูกค้า) */}
       {successModalData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
@@ -1777,6 +1787,47 @@ export default function App() {
                      setSuccessModalData(null);
                      setView('shop');
                   }}
+                  className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
+                >
+                   ปิดหน้าต่าง
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 [NEW] Failsafe Modal สำหรับยืนยันจัดส่งเมื่อแชร์ผ่าน LIFF ไม่ได้ (ของแอดมิน) */}
+      {adminDeliverySuccessData && (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
+             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
+             <h3 className="text-xl font-bold text-primary">อัปเดตสถานะสำเร็จ! 🛵</h3>
+             <p className="text-xs text-gray-500 leading-relaxed">ระบบบันทึกการส่งแล้ว คุณสามารถแชร์ข้อความนี้ให้ลูกค้าผ่านแอป LINE ได้</p>
+             
+             <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
+                <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{adminDeliverySuccessData.text}</pre>
+             </div>
+
+             <div className="space-y-3">
+                <a 
+                  href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95"
+                >
+                   <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
+                </a>
+                <button 
+                  onClick={() => {
+                     navigator.clipboard.writeText(adminDeliverySuccessData.text);
+                     showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชทลูกค้าได้เลยครับ");
+                  }}
+                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95"
+                >
+                   คัดลอกข้อความ
+                </button>
+                <button 
+                  onClick={() => setAdminDeliverySuccessData(null)}
                   className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
                 >
                    ปิดหน้าต่าง
