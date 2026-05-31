@@ -113,6 +113,12 @@ export default function App() {
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
 
+  // --- 🌟 [NEW] States สำหรับระบบสร้าง Menu Board ---
+  const [showMenuBoardModal, setShowMenuBoardModal] = useState(false);
+  const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
+  const [generatedPreview, setGeneratedPreview] = useState(null);
+  const menuBoardRef = useRef(null);
+
   // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
 
@@ -235,6 +241,44 @@ export default function App() {
     }
     previousOrderCount.current = orders.length;
   }, [orders, view]);
+
+  // --- 🌟 ฟังก์ชันสร้างภาพป้ายเมนู (Menu Board Generator) แบบคลาสสิก Table-based ---
+  const generateMenuBoard = async () => {
+    if (!menuBoardRef.current) return;
+    setIsGeneratingPoster(true);
+
+    try {
+      // โหลด html2canvas แบบ Dynamic
+      if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      // รอ DOM จัดเรียงให้เสร็จ (สำคัญมากสำหรับมือถือ)
+      await new Promise(r => setTimeout(r, 1500));
+
+      const canvas = await window.html2canvas(menuBoardRef.current, { 
+         scale: 2.5, // ความละเอียดสูง x2.5 สำหรับปรินต์
+         useCORS: true,
+         backgroundColor: '#fcfbf7', // พื้นหลังสีครีม
+         logging: false
+      });
+
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.9);
+      setGeneratedPreview({ src: imageBase64, name: `HappyCow_MenuBoard_${Date.now()}.jpg` });
+      
+    } catch (err) {
+      console.error("Error generating menu board:", err);
+      alert("เกิดข้อผิดพลาดในการวาดป้าย: " + err.message);
+    } finally {
+      setIsGeneratingPoster(false);
+    }
+  };
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
@@ -1040,15 +1084,26 @@ export default function App() {
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ปรับเปลี่ยนปุ่มเป็นระบบส่งออกข้อมูลแทน (Export CSV) */}
+                {/* 🌟 ปุ่มสร้างป้าย Menu Board โฉมใหม่ */}
+                <div className="bg-gradient-to-br from-[#b89047]/10 to-[#b89047]/5 p-6 rounded-[2.5rem] border border-[#b89047]/20 shadow-sm flex flex-col items-center justify-center text-center">
+                  <div className="bg-white p-4 rounded-full shadow-md text-[#b89047] mb-4">
+                     <Palette size={28} />
+                  </div>
+                  <h3 className="font-bold text-base text-[#3d2c1e] mb-2 font-kanit">สร้างป้ายเมนูรวม (Menu Board)</h3>
+                  <p className="text-[11px] text-[#665a48] mb-5 leading-relaxed font-kanit">
+                    ระบบจะรวบรวมเมนูทั้งหมดมาจัดหน้ากระดาษแนวตั้ง<br/>แบบ 3 คอลัมน์สไตล์คาเฟ่พรีเมียม
+                  </p>
+                  <button onClick={() => setShowMenuBoardModal(true)} className="w-full bg-[#3d2c1e] text-white py-4 rounded-2xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+                     <Share2 size={18} /> สร้างป้ายเมนู (สไตล์มินิมอล)
+                  </button>
+                </div>
+
+                {/* 🌟 ปุ่ม Export CSV ย้ายลงมาด้านล่าง */}
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
                      <ClipboardList size={28} />
                   </div>
                   <h3 className="font-bold text-sm text-primary mb-1">ส่งออกรายการเมนู (Excel/CSV)</h3>
-                  <p className="text-[10px] text-gray-500 mb-5 leading-relaxed">
-                    ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา และสถานะทั้งหมด <br/>ออกเป็นไฟล์ตาราง นำไปใช้งานต่อได้ทันที
-                  </p>
                   <button onClick={exportMenuToCSV} className="w-full bg-blue-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-600">
                      <Download size={18} /> โหลดรายการเมนูลงเครื่อง
                   </button>
@@ -1298,6 +1353,259 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* --- 🌟 [NEW] Modal แสดงรูปภาพ Menu Board ที่สร้างเสร็จ --- */}
+      {generatedPreview && (
+        <div className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4 animate-in zoom-in backdrop-blur-md">
+          <button onClick={() => setGeneratedPreview(null)} className="absolute top-4 right-4 bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
+          
+          <div className="bg-white/10 px-6 py-3 rounded-full mb-6 border border-white/20 text-center animate-pulse w-full max-w-md">
+            <p className="text-white font-bold flex items-center justify-center gap-2 font-kanit text-lg"><CheckCircle size={24}/> สร้างป้ายสำเร็จ!</p>
+            <p className="text-white/80 text-[11px] mt-1">📱 <b>บนมือถือ/แท็บเล็ต:</b> แตะค้างที่รูปภาพด้านล่าง แล้วเลือก "บันทึกรูปภาพ"</p>
+          </div>
+          
+          <div className="w-full max-w-md max-h-[60vh] overflow-y-auto rounded-[2rem] shadow-2xl border-4 border-white/20 bg-white mb-6">
+            <img src={generatedPreview.src} className="w-full h-auto object-contain" alt="Generated Poster Preview" />
+          </div>
+          
+          <div className="w-full max-w-md grid grid-cols-1">
+             <a href={generatedPreview.src} download={generatedPreview.name} className="py-4 bg-green-500 text-white rounded-2xl font-bold font-kanit shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all w-full text-center">
+                <Download size={18}/> ดาวน์โหลดรูปลงเครื่อง (สำหรับ PC)
+             </a>
+             <button onClick={() => { setGeneratedPreview(null); setShowMenuBoardModal(false); }} className="py-3 text-gray-400 mt-2 font-bold font-kanit text-sm active:scale-95 transition-all">
+                ปิดหน้าต่าง
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- 🌟 [NEW] โครงสร้างป้าย Menu Board 3 Columns แบบตารางดั้งเดิม --- */}
+      {showMenuBoardModal && (
+        <div className="fixed inset-0 bg-black/90 z-[250] flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+           {isGeneratingPoster ? (
+              <div className="bg-white p-10 rounded-[3rem] flex flex-col items-center gap-6 text-center shadow-2xl">
+                 <div className="w-16 h-16 border-4 border-[#b89047] border-t-transparent rounded-full animate-spin"></div>
+                 <div>
+                    <h3 className="font-bold text-[#3d2c1e] text-lg font-kanit">กำลังวาดรูปป้ายเมนู...</h3>
+                    <p className="text-xs text-gray-500 mt-2 font-kanit">อาจใช้เวลาสักครู่ ระบบกำลังจัดเรียงตาราง</p>
+                 </div>
+              </div>
+           ) : (
+             <div className="w-full max-w-[900px] bg-gray-100 rounded-[2rem] flex flex-col overflow-hidden relative shadow-2xl max-h-[90vh]">
+                <div className="flex justify-between items-center bg-white p-5 border-b shadow-sm z-10">
+                   <h3 className="font-bold text-primary font-kanit text-lg flex items-center gap-2"><Palette size={20}/> ตัวอย่างป้ายเมนู 3 คอลัมน์</h3>
+                   <div className="flex gap-3">
+                     <button onClick={() => setShowMenuBoardModal(false)} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold font-kanit hover:bg-gray-200 transition-colors">ยกเลิก</button>
+                     <button onClick={generateMenuBoard} className="px-5 py-2.5 bg-[#b89047] text-white rounded-xl text-sm font-bold font-kanit flex items-center gap-2 shadow-md hover:bg-[#a67c3b] active:scale-95 transition-all"><Camera size={16}/> บันทึกรูปภาพ</button>
+                   </div>
+                </div>
+                
+                {/* 
+                   🔥 ส่วนเรนเดอร์ภาพ (ใช้ Vanilla HTML/CSS แบบ Table Base เท่านั้น) 
+                   ความกว้างตายตัวที่ 850px เพื่อให้ไม่โดนมือถือบีบ
+                */}
+                <div className="flex-1 overflow-auto bg-[#e5e5e5] p-4 sm:p-8 flex justify-center hide-scrollbar">
+                   <div 
+                      id="menu-board-container"
+                      ref={menuBoardRef} 
+                      style={{
+                         width: '850px',
+                         minHeight: '1200px', 
+                         backgroundColor: '#fcfbf7', // โทนครีมอ่อนตามเรฟเฟอเรนซ์
+                         fontFamily: "'Kanit', sans-serif",
+                         border: '1px solid #e0dfdb',
+                         padding: '40px',
+                         boxSizing: 'border-box',
+                         display: 'flex',
+                         flexDirection: 'column'
+                      }}
+                   >
+                      {/* --- Header (โลโก้ + ชื่อร้าน) --- */}
+                      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                         <h1 style={{ margin: '0', fontSize: '55px', color: '#4a4a4a', fontWeight: 'bold', fontFamily: "'Vollkorn', serif", letterSpacing: '2px' }}>
+                            วัวนมอารมณ์ดี
+                         </h1>
+                         <p style={{ margin: '5px 0 0 0', fontSize: '18px', color: '#888', letterSpacing: '8px', textTransform: 'uppercase' }}>
+                            PREMIUM CAFE MENU
+                         </p>
+                      </div>
+
+                      {/* 
+                          --- Main Content (3 Columns Table Layout) ---
+                          จัดกลุ่มเมนูตาม Category แบบอัตโนมัติ เพื่อกระจายลง 3 คอลัมน์
+                      */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                         <tbody>
+                            <tr>
+                               {/* === คอลัมน์ที่ 1 (ซ้าย) === */}
+                               <td style={{ width: '33.33%', verticalAlign: 'top', paddingRight: '15px' }}>
+                                  
+                                  {/* กลุ่ม กาแฟ (COFFEE) */}
+                                  {menuItems.filter(m => m.category === 'กาแฟ' && !m.isSoldOut).length > 0 && (
+                                     <div style={{ marginBottom: '30px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+                                           <tbody>
+                                              <tr>
+                                                 <td style={{ width: '60%', borderBottom: '2px solid #b89047', paddingBottom: '5px' }}>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>กาแฟ (COFFEE)</span>
+                                                 </td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>เย็น</td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>ปั่น</td>
+                                              </tr>
+                                           </tbody>
+                                        </table>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                           <tbody>
+                                              {menuItems.filter(m => m.category === 'กาแฟ' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
+                                                 <tr key={i}>
+                                                    <td style={{ width: '60%', padding: '6px 0', fontSize: '14px', color: '#444' }}>{menu.name}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</td>
+                                                 </tr>
+                                              ))}
+                                           </tbody>
+                                        </table>
+                                     </div>
+                                  )}
+
+                                  {/* กลุ่ม ชา (TEA) */}
+                                  {menuItems.filter(m => m.category === 'ชา' && !m.isSoldOut).length > 0 && (
+                                     <div style={{ marginBottom: '30px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+                                           <tbody>
+                                              <tr>
+                                                 <td style={{ width: '60%', borderBottom: '2px solid #b89047', paddingBottom: '5px' }}>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>ชา (TEA)</span>
+                                                 </td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>เย็น</td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>ปั่น</td>
+                                              </tr>
+                                           </tbody>
+                                        </table>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                           <tbody>
+                                              {menuItems.filter(m => m.category === 'ชา' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
+                                                 <tr key={i}>
+                                                    <td style={{ width: '60%', padding: '6px 0', fontSize: '14px', color: '#444' }}>{menu.name}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</td>
+                                                 </tr>
+                                              ))}
+                                           </tbody>
+                                        </table>
+                                     </div>
+                                  )}
+
+                               </td>
+
+                               {/* === คอลัมน์ที่ 2 (กลาง) === */}
+                               <td style={{ width: '33.33%', verticalAlign: 'top', padding: '0 15px' }}>
+                                  
+                                  {/* กลุ่ม นม (MILK) */}
+                                  {menuItems.filter(m => m.category === 'นม' && !m.isSoldOut).length > 0 && (
+                                     <div style={{ marginBottom: '30px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+                                           <tbody>
+                                              <tr>
+                                                 <td style={{ width: '60%', borderBottom: '2px solid #b89047', paddingBottom: '5px' }}>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>นม (MILK)</span>
+                                                 </td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>เย็น</td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>ปั่น</td>
+                                              </tr>
+                                           </tbody>
+                                        </table>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                           <tbody>
+                                              {menuItems.filter(m => m.category === 'นม' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
+                                                 <tr key={i}>
+                                                    <td style={{ width: '60%', padding: '6px 0', fontSize: '14px', color: '#444' }}>{menu.name}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</td>
+                                                 </tr>
+                                              ))}
+                                           </tbody>
+                                        </table>
+                                     </div>
+                                  )}
+
+                               </td>
+
+                               {/* === คอลัมน์ที่ 3 (ขวา) === */}
+                               <td style={{ width: '33.33%', verticalAlign: 'top', paddingLeft: '15px' }}>
+                                  
+                                  {/* กลุ่ม ผลไม้และสมูทตี้ */}
+                                  {menuItems.filter(m => (m.category === 'สมูทตี้โยเกิร์ต' || m.category === 'ผลไม้และสมูทตี้') && !m.isSoldOut).length > 0 && (
+                                     <div style={{ marginBottom: '30px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+                                           <tbody>
+                                              <tr>
+                                                 <td style={{ width: '60%', borderBottom: '2px solid #b89047', paddingBottom: '5px' }}>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>ผลไม้และสมูทตี้</span>
+                                                 </td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>เย็น</td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>ปั่น</td>
+                                              </tr>
+                                           </tbody>
+                                        </table>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                           <tbody>
+                                              {menuItems.filter(m => (m.category === 'สมูทตี้โยเกิร์ต' || m.category === 'ผลไม้และสมูทตี้') && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
+                                                 <tr key={i}>
+                                                    <td style={{ width: '60%', padding: '6px 0', fontSize: '14px', color: '#444' }}>{menu.name}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</td>
+                                                 </tr>
+                                              ))}
+                                           </tbody>
+                                        </table>
+                                     </div>
+                                  )}
+
+                                  {/* กลุ่ม มัทฉะ (MATCHA) */}
+                                  {menuItems.filter(m => m.category === 'มัทฉะ' && !m.isSoldOut).length > 0 && (
+                                     <div style={{ marginBottom: '30px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+                                           <tbody>
+                                              <tr>
+                                                 <td style={{ width: '60%', borderBottom: '2px solid #b89047', paddingBottom: '5px' }}>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#b89047' }}>มัทฉะ (MATCHA)</span>
+                                                 </td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>เย็น</td>
+                                                 <td style={{ width: '20%', borderBottom: '1px solid #e0dfdb', textAlign: 'center', color: '#999', fontSize: '12px', verticalAlign: 'bottom', paddingBottom: '5px' }}>ปั่น</td>
+                                              </tr>
+                                           </tbody>
+                                        </table>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                           <tbody>
+                                              {menuItems.filter(m => m.category === 'มัทฉะ' && !m.isSoldOut).sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)).map((menu, i) => (
+                                                 <tr key={i}>
+                                                    <td style={{ width: '60%', padding: '6px 0', fontSize: '14px', color: '#444' }}>{menu.name}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.isOnlyBlend ? '-' : menu.price}</td>
+                                                    <td style={{ width: '20%', padding: '6px 0', textAlign: 'center', fontSize: '14px', color: '#222', fontWeight: 'bold' }}>{menu.allowBlend === false && !menu.isOnlyBlend ? '-' : (menu.price + getAddedBlendPrice(menu))}</td>
+                                                 </tr>
+                                              ))}
+                                           </tbody>
+                                        </table>
+                                     </div>
+                                  )}
+
+                               </td>
+                            </tr>
+                         </tbody>
+                      </table>
+                      
+                      {/* --- Footer Note --- */}
+                      <div style={{ marginTop: 'auto', textAlign: 'center', color: '#999', fontSize: '11px', borderTop: '1px solid #e0dfdb', paddingTop: '15px' }}>
+                         ราคาเมนูอาจมีการเปลี่ยนแปลง | *ราคาปกติ (เย็น) / ราคาปั่น
+                      </div>
+
+                   </div>
+                </div>
+             </div>
+           )}
         </div>
       )}
 
