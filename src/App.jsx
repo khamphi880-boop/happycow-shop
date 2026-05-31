@@ -86,7 +86,7 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
-  // Custom Alert / Confirm Box State (แทนที่ window.alert และ window.confirm)
+  // Custom Alert / Confirm Box State
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
   const showAlert = (message) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm: null });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
@@ -322,14 +322,27 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
+  // --- 🌟 Smart Redirect: ระบบพาแอดมินเด้งกลับหน้าแชทเมื่อกดส่งสินค้าสำเร็จ ---
   const handleConfirmDelivery = async () => {
     if (!deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
     try {
       const deliveryMessage = deliveryLocation === 'room' ? 'ขอบคุณที่สั่งออเดอร์นะคะ 💖' : 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
       await updateDoc(doc(db, 'orders', deliveryModal.id), { status: 'completed', deliveryLocation: deliveryLocation, deliveryMessage: deliveryMessage, deliveryImage: deliveryImage });
-      showAlert('บันทึกการจัดส่งเรียบร้อย! 🚀'); setDeliveryModal(null);
-    } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
+      
+      setDeliveryModal(null);
+      
+      showConfirm('บันทึกและอัปเดตสถานะสำเร็จ! 🚀\nต้องการปิดหน้านี้เพื่อกลับไปแชท LINE กับลูกค้าหรือไม่?', () => {
+         if (window.liff && window.liff.isInClient()) {
+             window.liff.closeWindow(); 
+         } else {
+             showAlert('ฟังก์ชันกลับหน้าแชททำงานได้เฉพาะเมื่อเปิดผ่านแอปพลิเคชัน LINE เท่านั้นครับ');
+         }
+      });
+
+    } catch (e) { 
+      showAlert("เกิดข้อผิดพลาด: " + e.message); 
+    }
     setIsDelivering(false);
   };
 
@@ -823,16 +836,10 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* 🌟 ปุ่มสั่งซื้อ Smart Fail-Safe 100% พร้อมแนบลิงก์ออเดอร์ */}
+                {/* 🌟 [NEW] Failsafe Safe Order Function */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
-                      if (!window.liff.isLoggedIn()) {
-                        return window.liff.login();
-                      }
-                      if ((lineProfile.userId || '').startsWith('guest_')) {
-                        return showAlert("⚠️ กรุณาล็อกอินบัญชี LINE ก่อนสั่งซื้อครับ");
-                      }
                       if (!address) return showAlert("กรุณากรอกที่อยู่จัดส่งครับ");
                       if (paymentMethod === 'promptpay' && !slipImage) return showAlert("กรุณาแนบสลิปการโอนเงินครับ");
                       
@@ -851,43 +858,39 @@ export default function App() {
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
                           `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
-                        try {
-                          await navigator.clipboard.writeText(orderSummaryText);
-                        } catch (cErr) {
-                          console.log("Clipboard bypass", cErr);
-                        }
+                        try { await navigator.clipboard.writeText(orderSummaryText); } catch (e) { console.warn(e); }
 
-                        let isLiffShared = false;
+                        let liffSuccess = false;
                         if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient() && window.liff.isApiAvailable('shareTargetPicker')) {
-                          try {
-                            const res = await window.liff.shareTargetPicker([{
-                              type: "flex",
-                              altText: `🐮 ออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"} (฿${total})`,
-                              contents: {
-                                type: "bubble",
-                                header: { type: "box", layout: "vertical", backgroundColor: "#3D2C1E", contents: [{ type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" }] },
-                                body: { type: "box", layout: "vertical", spacing: "md", contents: [{ type: "text", text: `คุณ: ${lineProfile.displayName || "ลูกค้าทั่วไป"}`, weight: "bold" }, { type: "text", text: `ยอดรวม: ฿${total}`, color: "#dc2626", weight: "bold" }] }
-                              }
-                            }]);
-                            if (res) isLiffShared = true;
-                          } catch (err) {
-                            console.log("LIFF picker failed", err);
-                          }
+                           try {
+                             const res = await window.liff.shareTargetPicker([{
+                               type: "flex",
+                               altText: `🐮 ออร์เดอร์ใหม่จากคุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"} (฿${total})`,
+                               contents: {
+                                 type: "bubble",
+                                 header: { type: "box", layout: "vertical", backgroundColor: "#3D2C1E", contents: [{ type: "text", text: "วัวนมอารมณ์ดี 🐮", color: "#ffffff", weight: "bold", size: "lg", align: "center" }] },
+                                 body: { type: "box", layout: "vertical", spacing: "md", contents: [{ type: "text", text: `คุณ: ${lineProfile.displayName || "ลูกค้าทั่วไป"}`, weight: "bold" }, { type: "text", text: `ยอดรวม: ฿${total}`, color: "#dc2626", weight: "bold" }] }
+                               }
+                             }]);
+                             if (res) liffSuccess = true;
+                           } catch (err) {
+                             console.log("LIFF Picker Error:", err);
+                           }
                         }
 
                         setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
 
-                        if (isLiffShared) {
-                          setView('myOrders');
-                          showAlert("ส่งใบเสร็จเรียบร้อย! 🐮🎉");
+                        if (liffSuccess) {
+                           setView('myOrders');
+                           showAlert("สั่งซื้อสำเร็จและแชร์บิลเรียบร้อยแล้ว! 🐮🎉");
                         } else {
-                          setSuccessModalData({
-                            orderId: orderRef.id,
-                            text: orderSummaryText
-                          });
+                           setSuccessModalData({
+                              orderId: orderRef.id,
+                              text: orderSummaryText
+                           });
                         }
                       } catch (err) {
-                        showAlert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
+                        showAlert("เกิดข้อผิดพลาดในการบันทึก: " + (err.message || err));
                       } finally {
                         setIsLoading(false);
                       }
@@ -930,6 +933,7 @@ export default function App() {
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
                                 {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''})
+                                {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
                               </p>
                           ))}</div>
 
@@ -955,6 +959,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
@@ -971,7 +976,7 @@ export default function App() {
               ))}
             </div>
 
-            {/* 📊 TAB: Dashboard รายรับ (กู้คืนกลับมาครบถ้วน) */}
+            {/* TAB: Dashboard รายรับ */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl">
@@ -1049,11 +1054,10 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB: ระบบจัดการคลังเมนูของร้าน (กู้คืนปุ่มแก้ไขและการลากเรียงลำดับ) */}
+            {/* TAB: ระบบจัดการคลังเมนูของร้าน */}
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ปุ่มส่งออกข้อมูลแทน (Export CSV) */}
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
                      <ClipboardList size={28} />
@@ -1200,7 +1204,6 @@ export default function App() {
                               </div>
                             </div>
                             
-                            {/* --- ฟอร์มแก้ไขเมนู --- */}
                             {editingMenu && editingMenu.id === item.id && (
                               <div className="bg-orange-50 p-5 rounded-3xl border border-orange-200 shadow-inner mt-2 mb-4 mx-1 animate-in slide-in-from-top-4 space-y-4">
                                 <div className="flex justify-between items-center mb-1 border-b border-orange-100 pb-2">
@@ -1320,146 +1323,38 @@ export default function App() {
         )}
       </main>
 
-      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ (กู้คืนครบ 100%) --- */}
+      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-8 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
-            <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400 hover:bg-gray-100 transition-colors"><X/></button></div>
-            
+          <div className="bg-white rounded-t-[3.5rem] w-full max-w-md p-10 space-y-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400"><X/></button></div>
             <div className="space-y-8">
-              {/* เลือกระดับความหวาน */}
               <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
                 <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
-                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>{l}</button>
+                    <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>
                 ))}</div>
               </div>
 
-              {/* ☕ กู้คืน: ส่วนเลือกระดับการคั่ว (เฉพาะเมนูกาแฟ) */}
-              {optionModalItem.category === 'กาแฟ' && (
-                <div className="space-y-4">
-                   <div>
-                     <label className="text-[10px] font-bold block mb-4 text-[#5c3a21] uppercase tracking-widest flex items-center gap-1"><Coffee size={14} fill="currentColor"/> เลือกระดับการคั่วเมล็ดกาแฟ</label>
-                     <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วกลาง'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วกลาง' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วกลาง<br/><span className="text-[9px] font-normal">หอมนุ่ม ละมุน</span></button>
-                       <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วเข้ม'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วเข้ม' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วเข้ม<br/><span className="text-[9px] font-normal">เข้มข้น ถึงใจ</span></button>
-                     </div>
-                   </div>
-                   
-                   {/* ☕ กู้คืน: ส่วนเพิ่มช็อตกาแฟ */}
-                   <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.addShot ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.addShot ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
-                          {tempOptions.addShot && <CheckCircle size={14} />}
-                        </div>
-                        <span className={`text-sm font-bold ${tempOptions.addShot ? 'text-primary' : 'text-gray-500'}`}>เพิ่มช็อตกาแฟ</span>
-                      </div>
-                      <span className="text-sm font-bold text-accent">+฿20</span>
-                      <input type="checkbox" className="hidden" checked={tempOptions.addShot || false} onChange={(e) => setTempOptions({...tempOptions, addShot: e.target.checked})} />
-                   </label>
-                </div>
-              )}
-
-              {/* 🍵 กู้คืน: ส่วนเลือกผงชา (เฉพาะเมนูที่มีให้เลือกรสชาติมัทฉะ) */}
-              {optionModalItem.hasTeaType && (
-                <div className="space-y-4">
-                   <div>
-                     <label className="text-[10px] font-bold block mb-4 text-[#4a5d23] uppercase tracking-widest flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
-                     <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-[#4a5d23] text-white border-[#4a5d23] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>มัทฉะ<br/><span className="text-[9px] font-normal">หอมเข้มข้น ดั้งเดิม</span></button>
-                       <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal">หอมคั่ว ละมุน</span></button>
-                     </div>
-                   </div>
-                </div>
-              )}
-
-              {/* 🧋 กู้คืน: แถมมุกฟรี */}
-              {optionModalItem.hasFreePearl && (
-                <div>
-                   <label className="text-sm font-bold block mb-4 text-orange-400 uppercase tracking-widest text-[10px] flex items-center gap-1"><Star size={12} fill="currentColor"/> แถมมุกฟรี!</label>
-                   <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setTempOptions({...tempOptions, addPearl: true})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.addPearl ? 'bg-orange-400 text-white border-orange-400 shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>รับมุก (ฟรี)</button>
-                     <button onClick={() => setTempOptions({...tempOptions, addPearl: false})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${!tempOptions.addPearl ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>ไม่รับมุกฟรี</button>
-                   </div>
-                </div>
-              )}
-
-              {/* 🧁 กู้คืน: ส่วนเลือกท็อปปิ้งเสริม */}
-              {toppings.length > 0 && optionModalItem.allowTopping !== false && (
-                <div>
-                  <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">เพิ่มท็อปปิ้งอื่นๆ</label>
-                  <div className="space-y-2">
-                    {toppings.map(t => {
-                      const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
-                      return (
-                        <label key={t.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
-                              {isSelected && <CheckCircle size={14} />}
-                            </div>
-                            <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500'}`}>{t.name}</span>
-                          </div>
-                          <span className="text-sm font-bold text-accent">+฿{t.price}</span>
-                          <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
-                            setTempOptions(prev => {
-                              const currentToppings = prev.selectedToppings || [];
-                              if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
-                              return { ...prev, selectedToppings: [...currentToppings, t] };
-                            });
-                          }} />
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ประเภทการเสิร์ฟ (เย็น/ปั่น) */}
-              {optionModalItem.isOnlyBlend ? (
-                <div className="grid grid-cols-1 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
-                     <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
-                     {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
-                   </button>
-                </div>
-              ) : optionModalItem.allowBlend !== false ? (
-                <div className="grid grid-cols-2 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
-                   <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-5">
-                   <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-5">
+                 <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
+                 <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary' : 'border-gray-50 text-gray-300 bg-white'}`}><Zap size={32}/><span className="text-xs uppercase text-center">ปั่น (+฿{getAddedBlendPrice(optionModalItem)})</span></button>
+              </div>
             </div>
             
-            {storeSettings.isStoreOpen !== false ? (
-              <button onClick={() => {
-                  const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-                  const shotPrice = tempOptions.addShot ? 20 : 0;
-                  const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
-                  
-                  const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
-                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
-                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
-                  const shotStr = tempOptions.addShot ? `-addShot` : '';
-                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
-                  
-                  setCart(prev => {
-                    const ex = prev.find(i => i.cartId === cartId);
-                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
-                  });
-                  setOptionModalItem(null);
-                }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl transition-all sticky bottom-0 hover:opacity-90">
-                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
-              </button>
-            ) : (
-              <button disabled className="w-full py-6 bg-gray-300 text-white rounded-[2.5rem] font-bold text-lg flex items-center justify-center gap-3 shadow-xl sticky bottom-0 cursor-not-allowed">
-                  <AlertCircle size={20}/> ร้านปิดรับออเดอร์ชั่วคราว
-              </button>
-            )}
+            <button onClick={() => {
+                const isItemBlended = tempOptions.isBlended;
+                const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0);
+                const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}`;
+                
+                setCart(prev => {
+                  const ex = prev.find(i => i.cartId === cartId);
+                  if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+                  return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, qty: 1 }];
+                });
+                setOptionModalItem(null);
+              }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
+                <Plus size={24}/> เพิ่มลงตะกร้าเครื่องดื่ม
+            </button>
           </div>
         </div>
       )}
@@ -1470,7 +1365,7 @@ export default function App() {
           <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-primary">ยืนยันและถ่ายรูปจัดส่ง</h3>
-              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
+              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2"><X size={20}/></button>
             </div>
             <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center">
                <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm">
@@ -1578,23 +1473,23 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Custom Message Box (แทนที่ window.alert / window.confirm) เพื่อความสวยงามและไม่ถูกบล็อก */}
+      {/* 🌟 Custom Message Box (แทนที่ alert/confirm ป้องกันการบล็อกและเพิ่มความสวยงาม) */}
       {msgBox.isOpen && (
-        <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
             {msgBox.type === 'confirm' ? (
-                <AlertCircle size={40} className="text-orange-500 mx-auto mb-4" />
+                <AlertCircle size={48} className="text-orange-500 mx-auto mb-5" />
             ) : (
-                <CheckCircle size={40} className="text-green-500 mx-auto mb-4" />
+                <CheckCircle size={48} className="text-green-500 mx-auto mb-5" />
             )}
             
-            <h3 className="font-bold text-sm text-gray-800 mb-6">{msgBox.message}</h3>
+            <h3 className="font-bold text-sm text-gray-800 mb-8 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
             
             {msgBox.type === 'confirm' ? (
               <div className="flex gap-3">
                 <button 
                   onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
-                  className="flex-1 py-3 bg-gray-100 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+                  className="flex-1 py-4 bg-gray-100 rounded-2xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
                 >
                   ยกเลิก
                 </button>
@@ -1603,17 +1498,17 @@ export default function App() {
                     if (msgBox.onConfirm) msgBox.onConfirm();
                     setMsgBox({ ...msgBox, isOpen: false });
                   }} 
-                  className="flex-1 py-3 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
+                  className="flex-1 py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:bg-opacity-90 transition-opacity shadow-md"
                 >
-                  ยืนยัน
+                  ยืนยันตกลง
                 </button>
               </div>
             ) : (
               <button 
                 onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
-                className="w-full py-3 bg-primary text-white rounded-xl text-xs font-bold hover:opacity-90 transition-opacity shadow-md"
+                className="w-full py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-opacity shadow-md"
               >
-                ตกลง
+                รับทราบ
               </button>
             )}
           </div>
