@@ -888,9 +888,11 @@ export default function App() {
                           slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
                         });
 
+                        // 🌟 [แก้ไข]: เพิ่มลิงก์ดูบิลต่อท้ายข้อความสรุปออเดอร์
+                        const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders`;
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
-                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}`;
+                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 ดูสถานะออร์เดอร์ของคุณได้ที่:\n${orderLink}`;
 
                         try {
                           await navigator.clipboard.writeText(orderSummaryText);
