@@ -98,6 +98,7 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminTab, setAdminTab] = useState('orders');
   const [selectedSlip, setSelectedSlip] = useState(null); 
+  const [downloadPreview, setDownloadPreview] = useState(null); // 🌟 State ใหม่สำหรับโชว์รูปให้กดเซฟ (Fallback)
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
   const [deliveryModal, setDeliveryModal] = useState(null);
@@ -122,7 +123,7 @@ export default function App() {
   // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
   
-  // 🌟 [NEW] State: Failsafe สำหรับแอดมินตอนกดยืนยันจัดส่งแล้วแชร์ไม่ได้
+  // 🌟 State: Failsafe สำหรับแอดมินตอนกดยืนยันจัดส่งแล้วแชร์ไม่ได้
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -247,6 +248,33 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
+  // --- 🌟 ฟังก์ชันจัดการการดาวน์โหลดรูปภาพให้รองรับทุกเบราว์เซอร์ ---
+  const handleDownloadImage = async (base64String, fileName) => {
+    // 1. ตรวจสอบว่าเปิดผ่าน LINE LIFF หรือไม่ (เพราะ LINE บล็อกการดาวน์โหลด)
+    if (window.liff && window.liff.isInClient()) {
+      setDownloadPreview(base64String); // เด้งรูปขึ้นมาเต็มจอให้กดค้างเซฟ
+      return;
+    }
+    
+    // 2. ถ้าเป็นเบราว์เซอร์ปกติ ลองแปลง Base64 -> Blob แล้วสั่งโหลด
+    try {
+      const res = await fetch(base64String);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download Error:", error);
+      // 3. ถ้าพัง (เช่น Cross-Origin หรือบล็อก) ให้โชว์รูปเต็มจอเพื่อให้กดค้างเซฟเอง
+      setDownloadPreview(base64String);
+    }
+  };
+
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return showAlert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -327,7 +355,6 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
-  // --- 🌟 แอดมิน: กดยอมรับออร์เดอร์ พร้อมแชร์ลงแชทลูกค้าอัตโนมัติ ---
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
@@ -348,46 +375,29 @@ export default function App() {
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste หาใน LINE
-          
-          const res = await window.liff.shareTargetPicker([{
-              type: "flex",
-              altText: `ออร์เดอร์ #${order.id.slice(0,6)} กำลังเตรียม!`,
-              contents: flexPayload
-          }]);
-          
+          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} 
+          const res = await window.liff.shareTargetPicker([{ type: "flex", altText: `ออร์เดอร์ #${order.id.slice(0,6)} กำลังเตรียม!`, contents: flexPayload }]);
           if (res) showAlert(`รับออร์เดอร์และส่งข้อความหาคุณ ${order.lineName} สำเร็จ! 🎉`);
           else showAlert("อัปเดตสถานะในระบบแล้ว (คุณยกเลิกการแชร์เข้าแชทลูกค้า)");
       } else {
           showAlert("รับออร์เดอร์สำเร็จ! (เปิดใช้งานนอกแอป LINE จึงแชร์ข้อความไม่ได้)");
       }
-    } catch (e) {
-        showAlert("เกิดข้อผิดพลาด: " + e.message);
-    }
+    } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
   };
 
-  // --- 🌟 แอดมิน: กดยืนยันการจัดส่ง พร้อมแชร์ภาพลงแชทลูกค้าอัตโนมัติ (แก้ไขเพิ่มเติมส่วน Fallback Modal) ---
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
     try {
       let deliveryMessage = '';
-      if (deliveryLocation === 'pickup') {
-         deliveryMessage = 'ลูกค้ารับสินค้าที่หน้าร้านเรียบร้อยแล้ว ขอบคุณที่อุดหนุนนะคะ 💖';
-      } else if (deliveryLocation === 'room') {
-         deliveryMessage = 'จัดส่งถึงหน้าห้องเรียบร้อยแล้ว ขอบคุณที่สั่งออเดอร์นะคะ 💖';
-      } else {
-         deliveryMessage = 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
-      }
+      if (deliveryLocation === 'pickup') deliveryMessage = 'ลูกค้ารับสินค้าที่หน้าร้านเรียบร้อยแล้ว ขอบคุณที่อุดหนุนนะคะ 💖';
+      else if (deliveryLocation === 'room') deliveryMessage = 'จัดส่งถึงหน้าห้องเรียบร้อยแล้ว ขอบคุณที่สั่งออเดอร์นะคะ 💖';
+      else deliveryMessage = 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
 
       await updateDoc(doc(db, 'orders', deliveryModal.id), { 
-         status: 'completed', 
-         deliveryLocation: deliveryLocation, 
-         deliveryMessage: deliveryMessage, 
-         deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
+         status: 'completed', deliveryLocation, deliveryMessage, deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
       });
 
-      // 🌟 สร้างข้อความสรุปสำหรับแชร์แบบธรรมดา (ใช้ตอนอยู่นอก LINE หรือแชร์ Flex ไม่ได้)
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders`;
 
@@ -407,44 +417,21 @@ export default function App() {
         },
         footer: {
           type: "box", layout: "vertical",
-          contents: [
-            { type: "button", style: "primary", color: "#A67C52", action: { type: "uri", label: deliveryLocation !== 'pickup' ? "📸 ดูรูป/สถานะออร์เดอร์" : "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders` } }
-          ]
+          contents: [{ type: "button", style: "primary", color: "#A67C52", action: { type: "uri", label: deliveryLocation !== 'pickup' ? "📸 ดูรูป/สถานะออร์เดอร์" : "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders` } }]
         }
       };
 
       if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} // แอบก๊อปปี้ชื่อให้แอดมินเอาไป Paste
+          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} 
           try {
-              const res = await window.liff.shareTargetPicker([{
-                  type: "flex",
-                  altText: `🛵 อัปเดตสถานะจัดส่ง: บิล #${deliveryModal.id.slice(0,6)}`,
-                  contents: flexPayload
-              }]);
-              
-              if (res) {
-                  setDeliveryModal(null);
-                  showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`);
-              } else {
-                  // 🌟 แอดมินกดยกเลิกการแชร์ Flex ให้แสดง Modal สำรอง
-                  setDeliveryModal(null);
-                  setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
-              }
-          } catch (err) {
-              console.error(err);
-              // 🌟 API Error ให้แสดง Modal สำรอง
-              setDeliveryModal(null);
-              setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
-          }
+              const res = await window.liff.shareTargetPicker([{ type: "flex", altText: `🛵 อัปเดตสถานะจัดส่ง: บิล #${deliveryModal.id.slice(0,6)}`, contents: flexPayload }]);
+              if (res) { setDeliveryModal(null); showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`); } 
+              else { setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id }); }
+          } catch (err) { console.error(err); setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id }); }
       } else {
-          // 🌟 เปิดใช้งานนอกแอป LINE ให้แสดง Modal สำรอง
-          setDeliveryModal(null);
-          setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
+          setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
       }
-      
-    } catch (e) { 
-      showAlert("เกิดข้อผิดพลาด: " + e.message); 
-    }
+    } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
 
@@ -514,13 +501,8 @@ export default function App() {
     if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
     setTempOptions({ 
-      sweetness: '100%', 
-      isBlended: item.isOnlyBlend ? true : false, 
-      addPearl: item.hasFreePearl || false, 
-      selectedToppings: [],
-      bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null,
-      teaType: item.hasTeaType ? 'มัทฉะ' : null,
-      addShot: false
+      sweetness: '100%', isBlended: item.isOnlyBlend ? true : false, addPearl: item.hasFreePearl || false, 
+      selectedToppings: [], bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null, teaType: item.hasTeaType ? 'มัทฉะ' : null, addShot: false
     });
     if(searchQuery) handleSearchSubmit(searchQuery);
   };
@@ -575,9 +557,7 @@ export default function App() {
   const mainContainerStyle = {
     backgroundColor: currentThemeData.bg,
     backgroundImage: storeSettings.theme === 'custom' && storeSettings.customBgImage ? `url(${storeSettings.customBgImage})` : 'none',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed'
+    backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed'
   };
 
   return (
@@ -1358,16 +1338,10 @@ export default function App() {
                                 </button>
                                 <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteMenu(item.id); }} className="p-3 text-red-500 hover:bg-red-100 active:scale-90 transition-all bg-red-50 rounded-xl"><Trash2 size={16}/></button>
                                 
-                                {/* 🌟 ส่วนที่เพิ่มใหม่: ปุ่มดาวน์โหลดรูปภาพเมนู */}
+                                {/* 🌟 ส่วนที่แก้ไขเพิ่มใหม่: เรียกใช้ปุ่มดาวน์โหลดที่รองรับการใช้งานในแอป LINE ด้วยการโชว์ภาพเต็มจอให้กดเซฟ */}
                                 <button type="button" onClick={(e) => { 
                                   e.stopPropagation(); 
-                                  const link = document.createElement("a");
-                                  link.href = item.image;
-                                  link.download = `menu_${item.name}.jpg`;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                  showAlert('กำลังดาวน์โหลดรูปภาพ ' + item.name);
+                                  handleDownloadImage(item.image, `menu_${item.name}.jpg`);
                                 }} className="p-3 text-green-500 hover:bg-green-100 active:scale-90 transition-all bg-green-50 rounded-xl" title="บันทึกรูปภาพเมนู"><Download size={16}/></button>
                               </div>
                             </div>
@@ -1594,10 +1568,8 @@ export default function App() {
           
           <div className="bg-white rounded-t-[3.5rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
             
-            {/* 🌟 ส่วนที่แก้ไขเพิ่มใหม่: รูปภาพเมนูด้านบน 30% ของจอ */}
             <div className="w-full h-[30vh] relative flex-shrink-0 bg-gray-50">
               <img src={optionModalItem.image} alt={optionModalItem.name} className="w-full h-full object-cover" />
-              {/* ไล่สีให้สมูทตอนต่อกับเนื้อหาด้านล่าง */}
               <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent"></div>
             </div>
 
@@ -1819,7 +1791,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 [NEW] Failsafe Modal สำหรับยืนยันจัดส่งเมื่อแชร์ผ่าน LIFF ไม่ได้ (ของแอดมิน) */}
+      {/* 🌟 Failsafe Modal สำหรับยืนยันจัดส่งเมื่อแชร์ผ่าน LIFF ไม่ได้ (ของแอดมิน) */}
       {adminDeliverySuccessData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
@@ -1857,6 +1829,19 @@ export default function App() {
                 </button>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ (กรณีดาวน์โหลดตรงไม่ได้) */}
+      {downloadPreview && (
+        <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
+          <p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
+            <Download size={18}/> กรุณากดค้างที่รูปภาพด้านล่าง<br/>แล้วเลือก "บันทึกรูปภาพ" (Save Image)
+          </p>
+          <img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in pointer-events-auto" alt="preview to save" />
+          <button onClick={() => setDownloadPreview(null)} className="mt-8 bg-white text-primary px-8 py-4 rounded-2xl font-bold active:scale-95 shadow-md flex items-center gap-2">
+            <X size={18}/> ปิดหน้าต่าง
+          </button>
         </div>
       )}
 
@@ -1914,7 +1899,6 @@ export default function App() {
               <button 
                 onClick={() => {
                   setMsgBox({ ...msgBox, isOpen: false });
-                  // 🌟 เช็คปิดแชทกลับหน้าจอถ้าส่งสำเร็จผ่านแอป LINE (เพิ่มความสะดวกให้แอดมิน)
                   if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
                       window.liff.closeWindow();
                   }
