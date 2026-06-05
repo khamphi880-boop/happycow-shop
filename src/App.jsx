@@ -3,7 +3,8 @@ import {
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
-  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck 
+  TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
+  Sparkles
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
@@ -66,17 +67,29 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
   
-  const [cart, setCart] = useState(() => {
-    try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
-    catch(e) { return []; }
-  });
-  
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
+  // --- นำทางสำหรับลูกค้าครั้งแรกและแอดมิน ---
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('action') === 'viewOrders') return 'myOrders';
+    const action = params.get('action');
+    
+    if (action === 'viewOrders') {
+      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+      if (isAdmin) return 'admin'; // ถ้าเป็นแอดมิน คลิกบิลลูกค้าจะวิ่งไปหน้าแอดมินโดยตรง
+      return 'myOrders';
+    }
+    if (action === 'admin') {
+      return localStorage.getItem('happycow_isAdmin') === 'true' ? 'admin' : 'shop';
+    }
+    
+    // ตรวจสอบเช็กเซสชันของผู้ใช้ใหม่ (First time of this session) ให้แสดงเมนูก่อนเสมอ
+    const isFirstTimeSession = !sessionStorage.getItem('happycow_session_active');
+    sessionStorage.setItem('happycow_session_active', 'true');
+    if (isFirstTimeSession) {
+      return 'shop';
+    }
     return localStorage.getItem('happycow_view') || 'shop';
   }); 
+
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOrders, setIsLoadingOrders] = useState(() => new URLSearchParams(window.location.search).get('action') === 'viewOrders');
   
@@ -96,11 +109,14 @@ export default function App() {
   // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminTab, setAdminTab] = useState('orders');
+  const [adminTab, setAdminTab] = useState('orders'); // เริ่มต้นที่หน้าจัดการออเดอร์เสมอ
   const [selectedSlip, setSelectedSlip] = useState(null); 
   const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
+  // สถานะออเดอร์ที่ถูกกดส่งลิงก์มาเพื่อทำการไฮไลต์
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+
   const [deliveryModal, setDeliveryModal] = useState(null);
   const [deliveryImage, setDeliveryImage] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState('room');
@@ -169,6 +185,20 @@ export default function App() {
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'admin') setShowAdminModal(true);
+
+    // ตรวจจับ deep-link orderId เพื่อพาแอดมินหรือลูกค้าไปยังออเดอร์นั้น
+    const orderId = params.get('orderId');
+    if (orderId) {
+      setSelectedOrderId(orderId);
+      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+      if (isAdmin) {
+        setView('admin');
+        setAdminTab('orders');
+        setAdminSearchQuery(orderId); // ทำการกรองทันทีในหน้าจอแอดมิน
+      } else {
+        setView('myOrders');
+      }
+    }
 
     const initializeLiff = () => {
       window.liff.init({ liffId: LIFF_ID }).then(() => {
@@ -364,7 +394,7 @@ export default function App() {
                   { type: "text", text: `ลูกค้า: คุณ ${order.lineName}`, weight: "bold", size: "sm", color: "#333333" },
                   { type: "text", text: "ออร์เดอร์ของคุณกำลังถูกจัดเตรียม กรุณารอประมาณ 20 นาที (+/-) นะคะ ขอบคุณค่ะ 🐮💖", wrap: true, size: "sm", weight: "bold", color: "#333333" },
                   { type: "separator", margin: "md" },
-                  { type: "button", style: "primary", color: "#A67C52", margin: "sm", action: { type: "uri", label: "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders` } }
+                  { type: "button", style: "primary", color: "#A67C52", margin: "sm", action: { type: "uri", label: "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}` } }
               ]
           }
       };
@@ -394,7 +424,7 @@ export default function App() {
       });
 
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
-      const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders`;
+      const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
 
       const flexPayload = {
         type: "bubble",
@@ -412,7 +442,7 @@ export default function App() {
         },
         footer: {
           type: "box", layout: "vertical",
-          contents: [{ type: "button", style: "primary", color: "#A67C52", action: { type: "uri", label: deliveryLocation !== 'pickup' ? "📸 ดูรูป/สถานะออร์เดอร์" : "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders` } }]
+          contents: [{ type: "button", style: "primary", color: "#A67C52", action: { type: "uri", label: deliveryLocation !== 'pickup' ? "📸 ดูรูป/สถานะออร์เดอร์" : "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}` } }]
         }
       };
 
@@ -461,7 +491,7 @@ export default function App() {
     let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
     completedOrders.forEach(o => {
       const date = new Date(o.timestamp).toLocaleString('th-TH');
-      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : 'โอนเงิน';
+      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
       const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
       csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
     });
@@ -532,6 +562,18 @@ export default function App() {
 
   const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
 
+  // คัดกรองออเดอร์ของฝั่งแอดมิน ด้วยระบบ Search Query
+  const filteredOrders = React.useMemo(() => {
+    if (!adminSearchQuery) return orders;
+    const q = adminSearchQuery.trim().toLowerCase();
+    return orders.filter(o => 
+      o.id.toLowerCase().includes(q) || 
+      (o.lineName || '').toLowerCase().includes(q) || 
+      (o.address || '').toLowerCase().includes(q) ||
+      (o.paymentMethod || '').toLowerCase().includes(q)
+    );
+  }, [orders, adminSearchQuery]);
+
   const sliderRef = useRef(null);
   useEffect(() => {
     if (view !== 'shop' || promotedItems.length <= 1 || searchQuery) return;
@@ -584,6 +626,13 @@ export default function App() {
         @keyframes pulseGlow { from { box-shadow: 0 0 5px rgba(255, 165, 0, 0.2); } to { box-shadow: 0 0 15px rgba(255, 165, 0, 0.6); } }
         .glow-effect { animation: pulseGlow 2s infinite alternate; border: 2px solid #ffd700; }
         
+        @keyframes borderGlowPulse { 
+          0% { box-shadow: 0 0 0 0px rgba(245, 158, 11, 0.7); border-color: #f59e0b; }
+          50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); border-color: #f59e0b; }
+          100% { box-shadow: 0 0 0 0px rgba(245, 158, 11, 0); border-color: #f59e0b; }
+        }
+        .order-highlight { animation: borderGlowPulse 2.5s infinite ease-in-out; border-width: 3px !important; }
+
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-3px); } 100% { transform: translateY(0px); } }
         .floating-badge { animation: float 3s ease-in-out infinite; }
         
@@ -626,8 +675,12 @@ export default function App() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => {
-            if (localStorage.getItem('happycow_isAdmin') === 'true') setView('admin');
-            else setShowAdminModal(true);
+            if (localStorage.getItem('happycow_isAdmin') === 'true') {
+              setView('admin');
+              setAdminTab('orders'); // เมื่อแอดมินคลิกที่การตั้งค่า ให้ไปที่หน้าคำสั่งซื้อเสมอ
+            } else {
+              setShowAdminModal(true);
+            }
           }} className="p-2 text-gray-400 hover:text-primary transition-colors"><Settings size={18}/></button>
           <button onClick={() => setView('myOrders')} className="p-2 text-gray-400 hover:text-primary transition-colors"><ClipboardList/></button>
           <button onClick={() => setView('cart')} className="relative p-2 bg-primary text-white rounded-xl w-10 h-10 flex items-center justify-center shadow-lg active:scale-90 transition-all">
@@ -833,9 +886,11 @@ export default function App() {
               <div className="space-y-6 pt-6 border-t border-gray-100">
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-accent uppercase tracking-wider block">วิธีชำระเงิน</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => setPaymentMethod('promptpay')} className={`py-4 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'promptpay' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><CreditCard size={20}/><span className="text-[10px]">โอนพร้อมเพย์</span></button>
-                    <button onClick={() => setPaymentMethod('cash')} className={`py-4 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><Banknote size={20}/><span className="text-[10px]">ชำระเงินสด</span></button>
+                  {/* ปรับปรุงโครงสร้างเป็น 3 ปุ่มเพื่อรองรับ "ไทยช่วยไทยพลัส" อย่างงดงาม */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => setPaymentMethod('promptpay')} className={`py-4 px-1 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'promptpay' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><CreditCard size={18}/><span className="text-[9px] text-center leading-tight">โอนพร้อมเพย์</span></button>
+                    <button onClick={() => setPaymentMethod('cash')} className={`py-4 px-1 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><Banknote size={18}/><span className="text-[9px] text-center leading-tight">ชำระเงินสด</span></button>
+                    <button onClick={() => setPaymentMethod('thaichueithai')} className={`py-4 px-1 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'thaichueithai' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><Sparkles size={18} className="text-orange-500" fill="currentColor"/><span className="text-[9px] text-center leading-tight">ไทยช่วยไทยพลัส</span></button>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -903,6 +958,21 @@ export default function App() {
                     )}
                   </div>
                 )}
+
+                {/* แสดงกล่องแจ้งข้อความพิเศษเมื่อเลือกชำระเงินด้วยไทยช่วยไทยพลัส */}
+                {paymentMethod === 'thaichueithai' && (
+                  <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 text-center relative overflow-hidden animate-in fade-in zoom-in-95">
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Sparkles className="text-orange-500" size={24} fill="currentColor" />
+                    </div>
+                    <p className="text-sm font-bold text-orange-900 leading-snug mb-1">ชำระเงินด้วยไทยช่วยไทยพลัส</p>
+                    <p className="text-xs text-orange-700 font-semibold leading-relaxed">
+                      หากลูกค้าชำระเงินด้วยไทยช่วยไทยพลัส <br/>
+                      <span className="text-red-500 font-bold underline">แอดมินจะส่งคิวอาร์โค้ดให้ใน LINE นะคะ 🐮💖</span>
+                    </p>
+                    <p className="text-[9.5px] text-gray-400 mt-4 leading-normal">*กรุณากดสั่งซื้อด้านล่างเพื่อบันทึกข้อมูลออเดอร์ในระบบก่อนค่ะ</p>
+                  </div>
+                )}
                 
                 <label className="flex items-start gap-3 p-4 rounded-2xl border bg-gray-50 transition-all cursor-pointer shadow-sm">
                   <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} className="mt-1 w-5 h-5 accent-green-600 cursor-pointer flex-shrink-0" />
@@ -929,13 +999,15 @@ export default function App() {
                         const orderRef = await addDoc(collection(db, 'orders'), {
                           items: cart, total, status: 'pending', timestamp: Date.now(),
                           userId: lineProfile.userId || "guest_user", lineName: lineProfile.displayName || "ลูกค้าทั่วไป", address, note,
-                          slipImage: paymentMethod === 'promptpay' ? slipImage : 'cash_payment', paymentMethod
+                          slipImage: paymentMethod === 'promptpay' ? slipImage : (paymentMethod === 'thaichueithai' ? 'thaichueithai_payment' : 'cash_payment'), 
+                          paymentMethod
                         });
 
-                        const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders`;
+                        // เพิ่มพารามิเตอร์ orderId ไปในลิงก์เพื่อพาแอดมินเข้าเช็คบิลได้ทันที
+                        const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
-                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
+                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทาง: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
                         try { await navigator.clipboard.writeText(orderSummaryText); } catch (e) { console.warn(e); }
 
@@ -1003,7 +1075,7 @@ export default function App() {
              ) : (
                  <div className="space-y-6">
                    {orders.filter(o => o.userId === lineProfile.userId).map(o => (
-                       <div key={o.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
+                       <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
                             <div><span className="text-[10px] font-bold text-accent uppercase tracking-wider">บิล #{o.id.slice(0,6)}</span><p className="text-xs font-bold text-orange-400 mt-1 uppercase">{o.status}</p></div>
                             <div className="text-2xl font-serif font-bold text-primary">฿{o.total}</div>
@@ -1098,11 +1170,23 @@ export default function App() {
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
-                {orders.map((o, idx) => (
-                    <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-colors ${o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
+                {/* ช่องกรอกค้นหาและควบคุมตัวกรองออเดอร์ของแอดมิน */}
+                <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 relative mb-4">
+                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหารหัสบิล, ชื่อ หรือที่อยู่ลูกค้า..." className="w-full pl-10 pr-10 py-3 rounded-xl text-xs outline-none bg-white"/>
+                   {adminSearchQuery && <button onClick={() => setAdminSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 bg-gray-100 p-1 rounded-full"><X size={12}/></button>}
+                </div>
+
+                {filteredOrders.map((o, idx) => (
+                    <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2"><span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - idx}</span><span className="font-bold text-sm text-primary">{o.lineName}</span></div>
-                        <div className="text-right"><span className="text-orange-600 font-bold block">฿{o.total}</span><span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">{o.paymentMethod === 'cash' ? '💵 จ่ายสด' : '📱 โอนเงิน'}</span></div>
+                        <div className="flex items-center gap-2"><span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span><span className="font-bold text-sm text-primary">{o.lineName}</span></div>
+                        <div className="text-right">
+                          <span className="text-orange-600 font-bold block">฿{o.total}</span>
+                          <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">
+                            {o.paymentMethod === 'cash' ? '💵 จ่ายสด' : (o.paymentMethod === 'thaichueithai' ? '🇹🇭 ไทยช่วยไทยพลัส' : '📱 โอนเงิน')}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-[10px] text-gray-500 mb-3 flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100"><MapPin size={12} className="flex-shrink-0 text-accent"/> {o.address}</div>
                       
@@ -1114,7 +1198,8 @@ export default function App() {
                       ))}</div>
 
                       <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                        {o.paymentMethod !== 'cash' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"><Eye size={14}/> ตรวจสลิป</button>}
+                        {/* ตรวจสอบให้แสดงปุ่มตรวจสอบสลิปเฉพาะตอนที่เป็นโอนพร้อมเพย์เท่านั้น เพื่อหลีกเลี่ยงการเปิดสลิปเปล่าในกรณีจ่ายสดหรือไทยช่วยไทยพลัส */}
+                        {o.paymentMethod === 'promptpay' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"><Eye size={14}/> ตรวจสลิป</button>}
                         <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all"><Trash2 size={16}/></button>
                       </div>
 
@@ -1131,7 +1216,7 @@ export default function App() {
                       </div>
                     </div>
                 ))}
-                {orders.length === 0 && <div className="py-20 text-center text-gray-400 font-bold opacity-50">ยังไม่มีออร์เดอร์ใหม่ 🐮</div>}
+                {filteredOrders.length === 0 && <div className="py-20 text-center text-gray-400 font-bold opacity-50">ไม่พบข้อมูลออร์เดอร์ 🐮</div>}
               </div>
             )}
 
@@ -1146,7 +1231,7 @@ export default function App() {
                   </div>
                   <h3 className="font-bold text-sm text-primary mb-1">ส่งออกรายการเมนู (Excel/CSV)</h3>
                   <p className="text-[10px] text-gray-500 mb-5 leading-relaxed">
-                    ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา และสถานะทั้งหมด <br/>ออกเป็นไฟล์ตาราง นำไปใช้งานต่อได้ทันที
+                     ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา และสถานะทั้งหมด <br/>ออกเป็นไฟล์ตาราง นำไปใช้งานต่อได้ทันที
                   </p>
                   <button onClick={exportMenuToCSV} className="w-full bg-blue-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-600">
                      <Download size={18} /> โหลดรายการเมนูลงเครื่อง
@@ -1558,7 +1643,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
+      {/* --- --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- --- */}
       {optionModalItem && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
           
@@ -1737,7 +1822,7 @@ export default function App() {
       )}
 
       {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
-      {selectedSlip && selectedSlip !== 'cash_payment' && (
+      {selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
         <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
           <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
         </div>
@@ -1852,7 +1937,10 @@ export default function App() {
                <button onClick={() => {
                  if(adminPassword === '570402') { 
                     localStorage.setItem('happycow_isAdmin', 'true');
-                    setView('admin'); setShowAdminModal(false); setAdminPassword(''); 
+                    setView('admin'); 
+                    setAdminTab('orders'); // บังคับให้เริ่มที่แท็บออเดอร์ทันทีหลังปลดล็อกสำเร็จ
+                    setShowAdminModal(false); 
+                    setAdminPassword(''); 
                  }
                  else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
                }} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 hover:opacity-90">ยืนยัน</button>
