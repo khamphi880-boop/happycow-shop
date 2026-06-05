@@ -67,6 +67,15 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
   
+  // 🌟 [แก้ไขจุดที่ 1] กู้คืน State ตะกร้าสินค้า (Cart) ป้องกันการเกิด ReferenceError 
+  const [cart, setCart] = useState(() => {
+    try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
+    catch(e) { return []; }
+  });
+
+  // 🌟 [แก้ไขจุดที่ 2] กู้คืน State หมวดหมู่เมนูเครื่องดื่ม (activeCategory) ป้องกันแอปพังขณะเริ่มต้นรัน
+  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
+  
   // --- นำทางสำหรับลูกค้าครั้งแรกและแอดมิน ---
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -423,7 +432,7 @@ export default function App() {
          status: 'completed', deliveryLocation, deliveryMessage, deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
       });
 
-      const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
+      const locationText = deliveryLocation === 'room' ? 'หน้าห้อง font-bold' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
 
       const flexPayload = {
