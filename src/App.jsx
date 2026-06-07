@@ -67,30 +67,26 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
   
-  // 🌟 [แก้ไขจุดที่ 1] กู้คืน State ตะกร้าสินค้า (Cart) ป้องกันการเกิด ReferenceError 
   const [cart, setCart] = useState(() => {
     try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
     catch(e) { return []; }
   });
 
-  // 🌟 [แก้ไขจุดที่ 2] กู้คืน State หมวดหมู่เมนูเครื่องดื่ม (activeCategory) ป้องกันแอปพังขณะเริ่มต้นรัน
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
   
-  // --- นำทางสำหรับลูกค้าครั้งแรกและแอดมิน ---
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action');
     
     if (action === 'viewOrders') {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-      if (isAdmin) return 'admin'; // ถ้าเป็นแอดมิน คลิกบิลลูกค้าจะวิ่งไปหน้าแอดมินโดยตรง
+      if (isAdmin) return 'admin'; 
       return 'myOrders';
     }
     if (action === 'admin') {
       return localStorage.getItem('happycow_isAdmin') === 'true' ? 'admin' : 'shop';
     }
     
-    // ตรวจสอบเช็กเซสชันของผู้ใช้ใหม่ (First time of this session) ให้แสดงเมนูก่อนเสมอ
     const isFirstTimeSession = !sessionStorage.getItem('happycow_session_active');
     sessionStorage.setItem('happycow_session_active', 'true');
     if (isFirstTimeSession) {
@@ -110,20 +106,17 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Custom Alert / Confirm Box State
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
   const showAlert = (message) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm: null });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
   
-  // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminTab, setAdminTab] = useState('orders'); // เริ่มต้นที่หน้าจัดการออเดอร์เสมอ
+  const [adminTab, setAdminTab] = useState('orders'); 
   const [selectedSlip, setSelectedSlip] = useState(null); 
   const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
-  // สถานะออเดอร์ที่ถูกกดส่งลิงก์มาเพื่อทำการไฮไลต์
   const [selectedOrderId, setSelectedOrderId] = useState('');
 
   const [deliveryModal, setDeliveryModal] = useState(null);
@@ -145,10 +138,7 @@ export default function App() {
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
 
-  // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
-  
-  // 🌟 State: Failsafe สำหรับแอดมินตอนกดยืนยันจัดส่งแล้วแชร์ไม่ได้
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -195,7 +185,6 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'admin') setShowAdminModal(true);
 
-    // ตรวจจับ deep-link orderId เพื่อพาแอดมินหรือลูกค้าไปยังออเดอร์นั้น
     const orderId = params.get('orderId');
     if (orderId) {
       setSelectedOrderId(orderId);
@@ -203,7 +192,7 @@ export default function App() {
       if (isAdmin) {
         setView('admin');
         setAdminTab('orders');
-        setAdminSearchQuery(orderId); // ทำการกรองทันทีในหน้าจอแอดมิน
+        setAdminSearchQuery(orderId); 
       } else {
         setView('myOrders');
       }
@@ -571,7 +560,6 @@ export default function App() {
 
   const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
 
-  // คัดกรองออเดอร์ของฝั่งแอดมิน ด้วยระบบ Search Query
   const filteredOrders = React.useMemo(() => {
     if (!adminSearchQuery) return orders;
     const q = adminSearchQuery.trim().toLowerCase();
@@ -673,7 +661,6 @@ export default function App() {
            <div>
              <h1 className="font-serif font-bold text-lg leading-tight text-primary">วัวนมอารมณ์ดี</h1>
              
-             {/* 🌟 ส่วนที่แก้ไข: สลับตำแหน่ง ชื่อ LINE และ ป้ายสถานะร้านค้า */}
              <div className="flex items-center gap-1 mt-1">
                <p className="text-[9px] font-bold text-green-700 uppercase tracking-tighter">คุณ {(lineProfile.displayName || 'ลูกค้าทั่วไป').slice(0, 10)}</p>
                <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold text-white shadow-sm flex items-center gap-1 ${storeSettings.isStoreOpen !== false ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -686,7 +673,7 @@ export default function App() {
           <button onClick={() => {
             if (localStorage.getItem('happycow_isAdmin') === 'true') {
               setView('admin');
-              setAdminTab('orders'); // เมื่อแอดมินคลิกที่การตั้งค่า ให้ไปที่หน้าคำสั่งซื้อเสมอ
+              setAdminTab('orders'); 
             } else {
               setShowAdminModal(true);
             }
@@ -895,7 +882,6 @@ export default function App() {
               <div className="space-y-6 pt-6 border-t border-gray-100">
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-accent uppercase tracking-wider block">วิธีชำระเงิน</label>
-                  {/* ปรับปรุงโครงสร้างเป็น 3 ปุ่มเพื่อรองรับ "ไทยช่วยไทยพลัส" อย่างงดงาม */}
                   <div className="grid grid-cols-3 gap-2">
                     <button onClick={() => setPaymentMethod('promptpay')} className={`py-4 px-1 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'promptpay' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><CreditCard size={18}/><span className="text-[9px] text-center leading-tight">โอนพร้อมเพย์</span></button>
                     <button onClick={() => setPaymentMethod('cash')} className={`py-4 px-1 rounded-2xl border-2 font-bold flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'cash' ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white'}`}><Banknote size={18}/><span className="text-[9px] text-center leading-tight">ชำระเงินสด</span></button>
@@ -968,7 +954,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* แสดงกล่องแจ้งข้อความพิเศษเมื่อเลือกชำระเงินด้วยไทยช่วยไทยพลัส */}
                 {paymentMethod === 'thaichueithai' && (
                   <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 text-center relative overflow-hidden animate-in fade-in zoom-in-95">
                     <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -1012,11 +997,20 @@ export default function App() {
                           paymentMethod
                         });
 
-                        // เพิ่มพารามิเตอร์ orderId ไปในลิงก์เพื่อพาแอดมินเข้าเช็คบิลได้ทันที
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
+                        
+                        // 🌟 [แก้ไขจุดที่ 1] ปรับปรุงระบบสรุปบิล (orderSummaryText) ให้แสดงผลรายละเอียดครบถ้วน (เย็น/ปั่น, รสชาติชา, เมล็ดกาแฟ, ท็อปปิ้ง)
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
-                          cart.map(i => `- ${i.qty}x ${i.name} (หวาน ${i.sweetness})`).join('\n') + 
-                          `\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทาง: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
+                          cart.map(i => {
+                            const blendText = getBlendText(i);
+                            const beanText = i.bean ? ` • เมล็ด: ${i.bean}` : '';
+                            const teaText = i.teaType ? ` • รสชา: ${i.teaType}` : '';
+                            const shotText = i.addShot ? ` • เพิ่มช็อตกาแฟ` : '';
+                            const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
+                            const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
+                            return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${pearlText}${toppingsText})`;
+                          }).join('\n') + 
+                          `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
                         try { await navigator.clipboard.writeText(orderSummaryText); } catch (e) { console.warn(e); }
 
@@ -1179,7 +1173,6 @@ export default function App() {
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
-                {/* ช่องกรอกค้นหาและควบคุมตัวกรองออเดอร์ของแอดมิน */}
                 <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 relative mb-4">
                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                    <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหารหัสบิล, ชื่อ หรือที่อยู่ลูกค้า..." className="w-full pl-10 pr-10 py-3 rounded-xl text-xs outline-none bg-white"/>
@@ -1206,8 +1199,20 @@ export default function App() {
                           </div>
                       ))}</div>
 
+                      {/* 🌟 [แก้ไขจุดที่ 2] เพิ่มการแสดงผลรูปภาพสลิปที่แนบมาแบบ Inline Thumbnail สำหรับ Admin */}
+                      {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
+                        <div className="mb-3 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 inline-block">
+                          <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">📄 หลักฐานสลิปแนบ (คลิกเพื่อขยายดูเต็มจอ):</p>
+                          <img 
+                            src={o.slipImage} 
+                            alt="Attached slip preview" 
+                            className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm"
+                            onClick={() => setSelectedSlip(o.slipImage)}
+                          />
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                        {/* ตรวจสอบให้แสดงปุ่มตรวจสอบสลิปเฉพาะตอนที่เป็นโอนพร้อมเพย์เท่านั้น เพื่อหลีกเลี่ยงการเปิดสลิปเปล่าในกรณีจ่ายสดหรือไทยช่วยไทยพลัส */}
                         {o.paymentMethod === 'promptpay' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"><Eye size={14}/> ตรวจสลิป</button>}
                         <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all"><Trash2 size={16}/></button>
                       </div>
@@ -1233,7 +1238,6 @@ export default function App() {
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ปุ่ม Export CSV เมนู */}
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
                      <ClipboardList size={28} />
