@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 
 // --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
@@ -20,6 +21,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 const LIFF_ID = "2009828681-C1cb8QC3"; 
 
@@ -35,6 +37,35 @@ const THEMES = {
   newyear: { bg: '#f8fafc', primary: '#0f172a', accent: '#ca8a04', name: '🎆 ปีใหม่', icons: ['🎆', '✨', '🎉', '🥂'] },
   loykrathong: { bg: '#f5f3ff', primary: '#2e1065', accent: '#7c3aed', name: '🌕 ลอยกระทง', icons: ['🌕', '🕯️', '🌸', '✨'] },
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
+};
+
+// --- 1.5 Safe Storage Fallbacks (ป้องกันแอปพลิเคชันพังเมื่อใช้งานในระบบ iFrame ที่บล็อกการอ่านหน่วยความจำ) ---
+const storageMock = {};
+const safeStorage = {
+  getItem: (key) => {
+    try { return localStorage.getItem(key); }
+    catch(e) { return storageMock[key] || null; }
+  },
+  setItem: (key, value) => {
+    try { localStorage.setItem(key, value); }
+    catch(e) { storageMock[key] = String(value); }
+  },
+  removeItem: (key) => {
+    try { localStorage.removeItem(key); }
+    catch(e) { delete storageMock[key]; }
+  }
+};
+
+const sessionMock = {};
+const safeSession = {
+  getItem: (key) => {
+    try { return sessionStorage.getItem(key); }
+    catch(e) { return sessionMock[key] || null; }
+  },
+  setItem: (key, value) => {
+    try { sessionStorage.setItem(key, value); }
+    catch(e) { sessionMock[key] = String(value); }
+  }
 };
 
 // --- 2. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
@@ -63,54 +94,58 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 };
 
 export default function App() {
+  const [user, setUser] = useState(null); // สิทธิ์การล็อกอิน Firebase Auth
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
   
-  // กู้คืน State ตะกร้าสินค้า (Cart) ป้องกันการเกิด ReferenceError 
+  // ใช้ Safe Storage ป้องกันการเกิด ReferenceError ของตัวแปร cart
   const [cart, setCart] = useState(() => {
-    try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
-    catch(e) { return []; }
+    try {
+      const saved = safeStorage.getItem('happycow_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch(e) {
+      return [];
+    }
   });
 
-  // กู้คืน State หมวดหมู่เมนูเครื่องดื่ม (activeCategory) ป้องกันแอปพังขณะเริ่มต้นรัน
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
   
-  // --- นำทางสำหรับลูกค้าครั้งแรกและแอดมิน ---
+  // จัดการเส้นทางผู้ใช้จำแนกตามสิทธิ์และสถานะเซสชัน
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action');
     
     if (action === 'viewOrders') {
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-      if (isAdmin) return 'admin'; // ถ้าเป็นแอดมิน คลิกบิลลูกค้าจะวิ่งไปหน้าแอดมินโดยตรง
+      const isAdmin = safeStorage.getItem('happycow_isAdmin') === 'true';
+      if (isAdmin) return 'admin';
       return 'myOrders';
     }
     if (action === 'admin') {
-      return localStorage.getItem('happycow_isAdmin') === 'true' ? 'admin' : 'shop';
+      return safeStorage.getItem('happycow_isAdmin') === 'true' ? 'admin' : 'shop';
     }
     
-    // ตรวจสอบเช็กเซสชันของผู้ใช้ใหม่ (First time of this session) ให้แสดงเมนูก่อนเสมอ
-    const isFirstTimeSession = !sessionStorage.getItem('happycow_session_active');
-    sessionStorage.setItem('happycow_session_active', 'true');
+    // บังคับให้ผู้ใช้เข้าครั้งแรกของเซสชันรันไปหน้าแรกเพื่อต้อนรับลูกค้า
+    const isFirstTimeSession = !safeSession.getItem('happycow_session_active');
+    safeSession.setItem('happycow_session_active', 'true');
     if (isFirstTimeSession) {
       return 'shop';
     }
-    return localStorage.getItem('happycow_view') || 'shop';
+    return safeStorage.getItem('happycow_view') || 'shop';
   }); 
 
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOrders, setIsLoadingOrders] = useState(() => new URLSearchParams(window.location.search).get('action') === 'viewOrders');
   
-  const [address, setAddress] = useState(() => localStorage.getItem('happycow_address') || '');
-  const [note, setNote] = useState(() => localStorage.getItem('happycow_note') || ''); 
+  const [address, setAddress] = useState(() => safeStorage.getItem('happycow_address') || '');
+  const [note, setNote] = useState(() => safeStorage.getItem('happycow_note') || ''); 
   const [slipImage, setSlipImage] = useState('');
   const [slipStatus, setSlipStatus] = useState('idle'); 
-  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('happycow_paymentMethod') || 'promptpay'); 
+  const [paymentMethod, setPaymentMethod] = useState(() => safeStorage.getItem('happycow_paymentMethod') || 'promptpay'); 
   const [isCopied, setIsCopied] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Custom Alert / Confirm Box State
+  // กล่องแจ้งเตือนจำลองความปลอดภัย
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
   const showAlert = (message) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm: null });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
@@ -118,12 +153,11 @@ export default function App() {
   // --- States: แอดมิน (Admin) ---
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminTab, setAdminTab] = useState('orders'); // เริ่มต้นที่หน้าจัดการออเดอร์เสมอ
+  const [adminTab, setAdminTab] = useState('orders');
   const [selectedSlip, setSelectedSlip] = useState(null); 
   const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
-  // สถานะออเดอร์ที่ถูกกดส่งลิงก์มาเพื่อทำการไฮไลต์
   const [selectedOrderId, setSelectedOrderId] = useState('');
 
   const [deliveryModal, setDeliveryModal] = useState(null);
@@ -135,7 +169,7 @@ export default function App() {
     promptPayNo: '0812345678', 
     qrCodeImage: '', 
     isStoreOpen: true, 
-    closeReason: 'closed', // 'closed' | 'high_volume' 
+    closeReason: 'closed', 
     theme: 'default', 
     customBgImage: '', 
     isBlendOut: false, 
@@ -149,7 +183,7 @@ export default function App() {
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
   const [editNotifyAdmin, setEditNotifyAdmin] = useState(false);
   const [editAdminLineId, setEditAdminLineId] = useState('');
-  const [editBackupScriptUrl, setEditBackupScriptUrl] = useState(''); // เก็บค่า URL ของ Google Apps Script ของแอดมิน
+  const [editBackupScriptUrl, setEditBackupScriptUrl] = useState('');
   
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
@@ -160,8 +194,6 @@ export default function App() {
 
   // --- States: Failsafe Order Success ---
   const [successModalData, setSuccessModalData] = useState(null);
-  
-  // State: Failsafe สำหรับแอดมินตอนกดยืนยันจัดส่งแล้วแชร์ไม่ได้
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
@@ -171,7 +203,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchHistory, setSearchHistory] = useState(() => {
-    try { const saved = localStorage.getItem('happycow_searchHistory'); return saved ? JSON.parse(saved) : []; }
+    try { const saved = safeStorage.getItem('happycow_searchHistory'); return saved ? JSON.parse(saved) : []; }
     catch(e) { return []; }
   });
   const [popularSearches, setPopularSearches] = useState([]);
@@ -186,37 +218,51 @@ export default function App() {
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
-  useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
-  useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
-  useEffect(() => { localStorage.setItem('happycow_address', address); }, [address]);
-  useEffect(() => { localStorage.setItem('happycow_note', note); }, [note]);
-  useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
-  useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
+  // --- เซ็ตประวัติการเข้าใช้งานลง Safe Storage แบบ Reactive ---
+  useEffect(() => { safeStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
+  useEffect(() => { safeStorage.setItem('happycow_view', view); }, [view]);
+  useEffect(() => { safeStorage.setItem('happycow_address', address); }, [address]);
+  useEffect(() => { safeStorage.setItem('happycow_note', note); }, [note]);
+  useEffect(() => { safeStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
+  useEffect(() => { safeStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
 
+  // --- ยืนยันตัวตนเข้าระบบฐานข้อมูล Firebase (Auth FIRST Guard) ---
   useEffect(() => {
-    if (isLoadingOrders) {
-      const timer = setTimeout(() => setIsLoadingOrders(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoadingOrders]);
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.error("Auth Guard initialization error:", e);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
+  // --- โหลดฐานข้อมูลเมื่อสิทธิ์ Authentication ได้รับการอนุมัติสำเร็จ ---
   useEffect(() => {
-    let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
-    localStorage.setItem('happycow_uid', cid);
+    if (!user) return;
+
+    let cid = safeStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
+    safeStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'admin') setShowAdminModal(true);
 
-    // ตรวจจับ deep-link orderId เพื่อพาแอดมินหรือลูกค้าไปยังออเดอร์นั้น
     const orderId = params.get('orderId');
     if (orderId) {
       setSelectedOrderId(orderId);
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+      const isAdmin = safeStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) {
         setView('admin');
         setAdminTab('orders');
-        setAdminSearchQuery(orderId); // ทำการกรองทันทีในหน้าจอแอดมิน
+        setAdminSearchQuery(orderId); 
       } else {
         setView('myOrders');
       }
@@ -231,26 +277,20 @@ export default function App() {
     };
 
     if (window.liff) initializeLiff();
-    else {
-      const script = document.createElement('script');
-      script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
-      script.onload = initializeLiff;
-      document.body.appendChild(script);
-    }
 
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
       setIsLoading(false); 
-    });
+    }, error => console.error("Menus loading failed", error));
 
     const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
        const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
        setOrders(fetchedOrders); 
-    });
+    }, error => console.error("Orders loading failed", error));
 
     const unsubToppings = onSnapshot(collection(db, 'toppings'), snapshot => { 
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
-    });
+    }, error => console.error("Toppings loading failed", error));
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
@@ -272,9 +312,9 @@ export default function App() {
         setEditCustomBgImage(data.customBgImage || '');
         setEditNotifyAdmin(data.notifyAdmin || false);
         setEditAdminLineId(data.adminLineId || '');
-        setEditBackupScriptUrl(data.backupScriptUrl || ''); // เชื่อมต่อข้อมูล Google Apps Script
+        setEditBackupScriptUrl(data.backupScriptUrl || '');
       }
-    });
+    }, error => console.error("Settings loading failed", error));
 
     const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
       if (docSnap.exists()) {
@@ -282,10 +322,10 @@ export default function App() {
         const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
         setPopularSearches(sorted);
       } else setPopularSearches([]);
-    });
+    }, error => console.error("Search stats loading failed", error));
 
     return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
-  }, []);
+  }, [user]);
 
   const playNotificationSound = () => {
     if (audioRef.current) {
@@ -310,46 +350,39 @@ export default function App() {
     previousOrderCount.current = orders.length;
   }, [orders, view]);
 
-  // --- 🌟 ตั้งเวลาเช็กเวลาอัตโนมัติ 23:30 น. ของทุกวันเพื่อทำการสำรองข้อมูลและล้างระบบ ---
+  // --- เช็กเวลาสำรองข้อมูลและจัดการล้างระบบออเดอร์ เวลา 23:30 น. ประจำวัน ---
   useEffect(() => {
     const checkTimeAndBackup = async () => {
       const now = new Date();
       const hours = now.getHours();
       const minutes = now.getMinutes();
-      const todayStr = now.toLocaleDateString('en-CA'); // รูปแบบ YYYY-MM-DD
+      const todayStr = now.toLocaleDateString('en-CA');
       
-      // เงื่อนไขเวลาตรงกับ 23:30 น. และยังไม่มีการสำรองข้อมูลของวันปัจจุบัน
       if (hours === 23 && minutes === 30) {
         if (storeSettings.lastBackupDate !== todayStr && orders.length > 0) {
-          console.log("Auto-triggering daily backup at 23:30...");
           await executeBackup(todayStr);
         }
       }
     };
     
-    const timer = setInterval(checkTimeAndBackup, 30000); // ทำการตรวจสอบทุกๆ 30 วินาที
+    const timer = setInterval(checkTimeAndBackup, 30000); 
     return () => clearInterval(timer);
   }, [orders, storeSettings]);
 
-  // --- 🌟 ฟังก์ชันสำรองข้อมูล (Backup) ไปยัง Google Drive และ เคลียร์ Firebase ---
+  // --- สคริปต์สำรองข้อมูลลงคลัง Google Sheets ปลายทาง ---
   const executeBackup = async (todayStr, isManual = false) => {
     const scriptUrl = storeSettings.backupScriptUrl || '';
     if (!scriptUrl) {
-      if (isManual) {
-        showAlert("⚠️ กรุณากรอก Web App URL ของ Google Apps Script ในแท็บตั้งค่าของแอดมินก่อนค่ะ");
-      }
+      if (isManual) showAlert("⚠️ กรุณากรอก Web App URL ของ Google Apps Script ในแท็บตั้งค่าของแอดมินก่อนค่ะ");
       return;
     }
 
     if (orders.length === 0) {
-      if (isManual) {
-        showAlert("❌ ไม่มีข้อมูลคำสั่งซื้อในระบบให้สำรองข้อมูลค่ะ");
-      }
+      if (isManual) showAlert("❌ ไม่มีข้อมูลคำสั่งซื้อในระบบให้สำรองข้อมูลค่ะ");
       return;
     }
 
     try {
-      // ดึงข้อมูลคำสั่งซื้อมาจัดเก็บเป็นโครงสร้างตารางข้อมูลเพื่อส่งออก
       const orderRows = orders.map(o => {
         const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
         const itemsStr = (o.items || []).map(i => {
@@ -372,13 +405,10 @@ export default function App() {
         };
       });
 
-      // ยิง API POST เพื่อบันทึกไฟล์ Google Sheets บน Google Drive
       const response = await fetch(scriptUrl, {
         method: 'POST',
         mode: 'cors',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8', 
-        },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           folderId: '1qhlTCzDmC6v4yjRRTztoT1XYZV2BLdxR',
           date: todayStr,
@@ -389,20 +419,15 @@ export default function App() {
       const resText = await response.text();
       
       if (resText.includes("success") || response.ok) {
-        // 1. บันทึกประวัติวันสำรองข้อมูลลงในระบบตั้งค่า Firestore
         await setDoc(doc(db, 'settings', 'store'), { lastBackupDate: todayStr }, { merge: true });
-        
-        // 2. เคลียร์ ลบรายการข้อมูลสั่งซื้อทั้งหมดออกจาก Firebase สั่งรีเซ็ตสำหรับวันใหม่
         const deletePromises = orders.map(o => deleteDoc(doc(db, 'orders', o.id)));
         await Promise.all(deletePromises);
-
-        showAlert(`🎉 สำรองข้อมูลเรียบร้อยแล้วค่ะ!\nระบบได้ทำการอัปโหลด Google Sheets ประจำวันที่ ${todayStr} ไปยัง Google Drive และล้างคำสั่งซื้อทั้งหมด เพื่อเตรียมร้านค้าให้พร้อมสำหรับวันต่อไปเรียบร้อยแล้วค่ะ 🐮`);
+        showAlert(`🎉 สำรองข้อมูลเรียบร้อยแล้วค่ะ!\nระบบอัปโหลดไฟล์ไปยัง Drive และเคลียร์ระบบรับวันต่อไปเรียบร้อยแล้วค่ะ`);
       } else {
         throw new Error("ข้อผิดพลาดทางเทคนิค: " + resText);
       }
     } catch (error) {
-      console.error("Backup Error:", error);
-      showAlert("❌ เชื่อมโยง Apps Script ไม่สำเร็จ: " + error.message);
+      showAlert("❌ การสำรองข้อมูลล้มเหลว: " + error.message);
     }
   };
 
@@ -425,7 +450,6 @@ export default function App() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Download Error:", error);
       setDownloadPreview(base64String);
     }
   };
@@ -568,7 +592,7 @@ export default function App() {
 
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
 
-  // 🌟 [แก้ไขจุดที่ 1] หน้าเมนูขายดีให้แสดงเพียงสูงสุด 9 เมนูเท่านั้น
+  // 🌟 [แก้ไขจุดที่ 2] เมนูขายดีให้ส่งกลับและแสดงผลสูงสุดเพียงแค่ 9 ลำดับความนิยมเท่านั้น
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 9);
     if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
@@ -589,7 +613,7 @@ export default function App() {
     }).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
   }, [activeCategory, menuItems, bestSellers, searchQuery]);
 
-  // 🌟 [แก้ไขจุดที่ 2] หน้าเมนูแนะนำให้แสดงสูงสุดเพียงแค่ 9 เมนูตามที่สั่ง
+  // 🌟 [แก้ไขจุดที่ 1] จำกัดสไลด์เมนูแนะนำสูงสุดเพียงแค่ 9 รายการเท่านั้น
   const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)).slice(0, 9), [menuItems]);
 
   const filteredOrders = React.useMemo(() => {
@@ -648,23 +672,6 @@ export default function App() {
         .border-accent { border-color: var(--theme-accent); }
         .border-primary { border-color: var(--theme-primary); }
         
-        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght@700&family=Kanit:wght@400;600;700&display=swap');
-        :root {
-          --theme-primary: ${currentThemeData.primary};
-          --theme-accent: ${currentThemeData.accent};
-          --theme-bg: ${currentThemeData.bg};
-        }
-        .font-serif { font-family: 'Vollkorn', serif; }
-        .font-kanit { font-family: 'Kanit', sans-serif; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        
-        .bg-primary { background-color: var(--theme-primary); color: #fff; }
-        .text-primary { color: var(--theme-primary); }
-        .bg-accent { background-color: var(--theme-accent); color: #fff; }
-        .text-accent { color: var(--theme-accent); }
-        .border-accent { border-color: var(--theme-accent); }
-        .border-primary { border-color: var(--theme-primary); }
-        
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .animate-shimmer { position: relative; overflow: hidden; }
         .animate-shimmer::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 2.5s infinite; }
@@ -703,15 +710,15 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 [แก้ไขจุดที่ 3] หน้าจอป้องกันการเข้าใช้งาน (Closed Store / High Volume Overlay) สำหรับลูกค้า */}
-      {storeSettings.isStoreOpen === false && localStorage.getItem('happycow_isAdmin') !== 'true' && (
+      {/* 🌟 [แก้ไขจุดที่ 3] หน้าจอป้องกันลูกค้าสั่งซื้อเครื่องดื่ม เมื่อสถานะร้านเป็น "ปิดร้าน" หรือ "ออเดอร์คิวเยอะ" */}
+      {storeSettings.isStoreOpen === false && safeStorage.getItem('happycow_isAdmin') !== 'true' && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-6 text-center text-white">
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-[3.5rem] shadow-2xl max-w-sm space-y-6 animate-in zoom-in-95 duration-300">
             <div className="text-6xl animate-bounce">
               {storeSettings.closeReason === 'high_volume' ? '⏳' : '💤'}
             </div>
             
-            <h2 className="text-2xl font-serif font-bold text-orange-200">
+            <h2 className="text-2xl font-serif font-bold text-orange-200 leading-snug">
               {storeSettings.closeReason === 'high_volume' ? 'ขออภัยคิวออเดอร์เต็มชั่วคราวค่ะ' : 'ร้านปิดให้บริการแล้วค่ะ'}
             </h2>
             
@@ -726,7 +733,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* ป้องกันแอดมินโดนล็อกเอาต์ออก ให้แอดมินกดเปิด Modal ล็อกอินควบคุมได้จากหน้าจอนี้ */}
+          {/* ป้องกันแอดมินโดนล็อกเอาต์ออก ให้แอดมินคลิกเข้าควบคุมระบบได้เสมอ */}
           <button 
             onClick={() => setShowAdminModal(true)} 
             className="mt-8 text-[11px] text-gray-500 underline hover:text-white transition-colors"
@@ -753,7 +760,7 @@ export default function App() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => {
-            if (localStorage.getItem('happycow_isAdmin') === 'true') {
+            if (safeStorage.getItem('happycow_isAdmin') === 'true') {
               setView('admin');
               setAdminTab('orders'); 
             } else {
@@ -826,7 +833,7 @@ export default function App() {
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
                       <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}>
                          
-                         {/* 🌟 [แก้ไขจุดที่ 3] เมนูแนะนำที่หมดชั่วคราว ไม่ต้องใส่ม้านหมอกเบลอ/ขาวครึ่งหนึ่ง ให้แสดงป้ายเด่นชัดแทน */}
+                         {/* 🌟 [แก้ไขจุดที่ 3] เมนูแนะนำที่หมดชั่วคราว ไม่ต้องใส่ม้านหมอกเบลอ/ขาวครึ่งหนึ่ง ให้แสดงป้ายพาดกึ่งกลางสีแดงเด่นชัดแทน */}
                          {item.isSoldOut && (
                             <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
                                <div className="bg-red-600/90 text-white px-4 py-1.5 rounded-full font-bold text-xs border border-white/50 shadow-xl rotate-[-5deg] tracking-widest flex items-center gap-1 animate-pulse">SOLD OUT</div>
@@ -879,7 +886,6 @@ export default function App() {
               </div>
             )}
 
-            {}
             <div className="px-5 pb-5 pt-2">
               {searchQuery && <p className="text-sm font-bold text-primary mb-4 ml-1">ผลการค้นหา "{searchQuery}" ({displayedItems.length} รายการ)</p>}
               {isLoading ? <div className="p-20 text-center opacity-30 italic font-bold text-primary animate-pulse">กำลังโหลดความสดชื่น... 🐮</div> : (
@@ -892,10 +898,10 @@ export default function App() {
                     return (
                     <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-pointer' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
                       
-                      {/* 🌟 [แก้ไขจุดที่ 3] เมนูหน้าร้านที่หมดชั่วคราว ไม่ต้องใส่ม้านหมอกเบลอสีขาว/เทา ให้แสดงเฉพาะป้ายพาดกึ่งกลางสีแดงคมชัดแทน */}
+                      {/* 🌟 [แก้ไขจุดที่ 3] เครื่องดื่มหน้าร้านที่หมดชั่วคราว ไม่ต้องใส่ม้านหมอกเบลอสีขาว/เทา ให้แสดงป้ายพาดกึ่งกลางสีแดงเด่นชัดเจน */}
                       {item.isSoldOut && (
                          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                            <div className="bg-red-600/90 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-white/50 shadow-xl rotate-[-10deg] tracking-wider">หมดชั่วคราว</div>
+                            <div className="bg-red-600/90 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-white/50 shadow-xl rotate-[-10deg] tracking-wider animate-pulse">หมดชั่วคราว</div>
                          </div>
                       )}
                       
@@ -921,7 +927,7 @@ export default function App() {
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
                         <p className="text-accent font-bold text-sm">฿{item.price}</p>
-                        {/* 🌟 [แก้ไขจุดที่ 2] ถอดป้ายแสดงประวัติสถิติจำนวนแก้วที่ขายได้ออก และถอดแท็กฮิตมากตามต้องการเพื่อความเป็นส่วนตัวของยอดขาย */}
+                        {/* 🌟 [แก้ไขจุดที่ 2] ถอดกล่องแสดงประวัติสถิติจำนวนยอดขายที่ขายไปออกทั้งหมดตามบรีฟ */}
                         {isSpecial && !isBestSeller && <p className="text-[8px] text-accent mt-1 font-bold">เมนูสุดพรีเมียม</p>}
                       </div>
                     </div>
@@ -942,7 +948,6 @@ export default function App() {
         )}
 
         {/* --- Cart View --- */}
-        {}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
@@ -1147,7 +1152,6 @@ export default function App() {
         )}
 
         {/* --- My Orders View --- */}
-        {}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
              <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
@@ -1197,7 +1201,6 @@ export default function App() {
         )}
 
         {/* --- Admin View --- */}
-        {}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
@@ -1255,7 +1258,6 @@ export default function App() {
             )}
 
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
-            {}
             {adminTab === 'orders' && (
               <div className="space-y-4">
                 <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 relative mb-4">
@@ -1267,7 +1269,7 @@ export default function App() {
                 {filteredOrders.map((o, idx) => (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2"><span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span><span className="font-bold text-sm text-primary">{o.lineName}</span></div>
+                        <div className="flex items-center gap-2"><span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.findIndex(item => item.id === o.id)}</span><span className="font-bold text-sm text-primary">{o.lineName}</span></div>
                         <div className="text-right">
                           <span className="text-orange-600 font-bold block">฿{o.total}</span>
                           <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">
@@ -1284,6 +1286,7 @@ export default function App() {
                           </div>
                       ))}</div>
 
+                      {/* 🌟 แอดมินสามารถดูรูปสลิปและรูปจัดส่งได้พร้อมกันอย่างงดงาม */}
                       {((o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment') || o.deliveryImage) && (
                         <div className="flex flex-wrap gap-3 mb-3">
                           {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
@@ -1334,7 +1337,6 @@ export default function App() {
             )}
 
             {/* TAB: ระบบจัดการคลังเมนูของร้าน */}
-            {}
             {adminTab === 'menus' && (
               <div className="space-y-8 animate-in fade-in">
                 
@@ -1505,7 +1507,7 @@ export default function App() {
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowDown size={14}/></button>
                                 </div>
                                 
-                                {/* 🌟 [แก้ไขจุดที่ 3] หลังบ้านคลังเมนูของแอดมิน แสดงภาพสวยงามเป็นธรรมชาติ ไม่เบลอ ไม่ดำ */}
+                                {/* 🌟 [แก้ไขจุดที่ 3] คลังเมนูหลังบ้านแอดมิน แสดงภาพสีสันสวยงาม น่ารับประทาน ไม่โดนม่านหมอก */}
                                 <img src={item.image} className="w-14 h-14 rounded-2xl object-cover pointer-events-none" alt="list" />
                                 <div>
                                   <p className="font-bold text-sm text-primary flex items-center gap-1 flex-wrap">
@@ -1619,15 +1621,11 @@ export default function App() {
                       </div>
                     );
                   })}
-                  {adminSearchQuery && menuItems.filter(item => item.name.toLowerCase().includes(adminSearchQuery.toLowerCase())).length === 0 && (
-                     <div className="py-10 text-center opacity-30 italic font-bold">ไม่พบเมนูที่ตรงกับ "{adminSearchQuery}"</div>
-                  )}
                 </div>
               </div>
             )}
 
             {/* TAB: ตั้งค่าบัญชีและธีมร้าน */}
-            {}
             {adminTab === 'settings' && (
               <div className="space-y-8 animate-in fade-in">
                 
@@ -1652,7 +1650,7 @@ export default function App() {
                     
                     <div className="bg-green-50/50 p-3 rounded-2xl border border-green-100 flex justify-between items-center text-[10px] font-bold text-green-700">
                        <span>สถานะสำรองข้อมูลล่าสุด:</span>
-                       <span className="bg-green-200 text-green-800 px-2.5 py-1 rounded-full">{storeSettings.lastBackupDate || "ยังไม่มีข้อมูลการสำรองข้อมูล"}</span>
+                       <span className="bg-green-200 text-green-800 px-2.5 py-1 rounded-full">{storeSettings.lastBackupDate || "ยังไม่มีข้อมูล"}</span>
                     </div>
 
                     <div className="flex gap-2">
@@ -1793,7 +1791,7 @@ function doOptions(e) {
                   <p className="text-[10px] text-center text-indigo-400 mt-2">* เปลี่ยนธีมแล้วสีพื้นหลังของร้านจะเปลี่ยนตามทันทีครับ</p>
                 </div>
                 
-                {/* 🌟 [แก้ไขจุดที่ 3] ปรับปรุงกล่องเลือกสถานะของร้านค้าให้รองรับ 3 รูปแบบ */}
+                {/* 🌟 [แก้ไขจุดที่ 3] ปุ่มตั้งค่าสถานะเปิด-ปิด-คิวเต็ม ของร้านเครื่องดื่ม */}
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะร้าน และ วัตถุดิบ</h3>
                   
@@ -1858,7 +1856,6 @@ function doOptions(e) {
                     <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*หากอัปโหลดรูป ระบบจะแสดงรูปนี้แทนการสร้าง QR Code อัตโนมัติในหน้าตะกร้าของลูกค้า</p>
                   </div>
 
-                  {/* 🌟 บันทึกการตั้งค่ารวมถึงตัวแปร URL สำหรับสคริปต์ Backup */}
                   <button onClick={async () => {
                     try { 
                       await setDoc(doc(db, 'settings', 'store'), { 
@@ -1908,8 +1905,7 @@ function doOptions(e) {
         )}
       </main>
 
-      {/* --- --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- --- */}
-      {}
+      {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
           
@@ -2202,9 +2198,9 @@ function doOptions(e) {
                <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
                <button onClick={() => {
                  if(adminPassword === '570402') { 
-                    localStorage.setItem('happycow_isAdmin', 'true');
+                    safeStorage.setItem('happycow_isAdmin', 'true');
                     setView('admin'); 
-                    setAdminTab('orders'); // บังคับให้เริ่มที่แท็บออเดอร์ทันทีหลังปลดล็อกสำเร็จ
+                    setAdminTab('orders'); 
                     setShowAdminModal(false); 
                     setAdminPassword(''); 
                  }
