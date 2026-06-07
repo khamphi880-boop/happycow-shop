@@ -131,7 +131,19 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
   
-  const [storeSettings, setStoreSettings] = useState({ promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '', backupScriptUrl: '', lastBackupDate: '' });
+  const [storeSettings, setStoreSettings] = useState({ 
+    promptPayNo: '0812345678', 
+    qrCodeImage: '', 
+    isStoreOpen: true, 
+    closeReason: 'closed', // 'closed' | 'high_volume' 
+    theme: 'default', 
+    customBgImage: '', 
+    isBlendOut: false, 
+    notifyAdmin: false, 
+    adminLineId: '', 
+    backupScriptUrl: '', 
+    lastBackupDate: '' 
+  });
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
@@ -246,6 +258,7 @@ export default function App() {
         setStoreSettings({ 
           ...data, 
           isStoreOpen: data.isStoreOpen !== false, 
+          closeReason: data.closeReason || 'closed',
           theme: data.theme || 'default', 
           customBgImage: data.customBgImage || '', 
           isBlendOut: data.isBlendOut || false, 
@@ -308,7 +321,7 @@ export default function App() {
       // เงื่อนไขเวลาตรงกับ 23:30 น. และยังไม่มีการสำรองข้อมูลของวันปัจจุบัน
       if (hours === 23 && minutes === 30) {
         if (storeSettings.lastBackupDate !== todayStr && orders.length > 0) {
-          console.log("🕛 Auto-triggering daily backup at 23:30...");
+          console.log("Auto-triggering daily backup at 23:30...");
           await executeBackup(todayStr);
         }
       }
@@ -527,41 +540,14 @@ export default function App() {
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
   };
 
-  const exportToCSV = () => {
-    const completedOrders = orders.filter(o => o.status === 'completed');
-    if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
-    let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
-    completedOrders.forEach(o => {
-      const date = new Date(o.timestamp).toLocaleString('th-TH');
-      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
-      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
-      csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `สรุปรายรับ_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  const updateStoreStatus = async (status, reason = 'closed') => { 
+    try { 
+      await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status, closeReason: reason }, { merge: true }); 
+      showAlert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); 
+    } catch(e) { 
+      showAlert("Error: " + e.message); 
+    } 
   };
-
-  const exportMenuToCSV = () => {
-    if (menuItems.length === 0) return showAlert('ยังไม่มีเมนูในระบบครับ');
-    let csv = "\uFEFFหมวดหมู่,ชื่อเมนู,ราคาปกติ (เย็น),ราคาปั่น,สถานะ\n";
-    const sortedMenus = [...menuItems].sort((a, b) => a.category.localeCompare(b.category));
-    sortedMenus.forEach(m => {
-      const coldPrice = m.isOnlyBlend ? '-' : m.price;
-      const blendPrice = (m.allowBlend === false && !m.isOnlyBlend) ? '-' : (m.price + getAddedBlendPrice(m));
-      const status = m.isSoldOut ? 'หมดชั่วคราว' : 'พร้อมขาย';
-      csv += `"${m.category}","${(m.name||'').replace(/"/g, '""')}",${coldPrice},${blendPrice},${status}\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `รายการเมนู_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
-
-  const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); showAlert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { showAlert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); showAlert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { showAlert("Error: " + e.message); } };
 
   const openOptionModal = (item) => {
@@ -582,14 +568,15 @@ export default function App() {
 
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
 
+  // 🌟 [แก้ไขจุดที่ 1] หน้าเมนูขายดีให้แสดงเพียงสูงสุด 9 เมนูเท่านั้น
   const bestSellers = React.useMemo(() => {
-    const defaultSlice = menuItems.slice(0, 4);
+    const defaultSlice = menuItems.slice(0, 9);
     if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
     const salesCount = {};
     orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    return sortedMenus.length === 0 ? defaultSlice : sortedMenus;
+    return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
   }, [orders, menuItems]);
 
   const displayedItems = React.useMemo(() => {
@@ -661,6 +648,23 @@ export default function App() {
         .border-accent { border-color: var(--theme-accent); }
         .border-primary { border-color: var(--theme-primary); }
         
+        @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght@700&family=Kanit:wght@400;600;700&display=swap');
+        :root {
+          --theme-primary: ${currentThemeData.primary};
+          --theme-accent: ${currentThemeData.accent};
+          --theme-bg: ${currentThemeData.bg};
+        }
+        .font-serif { font-family: 'Vollkorn', serif; }
+        .font-kanit { font-family: 'Kanit', sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        .bg-primary { background-color: var(--theme-primary); color: #fff; }
+        .text-primary { color: var(--theme-primary); }
+        .bg-accent { background-color: var(--theme-accent); color: #fff; }
+        .text-accent { color: var(--theme-accent); }
+        .border-accent { border-color: var(--theme-accent); }
+        .border-primary { border-color: var(--theme-primary); }
+        
         @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .animate-shimmer { position: relative; overflow: hidden; }
         .animate-shimmer::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 2.5s infinite; }
@@ -696,6 +700,39 @@ export default function App() {
                 {currentThemeData.icons[Math.floor(Math.random() * currentThemeData.icons.length)]}
              </div>
           ))}
+        </div>
+      )}
+
+      {/* 🌟 [แก้ไขจุดที่ 3] หน้าจอป้องกันการเข้าใช้งาน (Closed Store / High Volume Overlay) สำหรับลูกค้า */}
+      {storeSettings.isStoreOpen === false && localStorage.getItem('happycow_isAdmin') !== 'true' && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-6 text-center text-white">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-[3.5rem] shadow-2xl max-w-sm space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="text-6xl animate-bounce">
+              {storeSettings.closeReason === 'high_volume' ? '⏳' : '💤'}
+            </div>
+            
+            <h2 className="text-2xl font-serif font-bold text-orange-200">
+              {storeSettings.closeReason === 'high_volume' ? 'ขออภัยคิวออเดอร์เต็มชั่วคราวค่ะ' : 'ร้านปิดให้บริการแล้วค่ะ'}
+            </h2>
+            
+            <p className="text-xs text-gray-200 leading-relaxed font-medium">
+              {storeSettings.closeReason === 'high_volume' 
+                ? 'เนื่องจากขณะนี้ปริมาณออร์เดอร์เครื่องดื่มเข้ามาเยอะมาก เพื่อรักษาคุณภาพและจัดส่งคิวเดิมให้ทันตามกำหนด ทางร้านจึงขออนุญาตปิดรับออเดอร์ใหม่ชั่วคราวสักครู่นะคะ และจะกลับมาเปิดใหม่อีกครั้งอย่างเร็วที่สุดค่ะ 🐮💖' 
+                : 'ตอนนี้ร้านวัวนมอารมณ์ดีปิดให้บริการสำหรับวันนี้เรียบร้อยแล้วค่ะ ขอบคุณลูกค้าที่น่ารักทุกคนมากๆ นะคะ ไว้แวะมาสั่งของอร่อยเติมความสดชื่นด้วยกันใหม่วันพรุ่งนี้ค่ะ 🐮💤'}
+            </p>
+            
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">วัวนมอารมณ์ดี ยินดีให้บริการค่ะ 🐮</p>
+            </div>
+          </div>
+
+          {/* ป้องกันแอดมินโดนล็อกเอาต์ออก ให้แอดมินกดเปิด Modal ล็อกอินควบคุมได้จากหน้าจอนี้ */}
+          <button 
+            onClick={() => setShowAdminModal(true)} 
+            className="mt-8 text-[11px] text-gray-500 underline hover:text-white transition-colors"
+          >
+            สำหรับแอดมินร้านเข้าระบบควบคุม ⚙️
+          </button>
         </div>
       )}
 
@@ -782,7 +819,6 @@ export default function App() {
               )}
             </div>
 
-            {}
             {!searchQuery && promotedItems.length > 0 && (
               <div className="pt-2 pb-2">
                 <div ref={sliderRef} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth w-full px-5 gap-3">
@@ -1219,6 +1255,7 @@ export default function App() {
             )}
 
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
+            {}
             {adminTab === 'orders' && (
               <div className="space-y-4">
                 <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 relative mb-4">
@@ -1756,11 +1793,32 @@ function doOptions(e) {
                   <p className="text-[10px] text-center text-indigo-400 mt-2">* เปลี่ยนธีมแล้วสีพื้นหลังของร้านจะเปลี่ยนตามทันทีครับ</p>
                 </div>
                 
+                {/* 🌟 [แก้ไขจุดที่ 3] ปรับปรุงกล่องเลือกสถานะของร้านค้าให้รองรับ 3 รูปแบบ */}
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะร้าน และ วัตถุดิบ</h3>
-                  <div className="flex justify-center gap-3 pt-2">
-                    <button onClick={() => updateStoreStatus(true)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-sm transition-all ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-green-200 hover:text-green-500'}`}><CheckCircle size={18}/> เปิดร้านแล้ว</button>
-                    <button onClick={() => updateStoreStatus(false)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-sm transition-all ${storeSettings.isStoreOpen === false ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-red-200 hover:text-red-500'}`}><X size={18}/> ปิดร้านแล้ว</button>
+                  
+                  <div className="space-y-3 pt-2">
+                    <label className="text-xs text-gray-500 font-bold block mb-1">ควบคุมการเปิด-ปิดและการรับออร์เดอร์</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button 
+                         onClick={() => updateStoreStatus(true, 'open')} 
+                         className={`py-4 rounded-xl font-bold text-[9px] flex flex-col items-center justify-center gap-1.5 shadow-sm transition-all ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-green-200'}`}
+                      >
+                         <CheckCircle size={16}/> เปิดร้านปกติ
+                      </button>
+                      <button 
+                         onClick={() => updateStoreStatus(false, 'high_volume')} 
+                         className={`py-4 rounded-xl font-bold text-[9px] flex flex-col items-center justify-center gap-1.5 shadow-sm transition-all ${storeSettings.isStoreOpen === false && storeSettings.closeReason === 'high_volume' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-amber-200'}`}
+                      >
+                         <AlertCircle size={16}/> คิวเต็ม (ชั่วคราว)
+                      </button>
+                      <button 
+                         onClick={() => updateStoreStatus(false, 'closed')} 
+                         className={`py-4 rounded-xl font-bold text-[9px] flex flex-col items-center justify-center gap-1.5 shadow-sm transition-all ${storeSettings.isStoreOpen === false && storeSettings.closeReason === 'closed' ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-red-200'}`}
+                      >
+                         <X size={16}/> ปิดร้านประจำวัน
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-orange-200/50">
