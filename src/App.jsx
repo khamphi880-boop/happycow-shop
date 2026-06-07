@@ -1199,16 +1199,32 @@ export default function App() {
                           </div>
                       ))}</div>
 
-                      {/* 🌟 [แก้ไขจุดที่ 2] เพิ่มการแสดงผลรูปภาพสลิปที่แนบมาแบบ Inline Thumbnail สำหรับ Admin */}
-                      {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
-                        <div className="mb-3 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 inline-block">
-                          <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">📄 หลักฐานสลิปแนบ (คลิกเพื่อขยายดูเต็มจอ):</p>
-                          <img 
-                            src={o.slipImage} 
-                            alt="Attached slip preview" 
-                            className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm"
-                            onClick={() => setSelectedSlip(o.slipImage)}
-                          />
+                      {/* 🌟 [แก้ไข] จัดกลุ่มแสดงผลสลิปโอนเงิน และ รูปหลักฐานจัดส่งส่งของ ให้แสดงผลคู่กันอย่างสวยงามสำหรับ Admin */}
+                      {}
+                      {((o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment') || o.deliveryImage) && (
+                        <div className="flex flex-wrap gap-3 mb-3">
+                          {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
+                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px]">
+                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider text-center">📄 สลิปโอนเงิน (คลิกขยาย):</p>
+                              <img 
+                                src={o.slipImage} 
+                                alt="Attached slip preview" 
+                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto"
+                                onClick={() => setSelectedSlip(o.slipImage)}
+                              />
+                            </div>
+                          )}
+                          {o.deliveryImage && (
+                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px]">
+                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider text-center">🛵 รูปส่งสินค้า (คลิกขยาย):</p>
+                              <img 
+                                src={o.deliveryImage} 
+                                alt="Delivery confirmation preview" 
+                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto"
+                                onClick={() => setSelectedSlip(o.deliveryImage)}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
