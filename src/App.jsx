@@ -539,13 +539,13 @@ export default function App() {
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
 
   const bestSellers = React.useMemo(() => {
-    const defaultSlice = menuItems.slice(0, 4);
+    const defaultSlice = menuItems.slice(0, 9); // ดึงมา 9 รายการเป็นค่าเริ่มต้น
     if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
     const salesCount = {};
     orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    return sortedMenus.length === 0 ? defaultSlice : sortedMenus;
+    return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9); // จำกัดแค่ 9 รายการแรก
   }, [orders, menuItems]);
 
   const displayedItems = React.useMemo(() => {
