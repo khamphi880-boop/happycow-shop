@@ -545,7 +545,9 @@ export default function App() {
     orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    return sortedMenus.length === 0 ? defaultSlice : sortedMenus;
+    
+    // 🌟 แก้ไขจุดที่ 1: จำกัดให้แสดงแค่ 9 อันดับแรกแทนที่จะโชว์ทั้งหมด
+    return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
   }, [orders, menuItems]);
 
   const displayedItems = React.useMemo(() => {
@@ -837,7 +839,10 @@ export default function App() {
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
                         <p className="text-accent font-bold text-sm">฿{item.price}</p>
-                        {isBestSeller && item.sales > 0 && <p className="text-[9px] text-green-600 font-bold mt-1 bg-green-50 rounded px-1 py-0.5 inline-block shadow-sm">ขายไปแล้ว {item.sales} แก้ว</p>}
+                        
+                        {/* 🌟 จุดที่แก้ไข: ซ่อน/ลบส่วนที่แสดงยอดขายของลูกค้าออกไป */}
+                        {/* {isBestSeller && item.sales > 0 && <p className="text-[9px] text-green-600 font-bold mt-1 bg-green-50 rounded px-1 py-0.5 inline-block shadow-sm">ขายไปแล้ว {item.sales} แก้ว</p>} */}
+                        
                         {isSpecial && !isBestSeller && <p className="text-[8px] text-accent mt-1 font-bold">เมนูสุดพรีเมียม</p>}
                       </div>
                     </div>
