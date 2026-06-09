@@ -124,12 +124,13 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
   
-  const [storeSettings, setStoreSettings] = useState({ promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '' });
+  const [storeSettings, setStoreSettings] = useState({ promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '', shopLineUrl: '' });
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
   const [editNotifyAdmin, setEditNotifyAdmin] = useState(false);
   const [editAdminLineId, setEditAdminLineId] = useState('');
+  const [editShopLineUrl, setEditShopLineUrl] = useState('');
   
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
@@ -231,12 +232,13 @@ export default function App() {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setStoreSettings({ ...data, isStoreOpen: data.isStoreOpen !== false, theme: data.theme || 'default', customBgImage: data.customBgImage || '', isBlendOut: data.isBlendOut || false, notifyAdmin: data.notifyAdmin || false, adminLineId: data.adminLineId || '' });
+        setStoreSettings({ ...data, isStoreOpen: data.isStoreOpen !== false, theme: data.theme || 'default', customBgImage: data.customBgImage || '', isBlendOut: data.isBlendOut || false, notifyAdmin: data.notifyAdmin || false, adminLineId: data.adminLineId || '', shopLineUrl: data.shopLineUrl || '' });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
         setEditCustomBgImage(data.customBgImage || '');
         setEditNotifyAdmin(data.notifyAdmin || false);
         setEditAdminLineId(data.adminLineId || '');
+        setEditShopLineUrl(data.shopLineUrl || '');
       }
     });
 
@@ -260,7 +262,7 @@ export default function App() {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(e => console.log('Autoplay blocked', e));
           }
-        }, 800);
+        }, 400); // ระยะเวลาหน่วงให้กระดิ่งดังครั้งที่ 2 อย่างรวดเร็ว
       }).catch(e => console.log('Autoplay blocked by browser policy', e));
     }
   };
@@ -597,7 +599,7 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500" style={mainContainerStyle}>
-      <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
+      <audio id="orderNotification" ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/desk_bell.ogg" preload="auto"></audio>
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght@700&family=Kanit:wght@400;600;700&display=swap');
@@ -743,14 +745,12 @@ export default function App() {
                 <div ref={sliderRef} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth w-full px-5 gap-3">
                   {promotedItems.map(item => (
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
-                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-95'}`}>
-                         {item.isSoldOut && (
-                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-                               <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-xs border border-white/50 shadow-xl rotate-[-5deg] tracking-widest flex items-center gap-1">SOLD OUT</div>
-                            </div>
-                         )}
+                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}>
                          <div className="relative">
-                            <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0 ${item.isSoldOut ? 'grayscale' : ''}`} alt={item.name} />
+                            <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0`} alt={item.name} />
+                            {item.isSoldOut && (
+                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800/90 text-white px-3 py-1 rounded-full font-bold text-[10px] shadow-xl z-20 backdrop-blur-sm whitespace-nowrap border border-white/20">หมด</div>
+                            )}
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
                          </div>
                          <div className="flex-1 flex flex-col justify-center py-1 pr-2">
@@ -805,20 +805,8 @@ export default function App() {
                     const isBlendUnavailable = item.isOnlyBlend && storeSettings.isBlendOut;
                     const isDisabled = item.isSoldOut || isBlendUnavailable;
                     return (
-                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
                       
-                      {item.isSoldOut && (
-                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-                            <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-white/50 shadow-xl rotate-[-10deg] tracking-wider">หมดชั่วคราว</div>
-                         </div>
-                      )}
-                      
-                      {!item.isSoldOut && isBlendUnavailable && (
-                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-                            <div className="bg-blue-500 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-blue-200 shadow-xl rotate-[-10deg] tracking-wider text-center leading-tight">เมนูปั่น<br/>หมดชั่วคราว</div>
-                         </div>
-                      )}
-
                       {item.hasFreePearl && !isDisabled && <div className="absolute top-2 right-2 bg-gradient-to-r from-orange-400 to-red-400 text-white text-[8px] px-2 py-0.5 rounded-full font-bold shadow-md z-10 flex items-center gap-0.5 floating-badge"><Star size={8} fill="white"/> ฟรีไข่มุก!</div>}
                       
                       {isBestSeller && (
@@ -830,7 +818,13 @@ export default function App() {
                       )}
 
                       <div className="aspect-square bg-gray-50 relative">
-                         <img src={item.image} className={`w-full h-full object-cover ${isDisabled ? 'grayscale' : ''}`} alt={item.name} />
+                         <img src={item.image} className={`w-full h-full object-cover`} alt={item.name} />
+                         {item.isSoldOut && (
+                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800/90 text-white px-4 py-1.5 rounded-full font-bold text-xs shadow-xl z-20 backdrop-blur-sm tracking-wider whitespace-nowrap border border-white/20">หมด</div>
+                         )}
+                         {!item.isSoldOut && isBlendUnavailable && (
+                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500/90 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-xl z-20 backdrop-blur-sm tracking-wider text-center leading-tight border border-blue-200">เมนูปั่น<br/>หมด</div>
+                         )}
                          {item.sales > 10 && (
                             <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold floating-badge">ฮิตมาก 🔥</div>
                          )}
@@ -1024,7 +1018,7 @@ export default function App() {
 
                         let liffSuccess = false;
                         
-                        // 🌟 ระบบยิงบิลอัตโนมัติ (บังคับส่งเข้าแชทร้าน โดยลบ shareTargetPicker ออกเพื่อไม่ให้ผู้ใช้กดยกเลิกได้)
+                        // 🌟 ระบบยิงบิลอัตโนมัติ (บังคับส่งเข้าแชทร้าน โดยใช้ sendMessages ข้ามขั้นตอนการกดยืนยันแชร์)
                         if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient()) {
                            try {
                              await window.liff.sendMessages([{
@@ -1042,7 +1036,7 @@ export default function App() {
                         // ถ้าส่งข้อความออโต้สำเร็จ ให้แจ้งเตือนและพาไปหน้าประวัติ
                         if (liffSuccess) {
                            setView('myOrders');
-                           showAlert("สั่งซื้อสำเร็จ!\nระบบได้ส่งบิลเข้าแชทร้านค้าให้แอดมินอัตโนมัติเรียบร้อยแล้วค่ะ 🐮🎉");
+                           showAlert("สั่งซื้อสำเร็จ!\nระบบได้ส่งบิลเข้าแชทร้านค้าให้อัตโนมัติเรียบร้อยแล้วค่ะ 🐮🎉");
                         } else {
                            // ถ้ายิงออโต้ไม่ได้ (เช่น เปิดผ่านเบราว์เซอร์ปกติ) บังคับโชว์ Modal Failsafe สีแดง
                            setSuccessModalData({
@@ -1648,9 +1642,15 @@ export default function App() {
                     </div>
                     <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*หากอัปโหลดรูป ระบบจะแสดงรูปนี้แทนการสร้าง QR Code อัตโนมัติในหน้าตะกร้าของลูกค้า</p>
                   </div>
+                  
+                  <div className="pt-2 border-t border-gray-100 mt-4">
+                    <label className="text-xs text-gray-500 mb-2 block font-bold">ลิงก์ LINE Official ของร้าน (เพื่อรับบิล)</label>
+                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-accent border border-transparent transition-all" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
+                    <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*บังคับใส่ เพื่อให้ลูกค้ากดเปิดแชทร้านแล้ววางบิลได้ทันที (กรณีที่ระบบยิงบิลออโต้ไม่ทำงานในบางเบราว์เซอร์)</p>
+                  </div>
 
                   <button onClick={async () => {
-                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage }, { merge: true }); showAlert('อัปเดตการตั้งค่าร้านสำเร็จ! 🐮'); } catch(e) { showAlert("Error: " + e.message); }
+                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage, shopLineUrl: editShopLineUrl }, { merge: true }); showAlert('อัปเดตการตั้งค่าร้านสำเร็จ! 🐮'); } catch(e) { showAlert("Error: " + e.message); }
                   }} className="w-full bg-primary text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
                     บันทึกการตั้งค่าร้าน
                   </button>
@@ -1889,22 +1889,18 @@ export default function App() {
              </div>
 
              <div className="space-y-3">
-                <a 
-                  href={`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
-                >
-                   <Share2 size={20}/> กดเพื่อส่งบิลเข้าแชทร้านค้า
-                </a>
                 <button 
                   onClick={() => {
                      navigator.clipboard.writeText(successModalData.text);
-                     showAlert("คัดลอกข้อความสำเร็จ! รบกวนนำไปวางในช่องแชทเพื่อส่งให้แอดมินด้วยนะคะ 🙏");
+                     if (storeSettings.shopLineUrl) {
+                        window.location.href = storeSettings.shopLineUrl;
+                     } else {
+                        showAlert("คัดลอกข้อความสำเร็จ! รบกวนนำไปวางส่งในแชทร้านที่คุณทักมาด้วยนะคะ 🙏");
+                     }
                   }}
-                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-sm font-bold active:scale-95 hover:bg-gray-200 transition-all border border-gray-200"
+                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
                 >
-                   <Copy size={16} className="inline mr-1"/> คัดลอกข้อความบิล
+                   <Share2 size={20}/> กดคัดลอกบิล แล้วไปที่แชทร้านค้า
                 </button>
                 <button 
                   onClick={() => {
