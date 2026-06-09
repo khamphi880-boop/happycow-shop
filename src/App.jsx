@@ -4,7 +4,7 @@ import {
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
-  Sparkles
+  Sparkles, Database
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
@@ -124,13 +124,20 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
   
-  const [storeSettings, setStoreSettings] = useState({ promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '', shopLineUrl: '' });
+  // 🌟 เพิ่มสถานะ autoCloseEnabled และ autoCloseQueueLimit ใน storeSettings
+  const [storeSettings, setStoreSettings] = useState({ 
+    promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', 
+    isBlendOut: false, notifyAdmin: false, adminLineId: '',
+    autoCloseEnabled: false, autoCloseQueueLimit: 3
+  });
+  
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
   const [editNotifyAdmin, setEditNotifyAdmin] = useState(false);
   const [editAdminLineId, setEditAdminLineId] = useState('');
-  const [editShopLineUrl, setEditShopLineUrl] = useState('');
+  const [editAutoCloseEnabled, setEditAutoCloseEnabled] = useState(false);
+  const [editAutoCloseLimit, setEditAutoCloseLimit] = useState(3);
   
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
@@ -232,51 +239,78 @@ export default function App() {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setStoreSettings({ ...data, isStoreOpen: data.isStoreOpen !== false, theme: data.theme || 'default', customBgImage: data.customBgImage || '', isBlendOut: data.isBlendOut || false, notifyAdmin: data.notifyAdmin || false, adminLineId: data.adminLineId || '', shopLineUrl: data.shopLineUrl || '' });
+        setStoreSettings({ 
+          ...data, 
+          isStoreOpen: data.isStoreOpen !== false, 
+          theme: data.theme || 'default', 
+          customBgImage: data.customBgImage || '', 
+          isBlendOut: data.isBlendOut || false, 
+          notifyAdmin: data.notifyAdmin || false, 
+          adminLineId: data.adminLineId || '',
+          autoCloseEnabled: data.autoCloseEnabled || false,
+          autoCloseQueueLimit: data.autoCloseQueueLimit || 3
+        });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
         setEditCustomBgImage(data.customBgImage || '');
         setEditNotifyAdmin(data.notifyAdmin || false);
         setEditAdminLineId(data.adminLineId || '');
-        setEditShopLineUrl(data.shopLineUrl || '');
+        setEditAutoCloseEnabled(data.autoCloseEnabled || false);
+        setEditAutoCloseLimit(data.autoCloseQueueLimit || 3);
       }
     });
 
     const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
-      setPopularSearches(sorted);
-    } else setPopularSearches([]);
-  });
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
+        setPopularSearches(sorted);
+      } else setPopularSearches([]);
+    });
 
-  return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
-}, []);
+    return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
+  }, []);
 
-const playNotificationSound = () => {
-  if (audioRef.current) {
-    // เล่นกริ่งครั้งที่ 1
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().then(() => {
-      // เล่นกริ่งครั้งที่ 2 โดยใช้ cloneNode เพื่อสร้างเสียงที่สองแยกออกมา จะได้ไม่ไปตัดหางเสียงกระดิ่งแรก
-      setTimeout(() => {
-        if (audioRef.current) {
-          const secondBell = audioRef.current.cloneNode();
-          secondBell.play().catch(e => console.log('Autoplay blocked', e));
-        }
-      }, 400); // หน่วง 400ms เป็นจังหวะ กริ๊ง... กริ๊ง... ที่พอดี
-    }).catch(e => console.log('Autoplay blocked by browser policy', e));
-  }
-};
+  // 🌟 ฟังก์ชันเสียงกริ่ง 2 ครั้งที่สมบูรณ์ (Double Ding)
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+      // ครั้งที่ 1
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().then(() => {
+        // ครั้งที่ 2: ใช้ cloneNode เพื่อสร้าง Player อิสระ จะได้ไม่ตัดหางเสียงกริ่งแรกลง
+        setTimeout(() => {
+          if (audioRef.current) {
+            const secondBell = audioRef.current.cloneNode();
+            secondBell.play().catch(e => console.log('Autoplay 2 blocked', e));
+          }
+        }, 500); // 500ms เป็นระยะเวลาที่กำลังเพราะสำหรับเสียงกระดิ่ง
+      }).catch(e => console.log('Autoplay blocked by browser policy', e));
+    }
+  };
 
-useEffect(() => {
-  if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
+  useEffect(() => {
+    if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
       const newOrders = orders.slice(0, orders.length - previousOrderCount.current);
       const hasNewPending = newOrders.some(o => o.status === 'pending');
       if (hasNewPending && view === 'admin') playNotificationSound();
     }
     previousOrderCount.current = orders.length;
   }, [orders, view]);
+
+  // 🌟 ระบบ AI ตรวจจับคิวและปิดร้านอัตโนมัติ
+  useEffect(() => {
+    // ให้ระบบนี้ทำงานเฉพาะฝั่งแอดมินที่เปิดหน้าจอทิ้งไว้ (ป้องกันการยิงข้อมูลซ้ำซ้อนจากเครื่องลูกค้าหลายคน)
+    if (view === 'admin' && storeSettings.autoCloseEnabled && storeSettings.isStoreOpen) {
+      const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
+      
+      if (activeQueueCount >= storeSettings.autoCloseQueueLimit) {
+        // เมื่อคิวเกินกำหนด ให้สับสวิตช์ปิดร้าน
+        setDoc(doc(db, 'settings', 'store'), { isStoreOpen: false }, { merge: true }).then(() => {
+          showAlert(`⚠️ ปิดร้านอัตโนมัติแล้ว!\nเนื่องจากมีคิวสะสมถึง ${activeQueueCount} คิว\nหากทำออร์เดอร์เสร็จแล้ว แอดมินต้องมากดเปิดร้านเองอีกครั้งนะคะ`);
+        }).catch(err => console.error("Auto-close failed:", err));
+      }
+    }
+  }, [orders, view, storeSettings.autoCloseEnabled, storeSettings.isStoreOpen, storeSettings.autoCloseQueueLimit]);
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
@@ -487,6 +521,33 @@ useEffect(() => {
     return { daily, monthly, yearly, dailyHistory };
   };
 
+  // 🌟 ฟังก์ชันคำนวณพื้นที่ Storage (ประมาณการ) จากจำนวนรูปภาพทั้งหมดที่อัปโหลด
+  const calculateStorageUsage = () => {
+    let imageCount = 0;
+    
+    // นับรูปเมนู
+    menuItems.forEach(m => { if (m.image && m.image.startsWith('data:image')) imageCount++; });
+    
+    // นับรูปสลิปและหลักฐานจัดส่ง
+    orders.forEach(o => {
+       if (o.slipImage && o.slipImage.startsWith('data:image')) imageCount++;
+       if (o.deliveryImage && o.deliveryImage.startsWith('data:image')) imageCount++;
+    });
+
+    // สมมติฐาน: รูปที่ถูกบีบอัดผ่านฟังก์ชัน compressImage ด้านบน จะมีขนาดเฉลี่ยประมาณ 150 KB (0.15 MB)
+    const estimatedMB = (imageCount * 0.15); 
+    const freeTierLimitMB = 5000; // Firebase Free Tier (Spark) = 5 GB = 5000 MB
+    const percentage = Math.min(((estimatedMB / freeTierLimitMB) * 100), 100);
+    
+    return {
+      count: imageCount,
+      usedMB: estimatedMB.toFixed(2),
+      percent: percentage.toFixed(3),
+      limit: 5,
+      isNearLimit: percentage > 80
+    };
+  };
+
   const exportToCSV = () => {
     const completedOrders = orders.filter(o => o.status === 'completed');
     if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
@@ -549,7 +610,6 @@ useEffect(() => {
     orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    
     return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
   }, [orders, menuItems]);
 
@@ -590,6 +650,7 @@ useEffect(() => {
   }, [view, promotedItems.length, searchQuery]);
 
   const revData = calculateRevenue();
+  const storageData = calculateStorageUsage();
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
@@ -601,7 +662,6 @@ useEffect(() => {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500" style={mainContainerStyle}>
-      {/* เปลี่ยนนามสกุลไฟล์กลับเป็น .mp3 เพื่อให้รองรับ iOS/Safari (ไฟล์ .ogg เล่นบน iPhone ไม่ได้) */}
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
       <style>{`
@@ -749,12 +809,15 @@ useEffect(() => {
                   {promotedItems.map(item => (
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
                       <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}>
+                         
                          <div className="relative">
                             <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0`} alt={item.name} />
-                            {item.isSoldOut && (
-                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800/90 text-white px-3 py-1 rounded-full font-bold text-[10px] shadow-xl z-20 backdrop-blur-sm whitespace-nowrap border border-white/20">หมด</div>
-                            )}
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
+                            {item.isSoldOut && (
+                               <div className="absolute inset-0 z-20 flex items-center justify-center">
+                                  <div className="bg-gray-800 text-white px-3 py-1 rounded-md font-bold text-xs shadow-xl rotate-[-10deg] tracking-wider border border-white/20">หมด</div>
+                               </div>
+                            )}
                          </div>
                          <div className="flex-1 flex flex-col justify-center py-1 pr-2">
                             <span className="text-[9px] bg-gradient-to-r from-red-500 to-orange-400 text-white px-2 py-1 rounded-full w-fit mb-1.5 font-bold flex items-center gap-1 shadow-md">
@@ -808,8 +871,14 @@ useEffect(() => {
                     const isBlendUnavailable = item.isOnlyBlend && storeSettings.isBlendOut;
                     const isDisabled = item.isSoldOut || isBlendUnavailable;
                     return (
-                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
                       
+                      {!item.isSoldOut && isBlendUnavailable && (
+                         <div className="absolute inset-0 z-20 flex items-center justify-center">
+                            <div className="bg-blue-500 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-blue-200 shadow-xl rotate-[-10deg] tracking-wider text-center leading-tight">เมนูปั่น<br/>หมดชั่วคราว</div>
+                         </div>
+                      )}
+
                       {item.hasFreePearl && !isDisabled && <div className="absolute top-2 right-2 bg-gradient-to-r from-orange-400 to-red-400 text-white text-[8px] px-2 py-0.5 rounded-full font-bold shadow-md z-10 flex items-center gap-0.5 floating-badge"><Star size={8} fill="white"/> ฟรีไข่มุก!</div>}
                       
                       {isBestSeller && (
@@ -822,20 +891,18 @@ useEffect(() => {
 
                       <div className="aspect-square bg-gray-50 relative">
                          <img src={item.image} className={`w-full h-full object-cover`} alt={item.name} />
-                         {item.isSoldOut && (
-                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-800/90 text-white px-4 py-1.5 rounded-full font-bold text-xs shadow-xl z-20 backdrop-blur-sm tracking-wider whitespace-nowrap border border-white/20">หมด</div>
-                         )}
-                         {!item.isSoldOut && isBlendUnavailable && (
-                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500/90 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-xl z-20 backdrop-blur-sm tracking-wider text-center leading-tight border border-blue-200">เมนูปั่น<br/>หมด</div>
-                         )}
                          {item.sales > 10 && (
                             <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold floating-badge">ฮิตมาก 🔥</div>
+                         )}
+                         {item.isSoldOut && (
+                            <div className="absolute inset-0 z-20 flex items-center justify-center">
+                               <div className="bg-gray-800 text-white px-4 py-1.5 rounded-lg font-bold text-[13px] shadow-xl tracking-widest border border-white/20">หมด</div>
+                            </div>
                          )}
                       </div>
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
                         <p className="text-accent font-bold text-sm">฿{item.price}</p>
-                        
                         {isSpecial && !isBestSeller && <p className="text-[8px] text-accent mt-1 font-bold">เมนูสุดพรีเมียม</p>}
                       </div>
                     </div>
@@ -977,7 +1044,7 @@ useEffect(() => {
                   </div>
                 </label>
                 
-                {/* 🌟 ใช้งานปุ่มสั่งซื้อ Smart Fail-Safe 100% พร้อมบันทึกเวลา และบังคับยิงแชท */}
+                {/* 🌟 ใช้งานปุ่มสั่งซื้อ Smart Fail-Safe 100% */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -987,6 +1054,7 @@ useEffect(() => {
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTimestamp = Date.now();
+                      const orderDateStr = new Date(orderTimestamp).toLocaleString('th-TH');
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
@@ -998,14 +1066,7 @@ useEffect(() => {
 
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         
-                        // สร้างวันที่แบบอ่านง่าย (เช่น 12 มิ.ย. 2567, 14:30 น.)
-                        const orderDateText = new Date(orderTimestamp).toLocaleString('th-TH', { 
-                           year: 'numeric', month: 'short', day: 'numeric', 
-                           hour: '2-digit', minute: '2-digit' 
-                        });
-                        
-                        // เพิ่มบรรทัดแสดงวันที่สั่งซื้อลงในบิล
-                        const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nวันเวลาที่สั่ง: ${orderDateText} น.\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
+                        const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nวันเวลา: ${orderDateStr}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => {
                             const blendText = getBlendText(i);
                             const beanText = i.bean ? ` • เมล็ด: ${i.bean}` : '';
@@ -1015,33 +1076,38 @@ useEffect(() => {
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
                             return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${pearlText}${toppingsText})`;
                           }).join('\n') + 
-                          `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คสถานะบิล: ${orderLink}`;
-
-                        try { await navigator.clipboard.writeText(orderSummaryText); } catch (e) { console.warn(e); }
+                          `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
                         let liffSuccess = false;
                         
-                        // 🌟 ระบบยิงบิลอัตโนมัติ (บังคับส่งเข้าแชทร้าน โดยใช้ sendMessages ข้ามขั้นตอนการกดยืนยันแชร์)
-                        if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient()) {
+                        if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient() && window.liff.isApiAvailable('shareTargetPicker')) {
                            try {
-                             await window.liff.sendMessages([{
-                               type: "text",
-                               text: orderSummaryText
-                             }]);
-                             liffSuccess = true;
+                              // ใช้ liff.sendMessages แทน shareTargetPicker เพื่อบังคับยิงข้อความเข้าห้องแชทร้านอัตโนมัติ (ไม่ต้องให้ลูกค้าเลือก)
+                              await window.liff.sendMessages([{
+                                 type: "text",
+                                 text: orderSummaryText
+                              }]);
+                              liffSuccess = true;
                            } catch (err) {
-                             console.log("LIFF sendMessages Error:", err);
+                             console.log("LIFF SendMessage Error, trying shareTargetPicker as fallback:", err);
+                             // Fallback เผื่อ liff.sendMessages ถูกแบนสิทธิ์ ให้เด้งหน้าเลือกเพื่อน (ShareTargetPicker) แทน
+                             try {
+                                const res = await window.liff.shareTargetPicker([{
+                                   type: "text",
+                                   text: orderSummaryText
+                                }]);
+                                if (res) liffSuccess = true;
+                             } catch(shareErr) { console.log("ShareTargetPicker also failed", shareErr); }
                            }
                         }
 
                         setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
 
-                        // ถ้าส่งข้อความออโต้สำเร็จ ให้แจ้งเตือนและพาไปหน้าประวัติ
                         if (liffSuccess) {
                            setView('myOrders');
-                           showAlert("สั่งซื้อสำเร็จ!\nระบบได้ส่งบิลเข้าแชทร้านค้าให้อัตโนมัติเรียบร้อยแล้วค่ะ 🐮🎉");
+                           showAlert("สั่งซื้อและส่งบิลเข้าแชทร้านเรียบร้อยแล้วค่ะ! 🐮🎉\nทางร้านกำลังเตรียมออร์เดอร์ให้ รอรับความสดชื่นได้เลย!");
                         } else {
-                           // ถ้ายิงออโต้ไม่ได้ (เช่น เปิดผ่านเบราว์เซอร์ปกติ) บังคับโชว์ Modal Failsafe สีแดง
+                           // ถ้าหลุดมาตรงนี้แปลว่า ไม่ได้เปิดแอปใน LINE หรือกดยกเลิก
                            setSuccessModalData({
                               orderId: orderRef.id,
                               text: orderSummaryText
@@ -1086,8 +1152,7 @@ useEffect(() => {
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
                             <div>
                                <span className="text-[10px] font-bold text-accent uppercase tracking-wider">บิล #{o.id.slice(0,6)}</span>
-                               {/* 🌟 แสดงวันที่และเวลาในหน้าประวัติลูกค้า */}
-                               <div className="text-[10px] text-gray-400 font-bold mt-0.5">{new Date(o.timestamp).toLocaleString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</div>
+                               <p className="text-[9px] text-gray-400 font-medium mt-0.5">{new Date(o.timestamp).toLocaleString('th-TH')}</p>
                                <p className="text-xs font-bold text-orange-400 mt-1 uppercase">{o.status}</p>
                             </div>
                             <div className="text-2xl font-serif font-bold text-primary">฿{o.total}</div>
@@ -1139,9 +1204,40 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* TAB: Dashboard รายรับ */}
+            {/* TAB: Dashboard รายรับ & Storage */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
+                
+                {/* 🌟 Widget แสดงสถานะ Storage Area */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden">
+                   <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 text-indigo-600">
+                         <Database size={20} />
+                         <h3 className="font-bold text-sm">พื้นที่จัดเก็บรูปภาพ (ประมาณการ)</h3>
+                      </div>
+                      <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{storageData.percent}%</span>
+                   </div>
+                   
+                   {/* Progress Bar */}
+                   <div className="w-full bg-gray-100 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
+                      <div 
+                         className={`h-4 rounded-full transition-all duration-1000 ${storageData.isNearLimit ? 'bg-red-500' : 'bg-gradient-to-r from-indigo-400 to-indigo-600'}`} 
+                         style={{ width: `${storageData.percent}%` }}
+                      ></div>
+                   </div>
+                   
+                   <div className="flex justify-between items-center text-[10px] text-gray-500 font-medium">
+                      <span>ใช้ไปแล้ว ~{storageData.usedMB} MB (จาก {storageData.count} รูป)</span>
+                      <span>ลิมิตฟรี {storageData.limit} GB</span>
+                   </div>
+                   
+                   {storageData.isNearLimit && (
+                      <p className="mt-3 text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">
+                         ⚠️ พื้นที่เก็บข้อมูลใกล้เต็มแล้ว อาจทำให้ลูกค้ารูปสลิปไม่ขึ้น โปรดติดต่อผู้พัฒนาระบบ
+                      </p>
+                   )}
+                </div>
+
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl">
                   <div className="flex items-center gap-2 mb-4 opacity-80">
                     <TrendingUp size={20} />
@@ -1191,15 +1287,12 @@ useEffect(() => {
                 {filteredOrders.map((o, idx) => (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                             <span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span>
-                             <span className="font-bold text-sm text-primary">{o.lineName}</span>
-                          </div>
-                          {/* 🌟 แสดงวันที่และเวลาในหน้าของแอดมิน */}
-                          <div className="text-[10px] text-gray-400 font-bold flex items-center gap-1">
-                             <Clock size={10}/> {new Date(o.timestamp).toLocaleString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.
-                          </div>
+                        <div className="flex items-center gap-2">
+                           <span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span>
+                           <div>
+                              <span className="font-bold text-sm text-primary block">{o.lineName}</span>
+                              <span className="text-[8px] text-gray-400">{new Date(o.timestamp).toLocaleString('th-TH')}</span>
+                           </div>
                         </div>
                         <div className="text-right">
                           <span className="text-orange-600 font-bold block">฿{o.total}</span>
@@ -1559,6 +1652,40 @@ useEffect(() => {
             {/* TAB: ตั้งค่าบัญชีและธีมร้าน */}
             {adminTab === 'settings' && (
               <div className="space-y-8 animate-in fade-in">
+                
+                {/* 🌟 ฟังก์ชันตั้งค่าปิดร้านอัตโนมัติ (Auto-Close System) */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-4 shadow-inner relative">
+                  <h3 className="font-bold text-sm text-red-600 uppercase tracking-widest text-center flex items-center justify-center gap-2"><AlertCircle size={16}/> ระบบปิดร้านอัตโนมัติเมื่อคิวเต็ม</h3>
+                  
+                  <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-50">
+                    <div>
+                      <p className="font-bold text-sm text-primary flex items-center gap-1">🛡️ เปิดใช้งานระบบป้องกันคิวล้น</p>
+                      <p className="text-[10px] text-gray-500 mt-1">ระบบจะสับสวิตช์ปิดร้านให้ทันที ถ้ามีคิวรอกำลังทำเกินกำหนด</p>
+                    </div>
+                    <input type="checkbox" checked={editAutoCloseEnabled} onChange={e => setEditAutoCloseEnabled(e.target.checked)} className="w-5 h-5 accent-red-500 cursor-pointer" />
+                  </label>
+
+                  <div className={`transition-all overflow-hidden ${editAutoCloseEnabled ? 'opacity-100 max-h-40 mt-3' : 'opacity-0 max-h-0'}`}>
+                    <label className="text-[11px] text-gray-500 mb-2 block font-bold pl-2">จำนวนคิวสูงสุด (เช่น กำหนด 3 ถ้ามีออร์เดอร์ที่ 3 เข้ามา ร้านจะปิดอัตโนมัติ)</label>
+                    <div className="flex items-center bg-white border border-red-100 rounded-2xl shadow-sm overflow-hidden p-1">
+                      <button onClick={() => setEditAutoCloseLimit(prev => Math.max(1, prev - 1))} className="w-12 h-12 bg-gray-50 flex items-center justify-center text-red-500 font-bold rounded-xl active:scale-90">-</button>
+                      <input type="number" readOnly value={editAutoCloseLimit} className="flex-1 text-center font-bold text-lg text-primary outline-none" />
+                      <button onClick={() => setEditAutoCloseLimit(prev => prev + 1)} className="w-12 h-12 bg-red-100 flex items-center justify-center text-red-600 font-bold rounded-xl active:scale-90">+</button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-red-500 mt-2 font-medium bg-red-100/50 p-2 rounded-lg">* หมายเหตุ: ระบบนี้จะทำงานได้ก็ต่อเมื่อ "แอดมินเปิดหน้าร้านค้านี้ค้างไว้" เท่านั้น</p>
+                  
+                  <button onClick={async () => {
+                    try { 
+                      await setDoc(doc(db, 'settings', 'store'), { autoCloseEnabled: editAutoCloseEnabled, autoCloseQueueLimit: editAutoCloseLimit }, { merge: true }); 
+                      showAlert('อัปเดตระบบปิดร้านอัตโนมัติสำเร็จ! 🛡️'); 
+                    } catch(e) { showAlert("Error: " + e.message); }
+                  }} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:bg-red-600">
+                    บันทึกการตั้งค่าปิดร้าน
+                  </button>
+                </div>
+
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-[2.5rem] border-2 border-dashed border-indigo-200 space-y-4 shadow-inner relative overflow-hidden">
                   <h3 className="font-bold text-sm text-indigo-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><Palette size={16}/> เลือกธีมร้านค้า</h3>
                   <div className="grid grid-cols-2 gap-3 pt-2">
@@ -1645,15 +1772,9 @@ useEffect(() => {
                     </div>
                     <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*หากอัปโหลดรูป ระบบจะแสดงรูปนี้แทนการสร้าง QR Code อัตโนมัติในหน้าตะกร้าของลูกค้า</p>
                   </div>
-                  
-                  <div className="pt-2 border-t border-gray-100 mt-4">
-                    <label className="text-xs text-gray-500 mb-2 block font-bold">ลิงก์ LINE Official ของร้าน (เพื่อรับบิล)</label>
-                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-accent border border-transparent transition-all" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
-                    <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*บังคับใส่ เพื่อให้ลูกค้ากดเปิดแชทร้านแล้ววางบิลได้ทันที (กรณีที่ระบบยิงบิลออโต้ไม่ทำงานในบางเบราว์เซอร์)</p>
-                  </div>
 
                   <button onClick={async () => {
-                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage, shopLineUrl: editShopLineUrl }, { merge: true }); showAlert('อัปเดตการตั้งค่าร้านสำเร็จ! 🐮'); } catch(e) { showAlert("Error: " + e.message); }
+                    try { await setDoc(doc(db, 'settings', 'store'), { promptPayNo: editPromptPay, qrCodeImage: editQrCodeImage }, { merge: true }); showAlert('อัปเดตการตั้งค่าร้านสำเร็จ! 🐮'); } catch(e) { showAlert("Error: " + e.message); }
                   }} className="w-full bg-primary text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
                     บันทึกการตั้งค่าร้าน
                   </button>
