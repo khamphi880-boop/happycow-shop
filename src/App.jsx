@@ -243,32 +243,34 @@ export default function App() {
     });
 
     const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
-        setPopularSearches(sorted);
-      } else setPopularSearches([]);
-    });
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
+      setPopularSearches(sorted);
+    } else setPopularSearches([]);
+  });
 
-    return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
-  }, []);
+  return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
+}, []);
 
-  const playNotificationSound = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().then(() => {
-        setTimeout(() => {
-          if (audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(e => console.log('Autoplay blocked', e));
-          }
-        }, 400); // ระยะเวลาหน่วงให้กระดิ่งดังครั้งที่ 2 อย่างรวดเร็ว
-      }).catch(e => console.log('Autoplay blocked by browser policy', e));
-    }
-  };
+const playNotificationSound = () => {
+  if (audioRef.current) {
+    // เล่นกริ่งครั้งที่ 1
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().then(() => {
+      // เล่นกริ่งครั้งที่ 2 โดยใช้ cloneNode เพื่อสร้างเสียงที่สองแยกออกมา จะได้ไม่ไปตัดหางเสียงกระดิ่งแรก
+      setTimeout(() => {
+        if (audioRef.current) {
+          const secondBell = audioRef.current.cloneNode();
+          secondBell.play().catch(e => console.log('Autoplay blocked', e));
+        }
+      }, 400); // หน่วง 400ms เป็นจังหวะ กริ๊ง... กริ๊ง... ที่พอดี
+    }).catch(e => console.log('Autoplay blocked by browser policy', e));
+  }
+};
 
-  useEffect(() => {
-    if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
+useEffect(() => {
+  if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
       const newOrders = orders.slice(0, orders.length - previousOrderCount.current);
       const hasNewPending = newOrders.some(o => o.status === 'pending');
       if (hasNewPending && view === 'admin') playNotificationSound();
@@ -599,7 +601,8 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500" style={mainContainerStyle}>
-      <audio id="orderNotification" ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/desk_bell.ogg" preload="auto"></audio>
+      {/* เปลี่ยนนามสกุลไฟล์กลับเป็น .mp3 เพื่อให้รองรับ iOS/Safari (ไฟล์ .ogg เล่นบน iPhone ไม่ได้) */}
+      <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght@700&family=Kanit:wght@400;600;700&display=swap');
