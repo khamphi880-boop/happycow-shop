@@ -253,14 +253,16 @@ export default function App() {
 
   const playNotificationSound = () => {
     if (audioRef.current) {
+      // เล่นกริ่งครั้งที่ 1
       audioRef.current.currentTime = 0;
       audioRef.current.play().then(() => {
+        // ดีเลย์เล่นกริ่งครั้งที่ 2 หลังจากผ่านไป 500ms เป็นจังหวะ กริ๊ง... กริ๊ง... สวยงาม
         setTimeout(() => {
           if (audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(e => console.log('Autoplay blocked', e));
           }
-        }, 800);
+        }, 500);
       }).catch(e => console.log('Autoplay blocked by browser policy', e));
     }
   };
@@ -598,7 +600,8 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500" style={mainContainerStyle}>
-      <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
+      {/* 🔔 ปรับปรุงเสียงเตือนเป็น Service Bell (กริ่งสั่นเรียกพนักงานสองครั้งสุดไพเราะ) */}
+      <audio id="orderNotification" ref={audioRef} src="https://soundbible.com/mp3/service-bell_daniel_simion.mp3" preload="auto"></audio>
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vollkorn:wght@700&family=Kanit:wght@400;600;700&display=swap');
@@ -681,7 +684,7 @@ export default function App() {
             }
           }} className="p-2 text-gray-400 hover:text-primary transition-colors"><Settings size={18}/></button>
           <button onClick={() => setView('myOrders')} className="p-2 text-gray-400 hover:text-primary transition-colors"><ClipboardList/></button>
-          <button onClick={() => setView('cart')} className="relative p-2 bg-primary text-white rounded-xl w-10 h-10 flex items-center justify-center shadow-lg active:scale-90 transition-all">
+          <button onClick={() => setView('cart')} className="relative p-2 bg-primary text-white rounded-xl w-10 h-10 flex items-center justify-center shadow-lg active:scale-95 transition-all">
             {cart.length > 0 && <span className="absolute -top-2 -right-2 bg-accent text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm">{cart.length}</span>}
             <ShoppingCart size={20}/>
           </button>
@@ -739,20 +742,20 @@ export default function App() {
               )}
             </div>
 
+            {/* --- Promoted Items Banner Section --- */}
+            {/* 🌟 ปรับปรุงการ์ดแบนเนอร์โปรโมทที่หมด ให้ตัดม่านหมอกเลเยอร์มืดเบลอออก แล้วใช้ป้าย "หมด" สะอาดตาแทน */}
             {!searchQuery && promotedItems.length > 0 && (
               <div className="pt-2 pb-2">
                 <div ref={sliderRef} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth w-full px-5 gap-3">
                   {promotedItems.map(item => (
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
-                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-95'}`}>
+                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}>
                          {item.isSoldOut && (
-                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-                               <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-xs border border-white/50 shadow-xl rotate-[-5deg] tracking-widest flex items-center gap-1">SOLD OUT</div>
-                            </div>
+                            <div className="absolute top-2 left-2 bg-gray-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-30 shadow-md">หมด</div>
                          )}
                          <div className="relative">
-                            <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0 ${item.isSoldOut ? 'grayscale' : ''}`} alt={item.name} />
-                            <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
+                            <img src={item.image} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0" alt={item.name} />
+                            {!item.isSoldOut && <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>}
                          </div>
                          <div className="flex-1 flex flex-col justify-center py-1 pr-2">
                             <span className="text-[9px] bg-gradient-to-r from-red-500 to-orange-400 text-white px-2 py-1 rounded-full w-fit mb-1.5 font-bold flex items-center gap-1 shadow-md">
@@ -796,6 +799,7 @@ export default function App() {
               </div>
             )}
 
+            {}
             <div className="px-5 pb-5 pt-2">
               {searchQuery && <p className="text-sm font-bold text-primary mb-4 ml-1">ผลการค้นหา "{searchQuery}" ({displayedItems.length} รายการ)</p>}
               {isLoading ? <div className="p-20 text-center opacity-30 italic font-bold text-primary animate-pulse">กำลังโหลดความสดชื่น... 🐮</div> : (
@@ -806,12 +810,11 @@ export default function App() {
                     const isBlendUnavailable = item.isOnlyBlend && storeSettings.isBlendOut;
                     const isDisabled = item.isSoldOut || isBlendUnavailable;
                     return (
-                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
                       
+                      {/* 🌟 ปรับปรุงการแสดงผลแบบไม่มีม่านหมอกเบลอ/สีเทา ถอด bg-overlay ถอด grayscale เพื่อโชว์ภาพคมชัด แล้วแปะป้าย 'หมด' ชัดเจน */}
                       {item.isSoldOut && (
-                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-                            <div className="bg-primary text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-white/50 shadow-xl rotate-[-10deg] tracking-wider">หมดชั่วคราว</div>
-                         </div>
+                         <div className="absolute top-2 left-2 bg-gray-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 shadow-md">หมด</div>
                       )}
                       
                       {!item.isSoldOut && isBlendUnavailable && (
@@ -822,16 +825,16 @@ export default function App() {
 
                       {item.hasFreePearl && !isDisabled && <div className="absolute top-2 right-2 bg-gradient-to-r from-orange-400 to-red-400 text-white text-[8px] px-2 py-0.5 rounded-full font-bold shadow-md z-10 flex items-center gap-0.5 floating-badge"><Star size={8} fill="white"/> ฟรีไข่มุก!</div>}
                       
-                      {isBestSeller && (
+                      {isBestSeller && !item.isSoldOut && (
                         <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 shadow-md flex items-center gap-1 border border-white/20">อันดับ {index + 1} 👑</div>
                       )}
                       
-                      {isSpecial && !isBestSeller && (
+                      {isSpecial && !isBestSeller && !item.isSoldOut && (
                         <div className="absolute top-2 left-2 bg-accent text-white text-[9px] font-bold px-2 py-1 rounded-lg z-10 shadow-md">🌟 Limited</div>
                       )}
 
                       <div className="aspect-square bg-gray-50 relative">
-                         <img src={item.image} className={`w-full h-full object-cover ${isDisabled ? 'grayscale' : ''}`} alt={item.name} />
+                         <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
                          {item.sales > 10 && (
                             <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold floating-badge">ฮิตมาก 🔥</div>
                          )}
@@ -839,10 +842,6 @@ export default function App() {
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
                         <p className="text-accent font-bold text-sm">฿{item.price}</p>
-                        
-                        {/* 🌟 จุดที่แก้ไข: ซ่อน/ลบส่วนที่แสดงยอดขายของลูกค้าออกไป */}
-                        {/* {isBestSeller && item.sales > 0 && <p className="text-[9px] text-green-600 font-bold mt-1 bg-green-50 rounded px-1 py-0.5 inline-block shadow-sm">ขายไปแล้ว {item.sales} แก้ว</p>} */}
-                        
                         {isSpecial && !isBestSeller && <p className="text-[8px] text-accent mt-1 font-bold">เมนูสุดพรีเมียม</p>}
                       </div>
                     </div>
@@ -984,7 +983,6 @@ export default function App() {
                   </div>
                 </label>
                 
-                {/* 🌟 ใช้งานปุ่มสั่งซื้อ Smart Fail-Safe 100% */}
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
                     onClick={async () => {
@@ -1004,7 +1002,6 @@ export default function App() {
 
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         
-                        // 🌟 [แก้ไขจุดที่ 1] ปรับปรุงระบบสรุปบิล (orderSummaryText) ให้แสดงผลรายละเอียดครบถ้วน (เย็น/ปั่น, รสชาติชา, เมล็ดกาแฟ, ท็อปปิ้ง)
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => {
                             const blendText = getBlendText(i);
@@ -1204,8 +1201,6 @@ export default function App() {
                           </div>
                       ))}</div>
 
-                      {/* 🌟 [แก้ไข] จัดกลุ่มแสดงผลสลิปโอนเงิน และ รูปหลักฐานจัดส่งส่งของ ให้แสดงผลคู่กันอย่างสวยงามสำหรับ Admin */}
-                      {}
                       {((o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment') || o.deliveryImage) && (
                         <div className="flex flex-wrap gap-3 mb-3">
                           {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
