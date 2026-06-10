@@ -4,10 +4,10 @@ import {
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
-  Sparkles, Database
+  Sparkles, Database, Users
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
 
 // --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
@@ -25,6 +25,7 @@ const LIFF_ID = "2009828681-C1cb8QC3";
 
 const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'กาแฟ', 'มัทฉะ', 'สมูทตี้โยเกิร์ต', 'วิปครีมและครีมชีส'];
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
+const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
 const THEMES = {
   default: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: 'ปกติ (มินิมอล)', icons: [] },
@@ -127,7 +128,7 @@ export default function App() {
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
-    shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3
+    shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3, autoCloseDays: []
   });
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
@@ -137,6 +138,7 @@ export default function App() {
   const [editShopLineUrl, setEditShopLineUrl] = useState('');
   const [editAutoCloseEnabled, setEditAutoCloseEnabled] = useState(false);
   const [editMaxQueue, setEditMaxQueue] = useState(3);
+  const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
@@ -159,6 +161,8 @@ export default function App() {
     catch(e) { return []; }
   });
   const [popularSearches, setPopularSearches] = useState([]);
+  const [visitStats, setVisitStats] = useState({});
+  const [loadingSlipId, setLoadingSlipId] = useState(null);
 
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
@@ -177,33 +181,28 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
 
+  // --- โหลดข้อมูลแบบเรียลไทม์จาก Firestore ---
   useEffect(() => {
-    if (isLoadingOrders) {
-      const timer = setTimeout(() => setIsLoadingOrders(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoadingOrders]);
+    // ระบบบันทึกจำนวนผู้เข้าชมเว็บรายวันแบบไม่ซ้ำกัน (Daily Visitor Tracker)
+    const recordVisit = async () => {
+      const todayStr = new Date().toLocaleDateString('en-CA'); 
+      const isVisited = sessionStorage.getItem('happycow_visited_today');
+      if (!isVisited) {
+        sessionStorage.setItem('happycow_visited_today', 'true');
+        try {
+          await setDoc(doc(db, 'settings', 'visit_stats'), {
+            [todayStr]: increment(1)
+          }, { merge: true });
+        } catch (e) {
+          console.error("Visit Stats Log Error:", e);
+        }
+      }
+    };
+    recordVisit();
 
-  useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('action') === 'admin') setShowAdminModal(true);
-
-    const orderId = params.get('orderId');
-    if (orderId) {
-      setSelectedOrderId(orderId);
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-      if (isAdmin) {
-        setView('admin');
-        setAdminTab('orders');
-        setAdminSearchQuery(orderId); 
-      } else {
-        setView('myOrders');
-      }
-    }
 
     const initializeLiff = () => {
       window.liff.init({ liffId: LIFF_ID }).then(() => {
@@ -221,20 +220,24 @@ export default function App() {
       document.body.appendChild(script);
     }
 
+    // ดึงข้อมูลเมนู
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
       setIsLoading(false); 
     });
 
+    // ดึงข้อมูลออร์เดอร์
     const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
        const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
        setOrders(fetchedOrders); 
     });
 
+    // ดึงข้อมูลท็อปปิ้ง
     const unsubToppings = onSnapshot(collection(db, 'toppings'), snapshot => { 
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
+    // ดึงข้อมูลตั้งค่าร้านค้า
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -248,7 +251,8 @@ export default function App() {
            adminLineId: data.adminLineId || '',
            shopLineUrl: data.shopLineUrl || '',
            autoCloseEnabled: data.autoCloseEnabled || false,
-           maxQueue: data.maxQueue || 3
+           maxQueue: data.maxQueue || 3,
+           autoCloseDays: data.autoCloseDays || []
         });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
@@ -258,9 +262,11 @@ export default function App() {
         setEditShopLineUrl(data.shopLineUrl || '');
         setEditAutoCloseEnabled(data.autoCloseEnabled || false);
         setEditMaxQueue(data.maxQueue || 3);
+        setEditAutoCloseDays(data.autoCloseDays || []);
       }
     });
 
+    // ดึงข้อมูลสถิติการค้นหา
     const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -269,30 +275,66 @@ export default function App() {
       } else setPopularSearches([]);
     });
 
-    return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
+    // ดึงข้อมูลสถิติผู้เข้าชม
+    const unsubVisits = onSnapshot(doc(db, 'settings', 'visit_stats'), docSnap => {
+      if (docSnap.exists()) {
+        setVisitStats(docSnap.data());
+      }
+    });
+
+    return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); unsubVisits(); };
   }, []);
 
-  // ระบบ Auto-Close ปิดร้านอัตโนมัติเมื่อคิวล้น
+  // ระบบ Auto-Close สับสวิตช์ปิดร้านอัตโนมัติเมื่อคิวล้น เฉพาะวันที่กำหนด
   useEffect(() => {
     if (storeSettings.autoCloseEnabled && storeSettings.isStoreOpen && orders.length > 0) {
-      const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
-      if (activeQueueCount >= storeSettings.maxQueue) {
-         setDoc(doc(db, 'settings', 'store'), { isStoreOpen: false }, { merge: true });
+      const todayDayIndex = new Date().getDay(); // 0 = อาทิตย์, 1 = จันทร์...
+      const enabledDays = storeSettings.autoCloseDays || [];
+      
+      // ตรวจสอบเงื่อนไขวันและจำนวนคิวสะสม
+      if (enabledDays.includes(todayDayIndex)) {
+        const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
+        if (activeQueueCount >= storeSettings.maxQueue) {
+           updateDoc(doc(db, 'settings', 'store'), { isStoreOpen: false });
+           showAlert(`🤖 ระบบปิดร้านชั่วคราวอัตโนมัติทำงาน เนื่องจากขณะนี้มีคิวสั่งซื้อคงค้างสะสม ${activeQueueCount} คิวในระบบ`);
+        }
       }
     }
-  }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen]);
+  }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays]);
+
+  // ฟังก์ชันดาวน์โหลดรูปภาพบิลแบบ On-Demand (แก้ไขระบบหน่วง)
+  const viewImage = async (orderId, type) => {
+    setLoadingSlipId(orderId);
+    try {
+      const slipSnap = await getDoc(doc(db, 'slips', orderId));
+      if (slipSnap.exists()) {
+        const data = slipSnap.data();
+        const img = type === 'slip' ? data.slipImage : data.deliveryImage;
+        if (img) {
+          setSelectedSlip(img);
+        } else {
+          showAlert("ขออภัยค่ะ ไม่พบหลักฐานรูปภาพนี้ในระบบคลาวด์");
+        }
+      } else {
+        showAlert("ไม่พบข้อมูลหลักฐานรูปภาพของบิลนี้");
+      }
+    } catch (e) {
+      showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
+    } finally {
+      setLoadingSlipId(null);
+    }
+  };
 
   const playNotificationSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().then(() => {
-        // ใช้ cloneNode เพื่อเล่นเสียงครั้งที่ 2 โดยไม่ตัดหางเสียงกริ่งแรก
         setTimeout(() => {
           if (audioRef.current) {
             const secondBell = audioRef.current.cloneNode();
             secondBell.play().catch(e => console.log('Autoplay blocked', e));
           }
-        }, 400); 
+        }, 600); 
       }).catch(e => console.log('Autoplay blocked by browser policy', e));
     }
   };
@@ -307,28 +349,6 @@ export default function App() {
   }, [orders, view]);
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
-
-  const handleDownloadImage = async (base64String, fileName) => {
-    if (window.liff && window.liff.isInClient()) {
-      setDownloadPreview(base64String); 
-      return;
-    }
-    try {
-      const res = await fetch(base64String);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Download Error:", error);
-      setDownloadPreview(base64String);
-    }
-  };
 
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
@@ -427,8 +447,14 @@ export default function App() {
       else deliveryMessage = 'ขออภัยแอดมินไม่สามารถเข้าตึกได้ รบกวนลูกค้าลงมารับเครื่องดื่มที่หน้าตึกนะคะ 🙏';
 
       await updateDoc(doc(db, 'orders', deliveryModal.id), { 
-         status: 'completed', deliveryLocation, deliveryMessage, deliveryImage: deliveryLocation === 'pickup' ? null : deliveryImage 
+         status: 'completed', deliveryLocation, deliveryMessage, hasDeliveryImage: deliveryLocation !== 'pickup' 
       });
+
+      if (deliveryLocation !== 'pickup' && deliveryImage) {
+         await setDoc(doc(db, 'slips', deliveryModal.id), {
+            deliveryImage: deliveryImage
+         }, { merge: true });
+      }
 
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง font-bold' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะ: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
@@ -439,6 +465,22 @@ export default function App() {
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
+
+  const getRecentVisits = () => {
+    const list = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const thaiDateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+      const count = visitStats[dateStr] || 0;
+      list.push({ dateStr, thaiDateStr, count });
+    }
+    return list;
+  };
+
+  const recentVisits = getRecentVisits();
+  const maxVisitCount = Math.max(...recentVisits.map(v => v.count), 1);
 
   const calculateRevenue = () => {
     const now = new Date();
@@ -466,8 +508,7 @@ export default function App() {
   };
 
   const getStorageEstimation = () => {
-     // สลิปและรูปส่งของเฉลี่ยรูปละ ~100KB, รูปเมนู ~80KB
-     const orderImagesCount = orders.filter(o => (o.slipImage && o.slipImage.length > 100) || (o.deliveryImage && o.deliveryImage.length > 100)).length;
+     const orderImagesCount = orders.filter(o => o.hasSlip || o.hasDeliveryImage).length;
      const menuImagesCount = menuItems.filter(m => m.image && m.image.length > 100).length;
      
      const estStorageUsageKB = (orderImagesCount * 100) + (menuImagesCount * 80);
@@ -981,12 +1022,21 @@ export default function App() {
                       const dateStr = new Date(orderTime).toLocaleString('th-TH');
                       
                       try {
+                        // บันทึกบิลน้ำหนักเบา โดยไม่เอารูปสลิป Base64 ไปรวม (แก้ไขแอปหน่วง)
                         const orderRef = await addDoc(collection(db, 'orders'), {
                           items: cart, total, status: 'pending', timestamp: orderTime,
                           userId: lineProfile.userId || "guest_user", lineName: lineProfile.displayName || "ลูกค้าทั่วไป", address, note,
-                          slipImage: paymentMethod === 'promptpay' ? slipImage : (paymentMethod === 'thaichueithai' ? 'thaichueithai_payment' : 'cash_payment'), 
-                          paymentMethod
+                          paymentMethod,
+                          hasSlip: paymentMethod === 'promptpay',
+                          hasDeliveryImage: false
                         });
+
+                        // แยกรูปภาพโอนเงินเก็บคนละคอลเลกชัน (Decoupling)
+                        if (paymentMethod === 'promptpay' && slipImage) {
+                          await setDoc(doc(db, 'slips', orderRef.id), {
+                            slipImage: slipImage
+                          }, { merge: true });
+                        }
 
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         
@@ -1088,9 +1138,16 @@ export default function App() {
                                   <p className="text-[11px] text-gray-600 font-bold">{o.deliveryMessage}</p>
                                 </div>
                               )}
-                              {o.deliveryImage && (
-                                <button onClick={() => setSelectedSlip(o.deliveryImage)} className="w-full bg-primary text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all">
-                                   <Camera size={16}/> ดูรูปถ่ายตอนจัดส่งสินค้า
+                              {o.hasDeliveryImage && (
+                                <button 
+                                  onClick={() => viewImage(o.id, 'delivery')} 
+                                  disabled={loadingSlipId === o.id}
+                                  className="w-full bg-primary text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                                >
+                                   {loadingSlipId === o.id ? (
+                                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                   ) : <Camera size={16}/>}
+                                   ดูรูปถ่ายตอนจัดส่งสินค้า
                                 </button>
                               )}
                             </div>
@@ -1140,6 +1197,28 @@ export default function App() {
                     <p className="text-[10px] font-bold text-gray-500 uppercase mb-2">ยอดขายปีนี้</p>
                     <h2 className="text-2xl font-bold text-primary">฿{revData.yearly.toLocaleString()}</h2>
                   </div>
+                </div>
+
+                {/* 📊 สถิติยอดผู้เข้าชมระบบย้อนหลัง 7 วัน (Daily Visitor Traffic) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
+                   <div className="space-y-3.5">
+                      {recentVisits.map((v, index) => {
+                         const percent = (v.count / maxVisitCount) * 100;
+                         const isToday = index === 6;
+                         return (
+                            <div key={v.dateStr} className="space-y-1">
+                               <div className="flex justify-between items-center text-xs">
+                                  <span className={`font-bold ${isToday ? 'text-accent' : 'text-gray-500'}`}>{v.thaiDateStr} {isToday && '(วันนี้)'}</span>
+                                  <span className="font-bold text-primary">{v.count} คน</span>
+                               </div>
+                               <div className="w-full bg-gray-50 rounded-full h-2.5 overflow-hidden border border-gray-100/50">
+                                  <div className={`h-full rounded-full transition-all duration-1000 ${isToday ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${percent}%` }}></div>
+                               </div>
+                            </div>
+                         );
+                      })}
+                   </div>
                 </div>
 
                 {/* 🌟 Firebase Storage Estimator Graph */}
@@ -1210,35 +1289,44 @@ export default function App() {
                           </div>
                       ))}</div>
 
-                      {((o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment') || o.deliveryImage) && (
+                      {/* แสดงกลุ่มสลิปโอนเงินและการ์ดจัดส่งแบบเบาๆ ดึงข้อมูลแบบ On-Demand */}
+                      {(o.hasSlip || o.hasDeliveryImage) && (
                         <div className="flex flex-wrap gap-3 mb-3">
-                          {o.slipImage && o.slipImage !== 'cash_payment' && o.slipImage !== 'thaichueithai_payment' && (
-                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px]">
-                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider text-center">📄 สลิปโอนเงิน (คลิกขยาย):</p>
-                              <img 
-                                src={o.slipImage} 
-                                alt="Attached slip preview" 
-                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto bg-white"
-                                onClick={() => setSelectedSlip(o.slipImage)}
-                              />
+                          {o.hasSlip && (
+                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px] text-center">
+                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">📄 สลิปโอนเงิน:</p>
+                              <button 
+                                onClick={() => viewImage(o.id, 'slip')}
+                                disabled={loadingSlipId === o.id}
+                                className="w-full bg-white hover:bg-gray-100 transition-colors py-3 rounded-xl border text-[10px] font-bold text-blue-600 flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                {loadingSlipId === o.id ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                ) : <Eye size={12}/>}
+                                ตรวจสอบสลิป
+                              </button>
                             </div>
                           )}
-                          {o.deliveryImage && (
-                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px]">
-                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider text-center">🛵 รูปส่งสินค้า (คลิกขยาย):</p>
-                              <img 
-                                src={o.deliveryImage} 
-                                alt="Delivery confirmation preview" 
-                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto bg-white"
-                                onClick={() => setSelectedSlip(o.deliveryImage)}
-                              />
+                          {o.hasDeliveryImage && (
+                            <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex-1 min-w-[120px] max-w-[180px] text-center">
+                              <p className="text-[9px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">🛵 รูปส่งสินค้า:</p>
+                              <button 
+                                onClick={() => viewImage(o.id, 'delivery')}
+                                disabled={loadingSlipId === o.id}
+                                className="w-full bg-white hover:bg-gray-100 transition-colors py-3 rounded-xl border text-[10px] font-bold text-green-600 flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                {loadingSlipId === o.id ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                                ) : <Camera size={12}/>}
+                                ดูรูปจัดส่ง
+                              </button>
                             </div>
                           )}
                         </div>
                       )}
 
                       <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                        {o.paymentMethod === 'promptpay' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>}
+                        {o.hasSlip && <button onClick={() => viewImage(o.id, 'slip')} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>}
                         <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all border border-red-100"><Trash2 size={16}/></button>
                       </div>
 
@@ -1429,7 +1517,7 @@ export default function App() {
                                   </div>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowDown size={14}/></button>
                                 </div>
-                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none`} alt="list" />
+                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
                                 <div>
                                   <p className="font-bold text-sm text-primary flex items-center gap-1 flex-wrap">
                                     {item.name} 
@@ -1618,7 +1706,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 3. ระบบปิดร้านอัตโนมัติ (คิวล้น) */}
+                {/* 🌟 3. ระบบปิดร้านอัตโนมัติ (คิวล้นและกำหนดวันได้) */}
                 <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-4 shadow-inner relative mt-8">
                   <h3 className="font-bold text-sm text-red-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">🤖 ปิดร้านอัตโนมัติ (คิวล้น)</h3>
                   
@@ -1632,17 +1720,46 @@ export default function App() {
                     </label>
                   </div>
 
-                  <div className={`transition-all ${editAutoCloseEnabled ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
-                    <label className="text-[11px] text-gray-500 mb-2 block font-bold">จำนวนคิวสูงสุดก่อนปิดรับออร์เดอร์</label>
-                    <div className="flex gap-2">
-                       <input type="number" placeholder="ค่าเริ่มต้นคือ 3 คิว" className="flex-1 p-4 rounded-2xl text-xs outline-none shadow-sm focus:ring-2 focus:ring-red-400 border border-transparent transition-all bg-white text-gray-700 font-bold" value={editMaxQueue} onChange={e => setEditMaxQueue(Number(e.target.value))} />
+                  <div className={`transition-all space-y-3 ${editAutoCloseEnabled ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
+                    <label className="text-[11px] text-gray-500 block font-bold">จำนวนคิวสูงสุดก่อนปิดรับออร์เดอร์</label>
+                    <input type="number" placeholder="เช่น 3 คิว" className="w-full p-4 rounded-2xl text-xs outline-none shadow-sm focus:ring-2 focus:ring-red-400 border border-transparent transition-all bg-white text-gray-700 font-bold" value={editMaxQueue} onChange={e => setEditMaxQueue(Number(e.target.value))} />
+
+                    <div className="pt-2">
+                      <label className="text-[11px] text-gray-500 mb-2 block font-bold">เลือกวันที่จะให้ระบบคิวอัตโนมัติทำงาน</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {THAI_DAYS.map((day, idx) => {
+                          const isSelected = editAutoCloseDays.includes(idx);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => {
+                                setEditAutoCloseDays(prev => 
+                                  prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx]
+                                );
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                isSelected 
+                                  ? 'bg-red-500 text-white border-red-500 shadow-sm' 
+                                  : 'bg-white text-gray-500 border-gray-100 hover:border-red-200'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="text-[9px] text-red-600 font-bold mt-2 leading-relaxed bg-red-100/50 p-2 rounded-lg border border-red-100">* หากเปิดใช้ ถ้าระบบนับคิวที่ "รอรับออร์เดอร์" รวมกับ "กำลังทำ" มีจำนวนมากกว่าหรือเท่ากับที่กำหนด <span className="underline">ระบบจะสับสวิตช์ปิดร้านให้ทันทีอัตโนมัติ</span> (แอดมินต้องมากดเปิดร้านใหม่เองในภายหลัง)</p>
+                    <p className="text-[9px] text-red-600 font-bold mt-2 leading-relaxed bg-red-100/50 p-2 rounded-lg border border-red-100">* หากเปิดใช้งานในวันที่กำหนด ถ้าร้านมีคิวสะสมตั้งแต่ "รอทำ" และ "กำลังปรุง" รวมกันมากกว่าค่าที่กำหนด ร้านจะเปลี่ยนเป็นปิดรับคิวทันที</p>
                   </div>
 
                   <button onClick={async () => {
                     try { 
-                      await setDoc(doc(db, 'settings', 'store'), { autoCloseEnabled: editAutoCloseEnabled, maxQueue: editMaxQueue }, { merge: true }); 
+                      await setDoc(doc(db, 'settings', 'store'), { 
+                        autoCloseEnabled: editAutoCloseEnabled, 
+                        maxQueue: editMaxQueue,
+                        autoCloseDays: editAutoCloseDays
+                      }, { merge: true }); 
                       showAlert('อัปเดตระบบปิดร้านอัตโนมัติเรียบร้อย! 🛑'); 
                     } catch(e) { showAlert("Error: " + e.message); }
                   }} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
@@ -1688,7 +1805,7 @@ export default function App() {
                   
                   <div>
                     <label className="text-xs text-gray-500 mb-2 block font-bold">ลิงก์เพิ่มเพื่อนร้าน (LINE Official Account)</label>
-                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all text-blue-700" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
+                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all text-blue-700 font-bold" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
                     <p className="text-[9px] text-blue-500 font-bold mt-2 leading-relaxed">*ใช้สำหรับกรณีที่ลูกค้าสั่งซื้อนอกแอป LINE ระบบจะพาลูกค้าเด้งกลับไปที่แชทของร้านทันที</p>
                   </div>
 
