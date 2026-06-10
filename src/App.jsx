@@ -124,7 +124,7 @@ export default function App() {
   const [deliveryImage, setDeliveryImage] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
-  
+
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
@@ -166,6 +166,9 @@ export default function App() {
 
   // 🌟 เพิ่ม State สำหรับระบบ Real-time Active Users
   const [activeUsers, setActiveUsers] = useState([]);
+
+  // 🌟 เพิ่ม State สำหรับควบคุมแผงป๊อปอัปเตือนร้านปิดตัวใหญ่พิเศษ
+  const [showStoreClosedModal, setShowStoreClosedModal] = useState(false);
 
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
@@ -349,6 +352,17 @@ export default function App() {
       handleBeforeUnload(); // สั่งลบเมื่อ Component โดน Unmount
     };
   }, [lineProfile.userId, lineProfile.displayName]);
+
+  // 🌟 ตรวจจับสถานะของร้านค้าแบบเรียลไทม์ ถ้าปิดเมื่อไหร่ ให้เด้ง Pop Up เตือนลูกค้าทันที
+  useEffect(() => {
+    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+    // แก้ไข: นำ view ออกจาก Dependency เพื่อป้องกัน Pop Up เด้งกวนใจทุกครั้งที่ลูกค้ากดสลับเมนู
+    if (storeSettings.isStoreOpen === false && !isAdmin) {
+      setShowStoreClosedModal(true);
+    } else {
+      setShowStoreClosedModal(false);
+    }
+  }, [storeSettings.isStoreOpen]);
 
   // ระบบ Auto-Close สับสวิตช์ปิดร้านอัตโนมัติเมื่อคิวล้น เฉพาะวันที่กำหนด
   useEffect(() => {
@@ -638,6 +652,21 @@ export default function App() {
   };
 
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
+
+  // ฟังก์ชันดาวน์โหลดภาพบิล/เมนู (แผนสำรองหากติดสิทธิ์ความปลอดภัย)
+  const handleDownloadImage = (url, name) => {
+    if (!url) return;
+    if (url.startsWith('data:')) {
+      setDownloadPreview(url);
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', name);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
@@ -2111,6 +2140,31 @@ export default function App() {
       {selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
         <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
           <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
+        </div>
+      )}
+
+      {/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ (สำหรับลูกค้าทั่วไป) */}
+      {showStoreClosedModal && (
+        <div className="fixed inset-0 bg-black/80 z-[350] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 border-4 border-red-500 shadow-2xl animate-in zoom-in-95">
+            <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+              <AlertCircle size={48} />
+            </div>
+            <h3 className="text-2xl font-bold text-red-600 leading-tight">🐮 ขณะนี้ร้านปิดให้บริการ</h3>
+            <p className="text-sm text-gray-700 leading-relaxed font-bold">
+              ขออภัยลูกค้าทุกท่านด้วยนะคะ <br />
+              ขณะนี้ทางร้าน <span className="text-red-500 text-base underline font-extrabold">"ปิดรับออเดอร์ชั่วคราว"</span> ค่ะ <br />
+              แต่ลูกค้ายังสามารถเลือกดูเมนูเครื่องดื่มต่างๆ ก่อนได้นะคะ 💖
+            </p>
+            <div className="space-y-3 pt-2">
+              <button 
+                onClick={() => setShowStoreClosedModal(false)}
+                className="w-full bg-primary text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-opacity-95 transition-all"
+              >
+                รับทราบ (เข้าชมเมนูเครื่องดื่ม)
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
