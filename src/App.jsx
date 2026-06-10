@@ -124,20 +124,19 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
   
-  // 🌟 เพิ่มสถานะ autoCloseEnabled และ autoCloseQueueLimit ใน storeSettings
   const [storeSettings, setStoreSettings] = useState({ 
-    promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', customBgImage: '', 
-    isBlendOut: false, notifyAdmin: false, adminLineId: '',
-    autoCloseEnabled: false, autoCloseQueueLimit: 3
+    promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
+    customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
+    shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3
   });
-  
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
   const [editNotifyAdmin, setEditNotifyAdmin] = useState(false);
   const [editAdminLineId, setEditAdminLineId] = useState('');
+  const [editShopLineUrl, setEditShopLineUrl] = useState('');
   const [editAutoCloseEnabled, setEditAutoCloseEnabled] = useState(false);
-  const [editAutoCloseLimit, setEditAutoCloseLimit] = useState(3);
+  const [editMaxQueue, setEditMaxQueue] = useState(3);
   
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
@@ -240,23 +239,25 @@ export default function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setStoreSettings({ 
-          ...data, 
-          isStoreOpen: data.isStoreOpen !== false, 
-          theme: data.theme || 'default', 
-          customBgImage: data.customBgImage || '', 
-          isBlendOut: data.isBlendOut || false, 
-          notifyAdmin: data.notifyAdmin || false, 
-          adminLineId: data.adminLineId || '',
-          autoCloseEnabled: data.autoCloseEnabled || false,
-          autoCloseQueueLimit: data.autoCloseQueueLimit || 3
+           ...data, 
+           isStoreOpen: data.isStoreOpen !== false, 
+           theme: data.theme || 'default', 
+           customBgImage: data.customBgImage || '', 
+           isBlendOut: data.isBlendOut || false, 
+           notifyAdmin: data.notifyAdmin || false, 
+           adminLineId: data.adminLineId || '',
+           shopLineUrl: data.shopLineUrl || '',
+           autoCloseEnabled: data.autoCloseEnabled || false,
+           maxQueue: data.maxQueue || 3
         });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
         setEditCustomBgImage(data.customBgImage || '');
         setEditNotifyAdmin(data.notifyAdmin || false);
         setEditAdminLineId(data.adminLineId || '');
+        setEditShopLineUrl(data.shopLineUrl || '');
         setEditAutoCloseEnabled(data.autoCloseEnabled || false);
-        setEditAutoCloseLimit(data.autoCloseQueueLimit || 3);
+        setEditMaxQueue(data.maxQueue || 3);
       }
     });
 
@@ -271,19 +272,27 @@ export default function App() {
     return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); };
   }, []);
 
-  // 🌟 ฟังก์ชันเสียงกริ่ง 2 ครั้งที่สมบูรณ์ (Double Ding)
+  // ระบบ Auto-Close ปิดร้านอัตโนมัติเมื่อคิวล้น
+  useEffect(() => {
+    if (storeSettings.autoCloseEnabled && storeSettings.isStoreOpen && orders.length > 0) {
+      const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
+      if (activeQueueCount >= storeSettings.maxQueue) {
+         setDoc(doc(db, 'settings', 'store'), { isStoreOpen: false }, { merge: true });
+      }
+    }
+  }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen]);
+
   const playNotificationSound = () => {
     if (audioRef.current) {
-      // ครั้งที่ 1
       audioRef.current.currentTime = 0;
       audioRef.current.play().then(() => {
-        // ครั้งที่ 2: ใช้ cloneNode เพื่อสร้าง Player อิสระ จะได้ไม่ตัดหางเสียงกริ่งแรกลง
+        // ใช้ cloneNode เพื่อเล่นเสียงครั้งที่ 2 โดยไม่ตัดหางเสียงกริ่งแรก
         setTimeout(() => {
           if (audioRef.current) {
             const secondBell = audioRef.current.cloneNode();
-            secondBell.play().catch(e => console.log('Autoplay 2 blocked', e));
+            secondBell.play().catch(e => console.log('Autoplay blocked', e));
           }
-        }, 500); // 500ms เป็นระยะเวลาที่กำลังเพราะสำหรับเสียงกระดิ่ง
+        }, 400); 
       }).catch(e => console.log('Autoplay blocked by browser policy', e));
     }
   };
@@ -296,21 +305,6 @@ export default function App() {
     }
     previousOrderCount.current = orders.length;
   }, [orders, view]);
-
-  // 🌟 ระบบ AI ตรวจจับคิวและปิดร้านอัตโนมัติ
-  useEffect(() => {
-    // ให้ระบบนี้ทำงานเฉพาะฝั่งแอดมินที่เปิดหน้าจอทิ้งไว้ (ป้องกันการยิงข้อมูลซ้ำซ้อนจากเครื่องลูกค้าหลายคน)
-    if (view === 'admin' && storeSettings.autoCloseEnabled && storeSettings.isStoreOpen) {
-      const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
-      
-      if (activeQueueCount >= storeSettings.autoCloseQueueLimit) {
-        // เมื่อคิวเกินกำหนด ให้สับสวิตช์ปิดร้าน
-        setDoc(doc(db, 'settings', 'store'), { isStoreOpen: false }, { merge: true }).then(() => {
-          showAlert(`⚠️ ปิดร้านอัตโนมัติแล้ว!\nเนื่องจากมีคิวสะสมถึง ${activeQueueCount} คิว\nหากทำออร์เดอร์เสร็จแล้ว แอดมินต้องมากดเปิดร้านเองอีกครั้งนะคะ`);
-        }).catch(err => console.error("Auto-close failed:", err));
-      }
-    }
-  }, [orders, view, storeSettings.autoCloseEnabled, storeSettings.isStoreOpen, storeSettings.autoCloseQueueLimit]);
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
@@ -419,30 +413,7 @@ export default function App() {
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
-      
-      const flexPayload = {
-          type: "bubble",
-          header: { type: "box", layout: "vertical", backgroundColor: "#f97316", contents: [{ type: "text", text: "ร้านรับออร์เดอร์แล้ว! 👩‍🍳", color: "#ffffff", weight: "bold", align: "center", size: "md" }] },
-          body: {
-              type: "box", layout: "vertical", spacing: "md",
-              contents: [
-                  { type: "text", text: `บิล #${order.id.slice(0,6)}`, weight: "bold", size: "sm", color: "#f97316" },
-                  { type: "text", text: `ลูกค้า: คุณ ${order.lineName}`, weight: "bold", size: "sm", color: "#333333" },
-                  { type: "text", text: "ออร์เดอร์ของคุณกำลังถูกจัดเตรียม กรุณารอประมาณ 20 นาที (+/-) นะคะ ขอบคุณค่ะ 🐮💖", wrap: true, size: "sm", weight: "bold", color: "#333333" },
-                  { type: "separator", margin: "md" },
-                  { type: "button", style: "primary", color: "#A67C52", margin: "sm", action: { type: "uri", label: "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}` } }
-              ]
-          }
-      };
-
-      if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(order.lineName); } catch(e){} 
-          const res = await window.liff.shareTargetPicker([{ type: "flex", altText: `ออร์เดอร์ #${order.id.slice(0,6)} กำลังเตรียม!`, contents: flexPayload }]);
-          if (res) showAlert(`รับออร์เดอร์และส่งข้อความหาคุณ ${order.lineName} สำเร็จ! 🎉`);
-          else showAlert("อัปเดตสถานะในระบบแล้ว (คุณยกเลิกการแชร์เข้าแชทลูกค้า)");
-      } else {
-          showAlert("รับออร์เดอร์สำเร็จ! (เปิดใช้งานนอกแอป LINE จึงแชร์ข้อความไม่ได้)");
-      }
+      showAlert(`รับออร์เดอร์ของ ${order.lineName} แล้ว! 👩‍🍳`);
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
   };
 
@@ -460,38 +431,11 @@ export default function App() {
       });
 
       const locationText = deliveryLocation === 'room' ? 'หน้าห้อง font-bold' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
-      const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะหรือดูรูปถ่าย: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
+      const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะ: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
 
-      const flexPayload = {
-        type: "bubble",
-        header: { type: "box", layout: "vertical", backgroundColor: "#4caf50", contents: [{ type: "text", text: "จัดส่งเครื่องดื่มแล้ว! 🛵", color: "#ffffff", weight: "bold", align: "center", size: "md" }] },
-        body: {
-          type: "box", layout: "vertical", spacing: "md",
-          contents: [
-            { type: "text", text: `บิล #${deliveryModal.id.slice(0,6)}`, weight: "bold", size: "sm", color: "#A67C52" },
-            { type: "text", text: `คุณลูกค้า: ${deliveryModal.lineName}`, weight: "bold", size: "sm", color: "#333333" },
-            { type: "text", text: deliveryMessage, wrap: true, size: "sm", weight: "bold", color: "#333333" },
-            { type: "separator", margin: "md" },
-            { type: "box", layout: "horizontal", margin: "md", contents: [{ type: "text", text: "📍 จุดส่ง:", size: "xs", color: "#888888", flex: 1 }, { type: "text", text: locationText, size: "xs", weight: "bold", flex: 3 }] },
-            deliveryLocation !== 'pickup' ? { type: "text", text: "📌 สามารถกดดูรูปถ่ายการจัดส่งได้ที่ปุ่มด้านล่างนะคะ", wrap: true, size: "xxs", color: "#aaaaaa", margin: "md" } : { type: "spacer", size: "xs" }
-          ]
-        },
-        footer: {
-          type: "box", layout: "vertical",
-          contents: [{ type: "button", style: "primary", color: "#A67C52", action: { type: "uri", label: deliveryLocation !== 'pickup' ? "📸 ดูรูป/สถานะออร์เดอร์" : "📄 ดูสถานะออร์เดอร์", uri: `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}` } }]
-        }
-      };
-
-      if (window.liff && window.liff.isApiAvailable('shareTargetPicker')) {
-          try { await navigator.clipboard.writeText(deliveryModal.lineName); } catch(e){} 
-          try {
-              const res = await window.liff.shareTargetPicker([{ type: "flex", altText: `🛵 อัปเดตสถานะจัดส่ง: บิล #${deliveryModal.id.slice(0,6)}`, contents: flexPayload }]);
-              if (res) { setDeliveryModal(null); showAlert(`อัปเดตและแจ้งเตือนคุณ ${deliveryModal.lineName} สำเร็จ! 🎉`); } 
-              else { setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id }); }
-          } catch (err) { console.error(err); setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id }); }
-      } else {
-          setDeliveryModal(null); setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
-      }
+      setDeliveryModal(null); 
+      setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
+      
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
@@ -521,31 +465,17 @@ export default function App() {
     return { daily, monthly, yearly, dailyHistory };
   };
 
-  // 🌟 ฟังก์ชันคำนวณพื้นที่ Storage (ประมาณการ) จากจำนวนรูปภาพทั้งหมดที่อัปโหลด
-  const calculateStorageUsage = () => {
-    let imageCount = 0;
-    
-    // นับรูปเมนู
-    menuItems.forEach(m => { if (m.image && m.image.startsWith('data:image')) imageCount++; });
-    
-    // นับรูปสลิปและหลักฐานจัดส่ง
-    orders.forEach(o => {
-       if (o.slipImage && o.slipImage.startsWith('data:image')) imageCount++;
-       if (o.deliveryImage && o.deliveryImage.startsWith('data:image')) imageCount++;
-    });
-
-    // สมมติฐาน: รูปที่ถูกบีบอัดผ่านฟังก์ชัน compressImage ด้านบน จะมีขนาดเฉลี่ยประมาณ 150 KB (0.15 MB)
-    const estimatedMB = (imageCount * 0.15); 
-    const freeTierLimitMB = 5000; // Firebase Free Tier (Spark) = 5 GB = 5000 MB
-    const percentage = Math.min(((estimatedMB / freeTierLimitMB) * 100), 100);
-    
-    return {
-      count: imageCount,
-      usedMB: estimatedMB.toFixed(2),
-      percent: percentage.toFixed(3),
-      limit: 5,
-      isNearLimit: percentage > 80
-    };
+  const getStorageEstimation = () => {
+     // สลิปและรูปส่งของเฉลี่ยรูปละ ~100KB, รูปเมนู ~80KB
+     const orderImagesCount = orders.filter(o => (o.slipImage && o.slipImage.length > 100) || (o.deliveryImage && o.deliveryImage.length > 100)).length;
+     const menuImagesCount = menuItems.filter(m => m.image && m.image.length > 100).length;
+     
+     const estStorageUsageKB = (orderImagesCount * 100) + (menuImagesCount * 80);
+     const maxStorageKB = 5 * 1024 * 1024; // 5GB in KB
+     const storagePercent = Math.min((estStorageUsageKB / maxStorageKB) * 100, 100);
+     const usageMB = (estStorageUsageKB / 1024).toFixed(2);
+     
+     return { usageMB, storagePercent };
   };
 
   const exportToCSV = () => {
@@ -610,6 +540,7 @@ export default function App() {
     orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
+    
     return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
   }, [orders, menuItems]);
 
@@ -650,7 +581,7 @@ export default function App() {
   }, [view, promotedItems.length, searchQuery]);
 
   const revData = calculateRevenue();
-  const storageData = calculateStorageUsage();
+  const storageData = getStorageEstimation();
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
@@ -808,15 +739,12 @@ export default function App() {
                 <div ref={sliderRef} className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar scroll-smooth w-full px-5 gap-3">
                   {promotedItems.map(item => (
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
-                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}>
-                         
+                      <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-95'}`}>
                          <div className="relative">
                             <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0`} alt={item.name} />
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
                             {item.isSoldOut && (
-                               <div className="absolute inset-0 z-20 flex items-center justify-center">
-                                  <div className="bg-gray-800 text-white px-3 py-1 rounded-md font-bold text-xs shadow-xl rotate-[-10deg] tracking-wider border border-white/20">หมด</div>
-                               </div>
+                               <div className="absolute top-1 -left-1 bg-gray-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] shadow-lg border border-gray-600 rotate-[-5deg] z-10">หมด</div>
                             )}
                          </div>
                          <div className="flex-1 flex flex-col justify-center py-1 pr-2">
@@ -871,34 +799,30 @@ export default function App() {
                     const isBlendUnavailable = item.isOnlyBlend && storeSettings.isBlendOut;
                     const isDisabled = item.isSoldOut || isBlendUnavailable;
                     return (
-                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                    <div key={item.id} onClick={() => openOptionModal(item)} className={`rounded-[2rem] overflow-hidden shadow-sm transition-all relative ${isSpecial ? 'special-bg glow-effect border border-orange-100' : 'bg-white/90 backdrop-blur-sm border border-white/50'} ${isDisabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:-translate-y-1 active:scale-95'}`}>
+                      
+                      {item.isSoldOut && (
+                         <div className="absolute top-2 left-2 bg-gray-700 text-white px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-lg border border-gray-600 rotate-[-5deg] z-20 tracking-wider">หมด</div>
+                      )}
                       
                       {!item.isSoldOut && isBlendUnavailable && (
-                         <div className="absolute inset-0 z-20 flex items-center justify-center">
+                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
                             <div className="bg-blue-500 text-white px-4 py-1.5 rounded-full font-bold text-[11px] border border-blue-200 shadow-xl rotate-[-10deg] tracking-wider text-center leading-tight">เมนูปั่น<br/>หมดชั่วคราว</div>
                          </div>
                       )}
 
                       {item.hasFreePearl && !isDisabled && <div className="absolute top-2 right-2 bg-gradient-to-r from-orange-400 to-red-400 text-white text-[8px] px-2 py-0.5 rounded-full font-bold shadow-md z-10 flex items-center gap-0.5 floating-badge"><Star size={8} fill="white"/> ฟรีไข่มุก!</div>}
                       
-                      {isBestSeller && (
+                      {isBestSeller && !item.isSoldOut && (
                         <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 shadow-md flex items-center gap-1 border border-white/20">อันดับ {index + 1} 👑</div>
                       )}
                       
-                      {isSpecial && !isBestSeller && (
+                      {isSpecial && !isBestSeller && !item.isSoldOut && (
                         <div className="absolute top-2 left-2 bg-accent text-white text-[9px] font-bold px-2 py-1 rounded-lg z-10 shadow-md">🌟 Limited</div>
                       )}
 
                       <div className="aspect-square bg-gray-50 relative">
                          <img src={item.image} className={`w-full h-full object-cover`} alt={item.name} />
-                         {item.sales > 10 && (
-                            <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold floating-badge">ฮิตมาก 🔥</div>
-                         )}
-                         {item.isSoldOut && (
-                            <div className="absolute inset-0 z-20 flex items-center justify-center">
-                               <div className="bg-gray-800 text-white px-4 py-1.5 rounded-lg font-bold text-[13px] shadow-xl tracking-widest border border-white/20">หมด</div>
-                            </div>
-                         )}
                       </div>
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
@@ -1053,12 +977,12 @@ export default function App() {
                       
                       setIsLoading(true);
                       const total = cartTotal;
-                      const orderTimestamp = Date.now();
-                      const orderDateStr = new Date(orderTimestamp).toLocaleString('th-TH');
+                      const orderTime = Date.now();
+                      const dateStr = new Date(orderTime).toLocaleString('th-TH');
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
-                          items: cart, total, status: 'pending', timestamp: orderTimestamp,
+                          items: cart, total, status: 'pending', timestamp: orderTime,
                           userId: lineProfile.userId || "guest_user", lineName: lineProfile.displayName || "ลูกค้าทั่วไป", address, note,
                           slipImage: paymentMethod === 'promptpay' ? slipImage : (paymentMethod === 'thaichueithai' ? 'thaichueithai_payment' : 'cash_payment'), 
                           paymentMethod
@@ -1066,7 +990,7 @@ export default function App() {
 
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         
-                        const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nวันเวลา: ${orderDateStr}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
+                        const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => {
                             const blendText = getBlendText(i);
                             const beanText = i.bean ? ` • เมล็ด: ${i.bean}` : '';
@@ -1079,25 +1003,15 @@ export default function App() {
                           `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
                         let liffSuccess = false;
-                        
-                        if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient() && window.liff.isApiAvailable('shareTargetPicker')) {
+                        if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient()) {
                            try {
-                              // ใช้ liff.sendMessages แทน shareTargetPicker เพื่อบังคับยิงข้อความเข้าห้องแชทร้านอัตโนมัติ (ไม่ต้องให้ลูกค้าเลือก)
-                              await window.liff.sendMessages([{
-                                 type: "text",
-                                 text: orderSummaryText
-                              }]);
-                              liffSuccess = true;
+                             await window.liff.sendMessages([{
+                               type: "text",
+                               text: orderSummaryText
+                             }]);
+                             liffSuccess = true;
                            } catch (err) {
-                             console.log("LIFF SendMessage Error, trying shareTargetPicker as fallback:", err);
-                             // Fallback เผื่อ liff.sendMessages ถูกแบนสิทธิ์ ให้เด้งหน้าเลือกเพื่อน (ShareTargetPicker) แทน
-                             try {
-                                const res = await window.liff.shareTargetPicker([{
-                                   type: "text",
-                                   text: orderSummaryText
-                                }]);
-                                if (res) liffSuccess = true;
-                             } catch(shareErr) { console.log("ShareTargetPicker also failed", shareErr); }
+                             console.log("LIFF sendMessages Error:", err);
                            }
                         }
 
@@ -1105,9 +1019,8 @@ export default function App() {
 
                         if (liffSuccess) {
                            setView('myOrders');
-                           showAlert("สั่งซื้อและส่งบิลเข้าแชทร้านเรียบร้อยแล้วค่ะ! 🐮🎉\nทางร้านกำลังเตรียมออร์เดอร์ให้ รอรับความสดชื่นได้เลย!");
+                           showAlert("สั่งซื้อสำเร็จ ระบบได้ยิงออร์เดอร์เข้าแชทร้านอัตโนมัติแล้วครับ! 🐮🎉");
                         } else {
-                           // ถ้าหลุดมาตรงนี้แปลว่า ไม่ได้เปิดแอปใน LINE หรือกดยกเลิก
                            setSuccessModalData({
                               orderId: orderRef.id,
                               text: orderSummaryText
@@ -1147,13 +1060,15 @@ export default function App() {
                 </div>
              ) : (
                  <div className="space-y-6">
-                   {orders.filter(o => o.userId === lineProfile.userId).map(o => (
+                   {orders.filter(o => o.userId === lineProfile.userId).map(o => {
+                     const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
+                     return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
                             <div>
                                <span className="text-[10px] font-bold text-accent uppercase tracking-wider">บิล #{o.id.slice(0,6)}</span>
-                               <p className="text-[9px] text-gray-400 font-medium mt-0.5">{new Date(o.timestamp).toLocaleString('th-TH')}</p>
                                <p className="text-xs font-bold text-orange-400 mt-1 uppercase">{o.status}</p>
+                               <p className="text-[9px] text-gray-400 mt-1 font-bold"><Clock size={10} className="inline mr-1"/>{dateStr}</p>
                             </div>
                             <div className="text-2xl font-serif font-bold text-primary">฿{o.total}</div>
                           </div>
@@ -1181,7 +1096,7 @@ export default function App() {
                             </div>
                           )}
                        </div>
-                   ))}
+                   )})}
                  </div>
              )}
           </div>
@@ -1193,57 +1108,27 @@ export default function App() {
             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
                <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
-               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95"><BellRing size={12}/> เทสเสียงเตือนบิล</button>
+               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95 shadow-sm border border-blue-100"><BellRing size={12}/> เทสเสียงเตือนบิล</button>
             </div>
             
-            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner">
+            <div className="flex gap-1 bg-gray-50 p-1 rounded-2xl mb-6 shadow-inner border border-gray-100">
               {['orders', 'menus', 'dashboard', 'settings'].map(t => (
-                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary uppercase'}`}>
+                <button key={t} onClick={() => setAdminTab(t)} className={`flex-1 py-3 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${adminTab === t ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-primary uppercase hover:bg-gray-200'}`}>
                   {t === 'orders' ? 'ออร์เดอร์' : t === 'menus' ? 'เมนู' : t === 'dashboard' ? 'รายรับ' : 'ตั้งค่า'}
                 </button>
               ))}
             </div>
 
-            {/* TAB: Dashboard รายรับ & Storage */}
+            {/* TAB: Dashboard รายรับ */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
-                
-                {/* 🌟 Widget แสดงสถานะ Storage Area */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                   <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2 text-indigo-600">
-                         <Database size={20} />
-                         <h3 className="font-bold text-sm">พื้นที่จัดเก็บรูปภาพ (ประมาณการ)</h3>
-                      </div>
-                      <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">{storageData.percent}%</span>
-                   </div>
-                   
-                   {/* Progress Bar */}
-                   <div className="w-full bg-gray-100 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
-                      <div 
-                         className={`h-4 rounded-full transition-all duration-1000 ${storageData.isNearLimit ? 'bg-red-500' : 'bg-gradient-to-r from-indigo-400 to-indigo-600'}`} 
-                         style={{ width: `${storageData.percent}%` }}
-                      ></div>
-                   </div>
-                   
-                   <div className="flex justify-between items-center text-[10px] text-gray-500 font-medium">
-                      <span>ใช้ไปแล้ว ~{storageData.usedMB} MB (จาก {storageData.count} รูป)</span>
-                      <span>ลิมิตฟรี {storageData.limit} GB</span>
-                   </div>
-                   
-                   {storageData.isNearLimit && (
-                      <p className="mt-3 text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">
-                         ⚠️ พื้นที่เก็บข้อมูลใกล้เต็มแล้ว อาจทำให้ลูกค้ารูปสลิปไม่ขึ้น โปรดติดต่อผู้พัฒนาระบบ
-                      </p>
-                   )}
-                </div>
-
-                <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl">
-                  <div className="flex items-center gap-2 mb-4 opacity-80">
+                <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                  <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
+                  <div className="flex items-center gap-2 mb-4 opacity-80 relative z-10">
                     <TrendingUp size={20} />
                     <h3 className="font-bold text-sm">สรุปยอดขายวันนี้</h3>
                   </div>
-                  <h1 className="text-5xl font-serif font-bold">฿{revData.daily.toLocaleString()}</h1>
+                  <h1 className="text-5xl font-serif font-bold relative z-10">฿{revData.daily.toLocaleString()}</h1>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1255,6 +1140,19 @@ export default function App() {
                     <p className="text-[10px] font-bold text-gray-500 uppercase mb-2">ยอดขายปีนี้</p>
                     <h2 className="text-2xl font-bold text-primary">฿{revData.yearly.toLocaleString()}</h2>
                   </div>
+                </div>
+
+                {/* 🌟 Firebase Storage Estimator Graph */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm mt-4">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
+                     <span className="text-[9px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full border">ประมาณการ</span>
+                   </div>
+                   <p className="text-xs font-bold text-gray-500 mb-3">ใช้ไปประมาณ <span className="text-accent">{storageData.usageMB} MB</span> จากพื้นที่ฟรี 5,000 MB</p>
+                   <div className="w-full bg-gray-100 rounded-full h-3 mb-1 overflow-hidden shadow-inner">
+                     <div className={`h-3 rounded-full transition-all duration-1000 ${storageData.storagePercent > 80 ? 'bg-red-500' : storageData.storagePercent > 50 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${Math.max(storageData.storagePercent, 1)}%` }}></div>
+                   </div>
+                   <p className="text-[9px] text-gray-400 mt-3 leading-relaxed">* ระบบคำนวณพื้นที่จัดเก็บจากจำนวนภาพสลิป รูปจัดส่ง และรูปเมนูในระบบ (อิงจากขนาดภาพที่บีบอัดแล้ว หากเต็มระบบจะไม่สามารถเซฟรูปใหม่ได้)</p>
                 </div>
 
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm mt-4">
@@ -1280,18 +1178,20 @@ export default function App() {
               <div className="space-y-4">
                 <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 relative mb-4">
                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหารหัสบิล, ชื่อ หรือที่อยู่ลูกค้า..." className="w-full pl-10 pr-10 py-3 rounded-xl text-xs outline-none bg-white"/>
+                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหารหัสบิล, ชื่อ หรือที่อยู่ลูกค้า..." className="w-full pl-10 pr-10 py-3 rounded-xl text-xs outline-none bg-white font-bold text-gray-600"/>
                    {adminSearchQuery && <button onClick={() => setAdminSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 bg-gray-100 p-1 rounded-full"><X size={12}/></button>}
                 </div>
 
-                {filteredOrders.map((o, idx) => (
+                {filteredOrders.map((o, idx) => {
+                    const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
+                    return (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
                            <span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span>
                            <div>
-                              <span className="font-bold text-sm text-primary block">{o.lineName}</span>
-                              <span className="text-[8px] text-gray-400">{new Date(o.timestamp).toLocaleString('th-TH')}</span>
+                              <span className="font-bold text-sm text-primary">{o.lineName}</span>
+                              <p className="text-[9px] text-gray-400 font-bold"><Clock size={10} className="inline mr-1"/>{dateStr}</p>
                            </div>
                         </div>
                         <div className="text-right">
@@ -1318,7 +1218,7 @@ export default function App() {
                               <img 
                                 src={o.slipImage} 
                                 alt="Attached slip preview" 
-                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto"
+                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto bg-white"
                                 onClick={() => setSelectedSlip(o.slipImage)}
                               />
                             </div>
@@ -1329,7 +1229,7 @@ export default function App() {
                               <img 
                                 src={o.deliveryImage} 
                                 alt="Delivery confirmation preview" 
-                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto"
+                                className="w-20 h-28 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:scale-95 transition-all shadow-sm mx-auto bg-white"
                                 onClick={() => setSelectedSlip(o.deliveryImage)}
                               />
                             </div>
@@ -1338,8 +1238,8 @@ export default function App() {
                       )}
 
                       <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                        {o.paymentMethod === 'promptpay' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"><Eye size={14}/> ตรวจสลิป</button>}
-                        <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all"><Trash2 size={16}/></button>
+                        {o.paymentMethod === 'promptpay' && <button onClick={() => setSelectedSlip(o.slipImage)} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>}
+                        <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all border border-red-100"><Trash2 size={16}/></button>
                       </div>
 
                       <div className="flex gap-2 border-t border-gray-100 pt-3 mt-2">
@@ -1354,7 +1254,7 @@ export default function App() {
                         {o.status === 'completed' && <div className="flex-1 text-center text-[10px] font-bold text-green-600 py-2 border border-green-200 rounded-xl bg-green-50">สำเร็จเรียบร้อย</div>}
                       </div>
                     </div>
-                ))}
+                )})}
                 {filteredOrders.length === 0 && <div className="py-20 text-center text-gray-400 font-bold opacity-50">ไม่พบข้อมูลออร์เดอร์ 🐮</div>}
               </div>
             )}
@@ -1364,7 +1264,7 @@ export default function App() {
               <div className="space-y-8 animate-in fade-in">
                 
                 <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center text-center">
-                  <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3">
+                  <div className="bg-blue-50 p-4 rounded-full text-blue-500 mb-3 border border-blue-100">
                      <ClipboardList size={28} />
                   </div>
                   <h3 className="font-bold text-sm text-primary mb-1">ส่งออกรายการเมนู (Excel/CSV)</h3>
@@ -1378,7 +1278,7 @@ export default function App() {
 
                 <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 relative">
                    <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
-                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหาชื่อเมนู เพื่อแก้ไข..." className="w-full pl-12 pr-10 py-4 rounded-2xl text-sm outline-none bg-white focus:ring-2 focus:ring-[var(--theme-accent)] transition-all"/>
+                   <input type="text" value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} placeholder="ค้นหาชื่อเมนู เพื่อแก้ไข..." className="w-full pl-12 pr-10 py-4 rounded-2xl text-sm outline-none bg-white focus:ring-2 focus:ring-[var(--theme-accent)] transition-all font-bold"/>
                    {adminSearchQuery && <button onClick={() => setAdminSearchQuery('')} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 bg-gray-100 p-1.5 rounded-full hover:bg-gray-200"><X size={14}/></button>}
                 </div>
 
@@ -1393,12 +1293,12 @@ export default function App() {
                         <h3 className="font-bold text-sm text-accent uppercase tracking-widest flex items-center gap-2"><Plus size={16}/> เพิ่มเมนูใหม่</h3>
                         <button onClick={() => setShowAddMenuForm(false)} className="text-gray-400 p-1 hover:bg-gray-200 rounded-full transition-colors"><X size={16}/></button>
                       </div>
-                      <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent bg-white" value={newMenu.name} onChange={e => setNewMenu({...newMenu, name: e.target.value})} />
+                      <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent bg-white font-bold" value={newMenu.name} onChange={e => setNewMenu({...newMenu, name: e.target.value})} />
                       
                       <div className="flex gap-2">
-                        <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent bg-white" value={newMenu.price} onChange={e => setNewMenu({...newMenu, price: e.target.value})} />
+                        <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent bg-white font-bold" value={newMenu.price} onChange={e => setNewMenu({...newMenu, price: e.target.value})} />
                         
-                        <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent" value={newMenu.category} onChange={e => setNewMenu({...newMenu, category: e.target.value})}>
+                        <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-[var(--theme-accent)] border border-transparent font-bold text-gray-600" value={newMenu.category} onChange={e => setNewMenu({...newMenu, category: e.target.value})}>
                           {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
@@ -1445,7 +1345,7 @@ export default function App() {
                       {newMenu.allowBlend !== false && newMenu.category !== 'สมูทตี้โยเกิร์ต' && newMenu.category !== 'ผลไม้และสมูทตี้' && (
                         <div className="text-left mt-2">
                           <label className="text-[10px] font-bold text-gray-400 ml-2">บวกราคาเพิ่มสำหรับเมนูปั่น (บาท)</label>
-                          <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] transition-all bg-white border border-transparent" value={newMenu.blendPrice} onChange={e => setNewMenu({...newMenu, blendPrice: e.target.value})} />
+                          <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] transition-all bg-white border border-transparent font-bold" value={newMenu.blendPrice} onChange={e => setNewMenu({...newMenu, blendPrice: e.target.value})} />
                         </div>
                       )}
 
@@ -1456,7 +1356,7 @@ export default function App() {
                           if (file) { try { setNewMenu({...newMenu, image: await compressImage(file)}); } catch(err) { console.error(err); } }
                         }} />
                       </label>
-                      <button onClick={handleAddNewMenu} className="w-full bg-accent text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"><Plus size={18}/> บันทึกเมนูใหม่</button>
+                      <button onClick={handleAddNewMenu} className="w-full bg-accent text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-[#8e6843]"><Plus size={18}/> บันทึกเมนูใหม่</button>
                     </div>
                   )}
                 </div>
@@ -1473,8 +1373,8 @@ export default function App() {
                         <button onClick={() => setShowAddToppingForm(false)} className="text-orange-400 p-1 hover:bg-orange-200 rounded-full transition-colors"><X size={16}/></button>
                       </div>
                       <div className="flex gap-2">
-                        <input type="text" placeholder="ชื่อท็อปปิ้ง (เช่น วิปครีม)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={newTopping.name} onChange={e => setNewTopping({...newTopping, name: e.target.value})} />
-                        <input type="number" placeholder="ราคา" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={newTopping.price} onChange={e => setNewTopping({...newTopping, price: e.target.value})} />
+                        <input type="text" placeholder="ชื่อท็อปปิ้ง (เช่น วิปครีม)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={newTopping.name} onChange={e => setNewTopping({...newTopping, name: e.target.value})} />
+                        <input type="number" placeholder="ราคา" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={newTopping.price} onChange={e => setNewTopping({...newTopping, price: e.target.value})} />
                       </div>
                       <button onClick={handleAddTopping} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all hover:bg-orange-600">บันทึกท็อปปิ้งใหม่</button>
                     </div>
@@ -1486,7 +1386,7 @@ export default function App() {
                       {toppings.map(t => (
                         <div key={t.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
                           <span className="text-sm font-bold text-primary">{t.name} <span className="text-orange-500 text-xs">(+฿{t.price})</span></span>
-                          <button onClick={() => handleDeleteTopping(t.id)} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                          <button onClick={() => handleDeleteTopping(t.id)} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
                         </div>
                       ))}
                     </div>
@@ -1529,7 +1429,7 @@ export default function App() {
                                   </div>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowDown size={14}/></button>
                                 </div>
-                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
+                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none`} alt="list" />
                                 <div>
                                   <p className="font-bold text-sm text-primary flex items-center gap-1 flex-wrap">
                                     {item.name} 
@@ -1570,10 +1470,10 @@ export default function App() {
                                 <div className="flex justify-between items-center mb-1 border-b border-orange-100 pb-2">
                                    <h4 className="font-bold text-sm text-orange-600 flex items-center gap-2"><Edit size={16}/> แก้ไขเมนู</h4>
                                 </div>
-                                <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={editingMenu.name} onChange={e => setEditingMenu({...editingMenu, name: e.target.value})} />
+                                <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={editingMenu.name} onChange={e => setEditingMenu({...editingMenu, name: e.target.value})} />
                                 <div className="flex gap-2">
-                                  <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white" value={editingMenu.price} onChange={e => setEditingMenu({...editingMenu, price: e.target.value})} />
-                                  <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-orange-400 border border-transparent" value={editingMenu.category} onChange={e => setEditingMenu({...editingMenu, category: e.target.value})}>
+                                  <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={editingMenu.price} onChange={e => setEditingMenu({...editingMenu, price: e.target.value})} />
+                                  <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-orange-400 border border-transparent font-bold text-gray-600" value={editingMenu.category} onChange={e => setEditingMenu({...editingMenu, category: e.target.value})}>
                                     {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
                                   </select>
                                 </div>
@@ -1620,7 +1520,7 @@ export default function App() {
                                 {editingMenu.allowBlend !== false && editingMenu.category !== 'สมูทตี้โยเกิร์ต' && editingMenu.category !== 'ผลไม้และสมูทตี้' && (
                                   <div className="mt-2 text-left">
                                     <label className="text-[10px] font-bold text-gray-400 ml-2">บวกราคาเพิ่มสำหรับเมนูปั่น (บาท)</label>
-                                    <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 transition-all bg-white border border-transparent" value={editingMenu.blendPrice} onChange={e => setEditingMenu({...editingMenu, blendPrice: e.target.value})} />
+                                    <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 transition-all bg-white border border-transparent font-bold" value={editingMenu.blendPrice} onChange={e => setEditingMenu({...editingMenu, blendPrice: e.target.value})} />
                                   </div>
                                 )}
 
@@ -1632,8 +1532,8 @@ export default function App() {
                                   }} />
                                 </label>
                                 <div className="flex gap-2">
-                                  <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm">ยกเลิก</button>
-                                  <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"><Save size={18}/> บันทึกการแก้ไข</button>
+                                  <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm hover:bg-gray-50">ยกเลิก</button>
+                                  <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-orange-600"><Save size={18}/> บันทึกการแก้ไข</button>
                                 </div>
                               </div>
                             )}
@@ -1653,39 +1553,7 @@ export default function App() {
             {adminTab === 'settings' && (
               <div className="space-y-8 animate-in fade-in">
                 
-                {/* 🌟 ฟังก์ชันตั้งค่าปิดร้านอัตโนมัติ (Auto-Close System) */}
-                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-4 shadow-inner relative">
-                  <h3 className="font-bold text-sm text-red-600 uppercase tracking-widest text-center flex items-center justify-center gap-2"><AlertCircle size={16}/> ระบบปิดร้านอัตโนมัติเมื่อคิวเต็ม</h3>
-                  
-                  <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-50">
-                    <div>
-                      <p className="font-bold text-sm text-primary flex items-center gap-1">🛡️ เปิดใช้งานระบบป้องกันคิวล้น</p>
-                      <p className="text-[10px] text-gray-500 mt-1">ระบบจะสับสวิตช์ปิดร้านให้ทันที ถ้ามีคิวรอกำลังทำเกินกำหนด</p>
-                    </div>
-                    <input type="checkbox" checked={editAutoCloseEnabled} onChange={e => setEditAutoCloseEnabled(e.target.checked)} className="w-5 h-5 accent-red-500 cursor-pointer" />
-                  </label>
-
-                  <div className={`transition-all overflow-hidden ${editAutoCloseEnabled ? 'opacity-100 max-h-40 mt-3' : 'opacity-0 max-h-0'}`}>
-                    <label className="text-[11px] text-gray-500 mb-2 block font-bold pl-2">จำนวนคิวสูงสุด (เช่น กำหนด 3 ถ้ามีออร์เดอร์ที่ 3 เข้ามา ร้านจะปิดอัตโนมัติ)</label>
-                    <div className="flex items-center bg-white border border-red-100 rounded-2xl shadow-sm overflow-hidden p-1">
-                      <button onClick={() => setEditAutoCloseLimit(prev => Math.max(1, prev - 1))} className="w-12 h-12 bg-gray-50 flex items-center justify-center text-red-500 font-bold rounded-xl active:scale-90">-</button>
-                      <input type="number" readOnly value={editAutoCloseLimit} className="flex-1 text-center font-bold text-lg text-primary outline-none" />
-                      <button onClick={() => setEditAutoCloseLimit(prev => prev + 1)} className="w-12 h-12 bg-red-100 flex items-center justify-center text-red-600 font-bold rounded-xl active:scale-90">+</button>
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-red-500 mt-2 font-medium bg-red-100/50 p-2 rounded-lg">* หมายเหตุ: ระบบนี้จะทำงานได้ก็ต่อเมื่อ "แอดมินเปิดหน้าร้านค้านี้ค้างไว้" เท่านั้น</p>
-                  
-                  <button onClick={async () => {
-                    try { 
-                      await setDoc(doc(db, 'settings', 'store'), { autoCloseEnabled: editAutoCloseEnabled, autoCloseQueueLimit: editAutoCloseLimit }, { merge: true }); 
-                      showAlert('อัปเดตระบบปิดร้านอัตโนมัติสำเร็จ! 🛡️'); 
-                    } catch(e) { showAlert("Error: " + e.message); }
-                  }} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:bg-red-600">
-                    บันทึกการตั้งค่าปิดร้าน
-                  </button>
-                </div>
-
+                {/* 🌟 1. ตั้งค่าธีมร้าน */}
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-[2.5rem] border-2 border-dashed border-indigo-200 space-y-4 shadow-inner relative overflow-hidden">
                   <h3 className="font-bold text-sm text-indigo-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><Palette size={16}/> เลือกธีมร้านค้า</h3>
                   <div className="grid grid-cols-2 gap-3 pt-2">
@@ -1729,6 +1597,7 @@ export default function App() {
                   <p className="text-[10px] text-center text-indigo-400 mt-2">* เปลี่ยนธีมแล้วสีพื้นหลังของร้านจะเปลี่ยนตามทันทีครับ</p>
                 </div>
                 
+                {/* 🌟 2. สถานะร้าน และปิดออเดอร์ปั่นชั่วคราว */}
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะร้าน และ วัตถุดิบ</h3>
                   <div className="flex justify-center gap-3 pt-2">
@@ -1749,12 +1618,45 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 🌟 3. ระบบปิดร้านอัตโนมัติ (คิวล้น) */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-4 shadow-inner relative mt-8">
+                  <h3 className="font-bold text-sm text-red-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">🤖 ปิดร้านอัตโนมัติ (คิวล้น)</h3>
+                  
+                  <div className="mt-2">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🛑 ระบบปิดร้านออโต้เมื่อคิวเยอะ</p>
+                        <p className="text-[10px] text-gray-500 mt-1">ช่วยปิดร้านแทนแอดมิน เพื่อกันลูกค้ารอนาน</p>
+                      </div>
+                      <input type="checkbox" checked={editAutoCloseEnabled} onChange={e => setEditAutoCloseEnabled(e.target.checked)} className="w-5 h-5 accent-red-500 cursor-pointer" />
+                    </label>
+                  </div>
+
+                  <div className={`transition-all ${editAutoCloseEnabled ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
+                    <label className="text-[11px] text-gray-500 mb-2 block font-bold">จำนวนคิวสูงสุดก่อนปิดรับออร์เดอร์</label>
+                    <div className="flex gap-2">
+                       <input type="number" placeholder="ค่าเริ่มต้นคือ 3 คิว" className="flex-1 p-4 rounded-2xl text-xs outline-none shadow-sm focus:ring-2 focus:ring-red-400 border border-transparent transition-all bg-white text-gray-700 font-bold" value={editMaxQueue} onChange={e => setEditMaxQueue(Number(e.target.value))} />
+                    </div>
+                    <p className="text-[9px] text-red-600 font-bold mt-2 leading-relaxed bg-red-100/50 p-2 rounded-lg border border-red-100">* หากเปิดใช้ ถ้าระบบนับคิวที่ "รอรับออร์เดอร์" รวมกับ "กำลังทำ" มีจำนวนมากกว่าหรือเท่ากับที่กำหนด <span className="underline">ระบบจะสับสวิตช์ปิดร้านให้ทันทีอัตโนมัติ</span> (แอดมินต้องมากดเปิดร้านใหม่เองในภายหลัง)</p>
+                  </div>
+
+                  <button onClick={async () => {
+                    try { 
+                      await setDoc(doc(db, 'settings', 'store'), { autoCloseEnabled: editAutoCloseEnabled, maxQueue: editMaxQueue }, { merge: true }); 
+                      showAlert('อัปเดตระบบปิดร้านอัตโนมัติเรียบร้อย! 🛑'); 
+                    } catch(e) { showAlert("Error: " + e.message); }
+                  }} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
+                    บันทึกระบบคิวอัตโนมัติ
+                  </button>
+                </div>
+
+                {/* 🌟 4. ตั้งค่าช่องทางชำระเงิน */}
                 <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">ตั้งค่าช่องทางชำระเงิน</h3>
                   
                   <div>
                     <label className="text-xs text-gray-500 mb-2 block font-bold">หมายเลขพร้อมเพย์ (เบอร์โทร หรือ บัตรประชาชน)</label>
-                    <input type="text" placeholder="เช่น 0812345678" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-accent border border-transparent transition-all" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
+                    <input type="text" placeholder="เช่น 0812345678" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-accent border border-transparent transition-all font-bold" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
                   </div>
 
                   <div className="pt-2">
@@ -1767,7 +1669,7 @@ export default function App() {
                           if(file) { try { const compressedImage = await compressImage(file); setEditQrCodeImage(compressedImage); } catch(err) { console.error(err); } }
                         }} />
                       </label>
-                      {editQrCodeImage && <img src={editQrCodeImage} className="w-16 h-16 rounded-xl object-cover shadow-sm border border-gray-100" alt="QR Preview" />}
+                      {editQrCodeImage && <img src={editQrCodeImage} className="w-16 h-16 rounded-xl object-cover shadow-sm border border-gray-100 bg-white" alt="QR Preview" />}
                       {editQrCodeImage && <button onClick={() => setEditQrCodeImage('')} className="p-3 text-red-400 hover:bg-red-50 rounded-xl transition-all active:scale-95"><Trash2 size={18}/></button>}
                     </div>
                     <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">*หากอัปโหลดรูป ระบบจะแสดงรูปนี้แทนการสร้าง QR Code อัตโนมัติในหน้าตะกร้าของลูกค้า</p>
@@ -1780,13 +1682,20 @@ export default function App() {
                   </button>
                 </div>
 
+                {/* 🌟 5. การแจ้งเตือนและลิงก์ร้าน */}
                 <div className="bg-blue-50 p-6 rounded-[2.5rem] border-2 border-dashed border-blue-200 space-y-4 shadow-inner relative">
-                  <h3 className="font-bold text-sm text-blue-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><BellRing size={16}/> แจ้งเตือนออร์เดอร์ (LINE แอดมิน)</h3>
+                  <h3 className="font-bold text-sm text-blue-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><BellRing size={16}/> แจ้งเตือนออร์เดอร์ (LINE)</h3>
                   
-                  <div className="mt-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-2 block font-bold">ลิงก์เพิ่มเพื่อนร้าน (LINE Official Account)</label>
+                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all text-blue-700" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
+                    <p className="text-[9px] text-blue-500 font-bold mt-2 leading-relaxed">*ใช้สำหรับกรณีที่ลูกค้าสั่งซื้อนอกแอป LINE ระบบจะพาลูกค้าเด้งกลับไปที่แชทของร้านทันที</p>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-blue-100">
                     <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-50">
                       <div>
-                        <p className="font-bold text-sm text-primary flex items-center gap-1">🔔 เปิดแจ้งเตือนผ่าน LINE</p>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🔔 เปิดแจ้งเตือนผ่าน LINE ส่วนตัว</p>
                         <p className="text-[10px] text-gray-500 mt-1">บอทจะทักไปบอกทันทีที่มีออร์เดอร์</p>
                       </div>
                       <input type="checkbox" checked={editNotifyAdmin} onChange={e => setEditNotifyAdmin(e.target.checked)} className="w-5 h-5 accent-blue-500 cursor-pointer" />
@@ -1796,7 +1705,7 @@ export default function App() {
                   <div className={`transition-all ${editNotifyAdmin ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
                     <label className="text-[11px] text-gray-500 mb-2 block font-bold">LINE User ID ของแอดมิน</label>
                     <div className="flex gap-2">
-                       <input type="text" placeholder="ระบบจะดึงให้อัตโนมัติ..." className="flex-1 p-4 rounded-2xl text-[10px] outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all bg-white text-gray-500" value={editAdminLineId} onChange={e => setEditAdminLineId(e.target.value)} readOnly />
+                       <input type="text" placeholder="ระบบจะดึงให้อัตโนมัติ..." className="flex-1 p-4 rounded-2xl text-[10px] outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all bg-white text-gray-500 font-bold" value={editAdminLineId} onChange={e => setEditAdminLineId(e.target.value)} readOnly />
                        <button onClick={() => setEditAdminLineId(lineProfile.userId)} className="bg-blue-500 text-white px-3 rounded-2xl text-[10px] font-bold shadow-sm active:scale-95 whitespace-nowrap hover:bg-blue-600 transition-colors">ดึง LINE ID ของฉัน</button>
                     </div>
                     <p className="text-[9px] text-blue-600 font-bold mt-2 leading-relaxed bg-blue-100/50 p-2 rounded-lg border border-blue-100">* ให้คุณแอดมินเปิดระบบนี้จาก <b>มือถือเครื่องที่จะรับแจ้งเตือน</b> แล้วกดปุ่ม "ดึง LINE ID ของฉัน" จากนั้นกดบันทึกด้านล่างได้เลยครับ</p>
@@ -1804,7 +1713,7 @@ export default function App() {
 
                   <button onClick={async () => {
                     if (editNotifyAdmin && !editAdminLineId) return showAlert('กรุณากดดึง LINE ID ก่อนบันทึกครับ');
-                    try { await setDoc(doc(db, 'settings', 'store'), { notifyAdmin: editNotifyAdmin, adminLineId: editAdminLineId }, { merge: true }); showAlert('อัปเดตการแจ้งเตือนสำเร็จ! 🎉'); } catch(e) { showAlert("Error: " + e.message); }
+                    try { await setDoc(doc(db, 'settings', 'store'), { notifyAdmin: editNotifyAdmin, adminLineId: editAdminLineId, shopLineUrl: editShopLineUrl }, { merge: true }); showAlert('อัปเดตการแจ้งเตือนและลิงก์ร้านสำเร็จ! 🎉'); } catch(e) { showAlert("Error: " + e.message); }
                   }} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
                     บันทึกการแจ้งเตือน
                   </button>
@@ -1827,7 +1736,7 @@ export default function App() {
             </div>
 
             <div className="p-10 pt-6 space-y-10 overflow-y-auto hide-scrollbar">
-              <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400"><X/></button></div>
+              <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400 hover:bg-gray-100 transition-colors"><X/></button></div>
               <div className="space-y-8">
                 <div><label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
                   <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
@@ -1987,7 +1896,7 @@ export default function App() {
 
             <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
                {isDelivering ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
-               {isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันและแจ้งเตือนลูกค้า</>}
+               {isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันการจัดส่ง</>}
             </button>
           </div>
         </div>
@@ -2057,7 +1966,7 @@ export default function App() {
                   href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
                   target="_blank" 
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95"
+                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-green-600"
                 >
                    <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
                 </a>
@@ -2066,7 +1975,7 @@ export default function App() {
                      navigator.clipboard.writeText(adminDeliverySuccessData.text);
                      showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชทลูกค้าได้เลยครับ");
                   }}
-                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95"
+                  className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
                 >
                    คัดลอกข้อความ
                 </button>
@@ -2099,14 +2008,14 @@ export default function App() {
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
           <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
             <h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
-            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner" placeholder="••••••" />
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner font-bold text-primary" placeholder="••••••" />
             <div className="flex gap-4">
                <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
                <button onClick={() => {
                  if(adminPassword === '570402') { 
                     localStorage.setItem('happycow_isAdmin', 'true');
                     setView('admin'); 
-                    setAdminTab('orders'); // บังคับให้เริ่มที่แท็บออเดอร์ทันทีหลังปลดล็อกสำเร็จ
+                    setAdminTab('orders'); 
                     setShowAdminModal(false); 
                     setAdminPassword(''); 
                  }
