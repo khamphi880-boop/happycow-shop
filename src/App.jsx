@@ -185,6 +185,10 @@ export default function App() {
   useEffect(() => {
     // ระบบบันทึกจำนวนผู้เข้าชมเว็บรายวันแบบไม่ซ้ำกัน (Daily Visitor Tracker)
     const recordVisit = async () => {
+      // ตรวจสอบสถานะแอดมินจากเครื่อง หากเป็นแอดมินจะไม่นำมานับเป็นผู้เข้าชมเว็บ
+      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+      if (isAdmin) return;
+
       const todayStr = new Date().toLocaleDateString('en-CA'); 
       const isVisited = sessionStorage.getItem('happycow_visited_today');
       if (!isVisited) {
