@@ -164,6 +164,9 @@ export default function App() {
   const [visitStats, setVisitStats] = useState({});
   const [loadingSlipId, setLoadingSlipId] = useState(null);
 
+  // 🌟 เพิ่ม State สำหรับระบบ Real-time Active Users
+  const [activeUsers, setActiveUsers] = useState([]);
+
   const dragItem = useRef(null);
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
@@ -241,6 +244,24 @@ export default function App() {
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
+    // 🌟 ดึงข้อมูลผู้ใช้งานที่กำลังออนไลน์ (Real-time Active Users)
+    const unsubActive = onSnapshot(collection(db, 'active_users'), snapshot => {
+      const now = Date.now();
+      const threshold = 120000; // 2 นาที
+      const activeList = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(user => now - user.lastActive < threshold);
+      setActiveUsers(activeList);
+    });
+
+    // 🌟 ตัวจับเวลาทำความสะอาดรายชื่อออนไลน์แบบ Local (เผื่อกรณีลูกค้าปิดแอปทันทีแล้ว Firestore ค้าง)
+    const pruneInterval = setInterval(() => {
+      setActiveUsers(prev => {
+        const now = Date.now();
+        return prev.filter(user => now - user.lastActive < 120000);
+      });
+    }, 30000); // เช็คทำความสะอาดทุก 30 วินาที
+
     // ดึงข้อมูลตั้งค่าร้านค้า
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
@@ -286,8 +307,48 @@ export default function App() {
       }
     });
 
-    return () => { unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); unsubVisits(); };
+    return () => { 
+      unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); unsubVisits(); 
+      unsubActive(); clearInterval(pruneInterval);
+    };
   }, []);
+
+  // 🌟 ระบบ Presence (บอกสถานะออนไลน์ของลูกค้า)
+  useEffect(() => {
+    if (!lineProfile.userId) return;
+    
+    // หากเป็นแอดมิน จะไม่นำมานับเป็น "ผู้ใช้ออนไลน์"
+    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+    if (isAdmin) return;
+
+    const docRef = doc(db, 'active_users', lineProfile.userId);
+    
+    const sendPing = async () => {
+      try {
+        await setDoc(docRef, {
+          displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
+          lastActive: Date.now()
+        }, { merge: true });
+      } catch (e) {
+        console.log("Presence Error (Ignored):", e);
+      }
+    };
+
+    sendPing(); // ยิง Ping ทันทีเมื่อโหลดเสร็จ
+    const pingInterval = setInterval(sendPing, 60000); // ยิง Ping ซ้ำทุกๆ 1 นาที
+
+    // พยายามลบข้อมูลทิ้งเมื่อลูกค้าปิดหน้าจอ
+    const handleBeforeUnload = () => {
+      deleteDoc(docRef).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload(); // สั่งลบเมื่อ Component โดน Unmount
+    };
+  }, [lineProfile.userId, lineProfile.displayName]);
 
   // ระบบ Auto-Close สับสวิตช์ปิดร้านอัตโนมัติเมื่อคิวล้น เฉพาะวันที่กำหนด
   useEffect(() => {
@@ -1203,8 +1264,31 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 🌟 ผู้ใช้งานกำลังออนไลน์ (Real-time Active Users) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm mt-4">
+                   <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
+                     <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
+                       <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                       ผู้ใช้ออนไลน์ (Real-time)
+                     </h3>
+                     <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">{activeUsers.length} คน</span>
+                   </div>
+
+                   {activeUsers.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {activeUsers.map(u => (
+                           <div key={u.id} className="bg-green-50 text-green-700 text-[10px] font-bold px-3 py-1.5 rounded-xl border border-green-200 flex items-center gap-1.5 shadow-sm">
+                             <UserCheck size={12}/> {u.displayName}
+                           </div>
+                        ))}
+                      </div>
+                   ) : (
+                      <p className="text-center text-xs text-gray-400 font-bold py-4">ยังไม่มีลูกค้าออนไลน์ในขณะนี้</p>
+                   )}
+                </div>
+
                 {/* 📊 สถิติยอดผู้เข้าชมระบบย้อนหลัง 7 วัน (Daily Visitor Traffic) */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm mt-4">
                    <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
                    <div className="space-y-3.5">
                       {recentVisits.map((v, index) => {
