@@ -7,7 +7,7 @@ import {
   Sparkles, Database, Users
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment, query, orderBy, limit } from 'firebase/firestore';
 
 // --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
@@ -237,8 +237,13 @@ export default function App() {
     });
 
     // ดึงข้อมูลออร์เดอร์
-    const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
-       const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
+    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+    const ordersQuery = isAdmin
+      ? query(collection(db, 'orders'), orderBy('timestamp', 'desc'))
+      : query(collection(db, 'orders'), orderBy('timestamp', 'desc'), limit(150));
+
+    const unsubOrders = onSnapshot(ordersQuery, snapshot => {
+       const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
        setOrders(fetchedOrders); 
     });
 
@@ -247,23 +252,27 @@ export default function App() {
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
-    // 🌟 ดึงข้อมูลผู้ใช้งานที่กำลังออนไลน์ (Real-time Active Users)
-    const unsubActive = onSnapshot(collection(db, 'active_users'), snapshot => {
-      const now = Date.now();
-      const threshold = 120000; // 2 นาที
-      const activeList = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(user => now - user.lastActive < threshold);
-      setActiveUsers(activeList);
-    });
-
-    // 🌟 ตัวจับเวลาทำความสะอาดรายชื่อออนไลน์แบบ Local (เผื่อกรณีลูกค้าปิดแอปทันทีแล้ว Firestore ค้าง)
-    const pruneInterval = setInterval(() => {
-      setActiveUsers(prev => {
+    // 🌟 ดึงข้อมูลผู้ใช้งานที่กำลังออนไลน์ (Real-time Active Users) - เฉพาะแอดมิน
+    let unsubActive = () => {};
+    let pruneInterval;
+    if (isAdmin) {
+      unsubActive = onSnapshot(collection(db, 'active_users'), snapshot => {
         const now = Date.now();
-        return prev.filter(user => now - user.lastActive < 120000);
+        const threshold = 120000; // 2 นาที
+        const activeList = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(user => now - user.lastActive < threshold);
+        setActiveUsers(activeList);
       });
-    }, 30000); // เช็คทำความสะอาดทุก 30 วินาที
+
+      // 🌟 ตัวจับเวลาทำความสะอาดรายชื่อออนไลน์แบบ Local (เผื่อกรณีลูกค้าปิดแอปทันทีแล้ว Firestore ค้าง)
+      pruneInterval = setInterval(() => {
+        setActiveUsers(prev => {
+          const now = Date.now();
+          return prev.filter(user => now - user.lastActive < 120000);
+        });
+      }, 30000); // เช็คทำความสะอาดทุก 30 วินาที
+    }
 
     // ดึงข้อมูลตั้งค่าร้านค้า
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
@@ -303,16 +312,19 @@ export default function App() {
       } else setPopularSearches([]);
     });
 
-    // ดึงข้อมูลสถิติผู้เข้าชม
-    const unsubVisits = onSnapshot(doc(db, 'settings', 'visit_stats'), docSnap => {
-      if (docSnap.exists()) {
-        setVisitStats(docSnap.data());
-      }
-    });
+    // ดึงข้อมูลสถิติผู้เข้าชม - เฉพาะแอดมิน
+    let unsubVisits = () => {};
+    if (isAdmin) {
+      unsubVisits = onSnapshot(doc(db, 'settings', 'visit_stats'), docSnap => {
+        if (docSnap.exists()) {
+          setVisitStats(docSnap.data());
+        }
+      });
+    }
 
     return () => { 
       unsubMenus(); unsubOrders(); unsubToppings(); unsubSettings(); unsubSearchStats(); unsubVisits(); 
-      unsubActive(); clearInterval(pruneInterval);
+      unsubActive(); if(pruneInterval) clearInterval(pruneInterval);
     };
   }, []);
 
@@ -876,7 +888,7 @@ export default function App() {
                     <div key={`promo-${item.id}`} className="w-[85%] flex-shrink-0 snap-center">
                       <div onClick={() => openOptionModal(item)} className={`bg-white/90 backdrop-blur-sm rounded-[2rem] p-3 shadow-md flex items-center gap-4 border border-orange-100 transition-all h-full relative overflow-hidden animate-shimmer glow-effect ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-95'}`}>
                          <div className="relative">
-                            <img src={item.image} className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0`} alt={item.name} />
+                            <img src={item.image} loading="lazy" className={`w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-sm flex-shrink-0`} alt={item.name} />
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
                             {item.isSoldOut && (
                                <div className="absolute top-1 -left-1 bg-gray-700 text-white px-3 py-1 rounded-lg font-bold text-[10px] shadow-lg border border-gray-600 rotate-[-5deg] z-10">หมด</div>
@@ -957,7 +969,7 @@ export default function App() {
                       )}
 
                       <div className="aspect-square bg-gray-50 relative">
-                         <img src={item.image} className={`w-full h-full object-cover`} alt={item.name} />
+                         <img src={item.image} loading="lazy" className={`w-full h-full object-cover`} alt={item.name} />
                       </div>
                       <div className="p-4 text-center">
                         <h4 className="font-bold text-sm mb-1 line-clamp-1 text-primary">{item.name}</h4>
@@ -1634,7 +1646,7 @@ export default function App() {
                                   </div>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1.5 rounded-lg transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-gray-200' : 'text-accent bg-orange-50 active:scale-90 hover:bg-orange-100'}`}><ArrowDown size={14}/></button>
                                 </div>
-                                <img src={item.image} className={`w-14 h-14 rounded-2xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
+                                <img src={item.image} loading="lazy" className={`w-14 h-14 rounded-2xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
                                 <div>
                                   <p className="font-bold text-sm text-primary flex items-center gap-1 flex-wrap">
                                     {item.name} 
