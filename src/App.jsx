@@ -39,7 +39,8 @@ const THEMES = {
 };
 
 // --- 2. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
-const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
+// 🔧 [แก้ไขโดย Apex Architect]: ลด Resolution เหลือ 400x400 และ Quality เหลือ 0.4 เพื่อลดขนาดไฟล์ลง 70% แก้ปัญหาเว็บอืด
+const compressImage = (file, maxWidth = 400, maxHeight = 400, quality = 0.4) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -356,7 +357,6 @@ export default function App() {
   // 🌟 ตรวจจับสถานะของร้านค้าแบบเรียลไทม์ ถ้าปิดเมื่อไหร่ ให้เด้ง Pop Up เตือนลูกค้าทันที
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-    // แก้ไข: นำ view ออกจาก Dependency เพื่อป้องกัน Pop Up เด้งกวนใจทุกครั้งที่ลูกค้ากดสลับเมนู
     if (storeSettings.isStoreOpen === false && !isAdmin) {
       setShowStoreClosedModal(true);
     } else {
@@ -1048,7 +1048,8 @@ export default function App() {
                            setSlipImage('');
                            setSlipStatus('checking');
                            try {
-                             const comp = await compressImage(file);
+                             // 🔧 แก้ไขลดขนาดสลิปเพื่อส่งได้ไวขึ้น
+                             const comp = await compressImage(file, 400, 400, 0.4);
                              setSlipImage(comp);
                              setTimeout(() => setSlipStatus('valid'), 1000);
                            } catch (err) {
@@ -1779,7 +1780,8 @@ export default function App() {
                                const file = e.target.files[0];
                                if(file) {
                                  try {
-                                   const compressedImage = await compressImage(file, 1200, 1200, 0.8); 
+                                   // 🔧 ปรับลดขนาดรูปพื้นหลัง Custom จาก 1200 ลงเหลือ 800 ลดการกินแรม
+                                   const compressedImage = await compressImage(file, 800, 800, 0.5); 
                                    setEditCustomBgImage(compressedImage);
                                  } catch(err) { console.error(err); }
                                }
