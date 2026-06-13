@@ -108,7 +108,8 @@ export default function App() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
-  const showAlert = (message) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm: null });
+  // 🌟 แก้ไข: เพิ่มการรองรับ onConfirm Callback เพื่อจัดการเหตุการณ์หลังกดปุ่ม "รับทราบ" อย่างปลอดภัย
+  const showAlert = (message, onConfirm = null) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
   
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -171,6 +172,7 @@ export default function App() {
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
+  const isProcessingOrder = useRef(false); // 🌟 แก้ไข: ตัวแปรล็อคปุ่มยืนยัน ป้องกันการกดเบิ้ลระดับ Synchronous
 
   const getAddedBlendPrice = (item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
@@ -772,7 +774,6 @@ export default function App() {
       )}
 
       {/* Header */}
-      {/* 🌟 ปรับปรุงปุ่ม Logo โฮมเพจ: ให้พาไปหน้าเมนูขายดีเลยเมื่อคลิก */}
       <header className="sticky top-0 z-[50] bg-white/95 p-4 flex justify-between items-center border-b border-gray-100 shadow-sm relative backdrop-blur-md">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }}>
            {lineProfile.pictureUrl ? <img src={lineProfile.pictureUrl} className="w-10 h-10 rounded-full border-2 border-orange-100" alt="profile" /> : <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">🐮</div>}
@@ -832,7 +833,6 @@ export default function App() {
                       <div className="mb-5">
                          <div className="flex justify-between items-center mb-3">
                             <h4 className="text-[11px] font-bold text-gray-400 flex items-center gap-1 uppercase tracking-wider"><Clock size={14}/> ประวัติการค้นหา</h4>
-                            {/* 🌟 ปรับปรุงปุ่ม "ล้าง": ให้ล้างประวัติแล้วพาไปหน้าเมนูขายดีเลย */}
                             <button onClick={() => { setSearchHistory([]); setSearchQuery(''); setIsSearchFocused(false); setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded-lg">ล้าง</button>
                          </div>
                          <div className="flex flex-wrap gap-2">
@@ -971,7 +971,6 @@ export default function App() {
         {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
-            {/* 🌟 ปรับปรุงปุ่ม "กลับหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
             <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
             <h2 className="text-3xl font-serif font-bold text-primary">ตะกร้าของคุณ</h2>
             <div className="space-y-4">
@@ -1093,10 +1092,14 @@ export default function App() {
                 
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
-                    onClick={async () => {
+                    // 🌟 แก้ไข: เพิ่มการเช็ค isProcessingOrder และ e.preventDefault() เพื่อแก้ปัญหา Race Condition ทำให้แอป Crash
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (isProcessingOrder.current) return; // ดักไว้เลย ถ้ากำลังโหลดห้ามทำซ้ำเด็ดขาด ป้องกันแอปเด้ง
                       if (!address) return showAlert("กรุณากรอกที่อยู่จัดส่งครับ");
                       if (paymentMethod === 'promptpay' && !slipImage) return showAlert("กรุณาแนบสลิปการโอนเงินครับ");
                       
+                      isProcessingOrder.current = true; // ล็อคไม่ให้กดปุ่มซ้ำ
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
@@ -1158,6 +1161,7 @@ export default function App() {
                       } catch (err) {
                         showAlert("เกิดข้อผิดพลาดในการบันทึก: " + (err.message || err));
                       } finally {
+                        isProcessingOrder.current = false; // ปลดล็อค
                         setIsLoading(false);
                       }
                     }}
@@ -1179,7 +1183,6 @@ export default function App() {
         {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
-             {/* 🌟 ปรับปรุงปุ่ม "กลับไปหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
              <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
              <h2 className="text-3xl font-serif font-bold text-primary">ประวัติการสั่งซื้อ</h2>
              
@@ -1245,7 +1248,6 @@ export default function App() {
         {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
-            {/* 🌟 ปรับปรุงปุ่ม "กลับหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
             <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
                <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
