@@ -772,8 +772,9 @@ export default function App() {
       )}
 
       {/* Header */}
+      {/* 🌟 ปรับปรุงปุ่ม Logo โฮมเพจ: ให้พาไปหน้าเมนูขายดีเลยเมื่อคลิก */}
       <header className="sticky top-0 z-[50] bg-white/95 p-4 flex justify-between items-center border-b border-gray-100 shadow-sm relative backdrop-blur-md">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('shop')}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }}>
            {lineProfile.pictureUrl ? <img src={lineProfile.pictureUrl} className="w-10 h-10 rounded-full border-2 border-orange-100" alt="profile" /> : <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">🐮</div>}
            <div>
              <h1 className="font-serif font-bold text-lg leading-tight text-primary">วัวนมอารมณ์ดี</h1>
@@ -821,7 +822,7 @@ export default function App() {
                    className="w-full pl-11 pr-10 py-3.5 rounded-[1.5rem] text-sm outline-none shadow-sm focus:ring-2 focus:ring-[var(--theme-accent)] border border-gray-100 bg-white/90 backdrop-blur-sm" 
                 />
                 {searchQuery && (
-                  <button onClick={() => { setSearchQuery(''); setIsSearchFocused(false); setView('shop'); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 active:scale-90 bg-gray-100 rounded-full p-1"><X size={14}/></button>
+                  <button onClick={() => { setSearchQuery(''); setIsSearchFocused(false); setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 active:scale-90 bg-gray-100 rounded-full p-1"><X size={14}/></button>
                 )}
               </div>
 
@@ -831,8 +832,8 @@ export default function App() {
                       <div className="mb-5">
                          <div className="flex justify-between items-center mb-3">
                             <h4 className="text-[11px] font-bold text-gray-400 flex items-center gap-1 uppercase tracking-wider"><Clock size={14}/> ประวัติการค้นหา</h4>
-                            {/* 🌟 ปรับปรุงปุ่ม "ล้าง" ให้เคลียร์หน้าจอและพาไปหน้าเมนูทันที */}
-                            <button onClick={() => { setSearchHistory([]); setSearchQuery(''); setIsSearchFocused(false); setView('shop'); }} className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded-lg">ล้าง</button>
+                            {/* 🌟 ปรับปรุงปุ่ม "ล้าง": ให้ล้างประวัติแล้วพาไปหน้าเมนูขายดีเลย */}
+                            <button onClick={() => { setSearchHistory([]); setSearchQuery(''); setIsSearchFocused(false); setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="text-[10px] text-red-400 font-bold bg-red-50 px-2 py-1 rounded-lg">ล้าง</button>
                          </div>
                          <div className="flex flex-wrap gap-2">
                             {searchHistory.map(h => (
@@ -970,7 +971,8 @@ export default function App() {
         {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
-            <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
+            {/* 🌟 ปรับปรุงปุ่ม "กลับหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
+            <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary transition-colors"><ChevronLeft size={20}/> เลือกเมนูเพิ่ม</button>
             <h2 className="text-3xl font-serif font-bold text-primary">ตะกร้าของคุณ</h2>
             <div className="space-y-4">
                {cart.map(i => (
@@ -1177,7 +1179,8 @@ export default function App() {
         {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
-             <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
+             {/* 🌟 ปรับปรุงปุ่ม "กลับไปหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
+             <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm hover:text-primary"><ChevronLeft size={20}/> กลับไปหน้าร้าน</button>
              <h2 className="text-3xl font-serif font-bold text-primary">ประวัติการสั่งซื้อ</h2>
              
              {isLoadingOrders ? (
@@ -1242,7 +1245,8 @@ export default function App() {
         {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
-            <button onClick={() => setView('shop')} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
+            {/* 🌟 ปรับปรุงปุ่ม "กลับหน้าร้าน": ให้กลับไปที่หมวด "🔥 เมนูขายดี" */}
+            <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
                <h2 className="text-2xl font-serif font-bold text-primary">ระบบแอดมินร้าน</h2>
                <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95 shadow-sm border border-blue-100"><BellRing size={12}/> เทสเสียงเตือนบิล</button>
