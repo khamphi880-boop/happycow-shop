@@ -108,7 +108,6 @@ export default function App() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
-  // 🌟 แก้ไข: เพิ่มการรองรับ onConfirm Callback เพื่อจัดการเหตุการณ์หลังกดปุ่ม "รับทราบ" อย่างปลอดภัย
   const showAlert = (message, onConfirm = null) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm });
   const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
   
@@ -152,7 +151,7 @@ export default function App() {
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
-  const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [] });
+  const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [], separateIce: false });
   const [lineProfile, setLineProfile] = useState({ displayName: 'ลูกค้าทั่วไป', pictureUrl: '', userId: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -172,7 +171,7 @@ export default function App() {
   const dragOverItem = useRef(null);
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
-  const isProcessingOrder = useRef(false); // 🌟 แก้ไข: ตัวแปรล็อคปุ่มยืนยัน ป้องกันการกดเบิ้ลระดับ Synchronous
+  const isProcessingOrder = useRef(false);
 
   const getAddedBlendPrice = (item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
@@ -186,9 +185,8 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
 
-  // --- 🌟 useEffect หลัก (Core Data): โหลดทันทีที่เปิดแอป เพื่อให้ลูกค้าเห็นเมนูเร็วที่สุด ---
+  // --- 🌟 useEffect หลัก (Core Data) ---
   useEffect(() => {
-    // บันทึกจำนวนผู้เข้าชมเว็บ
     const recordVisit = async () => {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) return;
@@ -226,10 +224,9 @@ export default function App() {
       document.body.appendChild(script);
     }
 
-    // โหลดเฉพาะข้อมูลที่จำเป็นต่อการแสดงผลหน้าแรก (เมนู, ท็อปปิ้ง, ตั้งค่าร้าน)
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
       setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
-      setIsLoading(false); // เลิกโหลดทันทีที่เมนูมาถึง
+      setIsLoading(false); 
     });
 
     const unsubToppings = onSnapshot(collection(db, 'toppings'), snapshot => { 
@@ -267,10 +264,9 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSettings(); };
   }, []);
 
-  // --- 🌟 useEffect (Lazy Load Orders): โหลดบิลคำสั่งซื้อเฉพาะตอนเข้าไปดู หรือเป็นแอดมิน ---
+  // --- 🌟 useEffect (Lazy Load Orders) ---
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-    // ไม่โหลด orders เบื้องหลังเพื่อให้หน้าเมนูลื่นที่สุด ยกเว้นตอนเข้าหน้าประวัติ/แอดมิน
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
 
     setIsLoadingOrders(true);
@@ -282,7 +278,7 @@ export default function App() {
     return () => unsubOrders();
   }, [view]);
 
-  // --- 🌟 useEffect (Lazy Load Admin Stats): โหลดสถิติหลังบ้านเฉพาะแอดมินเท่านั้น ---
+  // --- 🌟 useEffect (Lazy Load Admin Stats) ---
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && !isAdmin) return;
@@ -344,7 +340,7 @@ export default function App() {
     };
   }, [lineProfile.userId, lineProfile.displayName]);
 
-  // ตรวจจับสถานะของร้านค้าแบบเรียลไทม์ ถ้าปิดเมื่อไหร่ ให้เด้ง Pop Up เตือนลูกค้าทันที
+  // ตรวจจับสถานะของร้านค้าแบบเรียลไทม์
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (storeSettings.isStoreOpen === false && !isAdmin) {
@@ -354,14 +350,14 @@ export default function App() {
     }
   }, [storeSettings.isStoreOpen]);
 
-  // ระบบ Auto-Close สับสวิตช์ปิดร้านอัตโนมัติเมื่อคิวล้น เฉพาะวันที่กำหนด
+  // ระบบ Auto-Close
   useEffect(() => {
     if (storeSettings.autoCloseEnabled && storeSettings.isStoreOpen && orders.length > 0) {
       const todayDayIndex = new Date().getDay(); 
       const enabledDays = storeSettings.autoCloseDays || [];
       
       if (enabledDays.includes(todayDayIndex)) {
-        const activeQueueCount = orders.filter(o => o.status === 'pending' || o.status === 'cooking').length;
+        const activeQueueCount = orders.filter(o => !o.isDeleted && (o.status === 'pending' || o.status === 'cooking')).length;
         if (activeQueueCount >= storeSettings.maxQueue) {
            updateDoc(doc(db, 'settings', 'store'), { isStoreOpen: false });
            showAlert(`🤖 ระบบปิดร้านชั่วคราวอัตโนมัติทำงาน เนื่องจากขณะนี้มีคิวสั่งซื้อคงค้างสะสม ${activeQueueCount} คิวในระบบ`);
@@ -409,7 +405,7 @@ export default function App() {
   useEffect(() => {
     if (orders.length > previousOrderCount.current && previousOrderCount.current !== 0) {
       const newOrders = orders.slice(0, orders.length - previousOrderCount.current);
-      const hasNewPending = newOrders.some(o => o.status === 'pending');
+      const hasNewPending = newOrders.some(o => o.status === 'pending' && !o.isDeleted);
       if (hasNewPending && view === 'admin') playNotificationSound();
     }
     previousOrderCount.current = orders.length;
@@ -523,7 +519,7 @@ export default function App() {
          }, { merge: true });
       }
 
-      const locationText = deliveryLocation === 'room' ? 'หน้าห้อง font-bold' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
+      const locationText = deliveryLocation === 'room' ? 'หน้าห้อง' : (deliveryLocation === 'building' ? 'หน้าตึก' : 'รับเองที่หน้าร้าน');
       const deliverySummaryText = `🛵 อัปเดตสถานะจัดส่ง!\nบิล #${deliveryModal.id.slice(0,6)}\nลูกค้า: คุณ ${deliveryModal.lineName}\n\n${deliveryMessage}\n📍 จุดส่ง: ${locationText}\n\n📄 เช็คสถานะ: https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${deliveryModal.id}`;
 
       setDeliveryModal(null); 
@@ -562,6 +558,7 @@ export default function App() {
         last7DaysMap[d.toLocaleDateString('th-TH')] = 0;
     }
 
+    // คำนวณยอดขายจากประวัติออเดอร์ทั้งหมด (รวมออเดอร์ที่ถูกซ่อน Soft-Deleted ด้วย)
     orders.filter(o => o.status === 'completed').forEach(o => {
       if (o.timestamp >= startOfDay) daily += o.total;
       if (o.timestamp >= startOfMonth) monthly += o.total;
@@ -628,7 +625,8 @@ export default function App() {
     setOptionModalItem(item);
     setTempOptions({ 
       sweetness: '100%', isBlended: item.isOnlyBlend ? true : false, addPearl: item.hasFreePearl || false, 
-      selectedToppings: [], bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null, teaType: item.hasTeaType ? 'มัทฉะ' : null, addShot: false
+      selectedToppings: [], bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null, teaType: item.hasTeaType ? 'มัทฉะ' : null, addShot: false,
+      separateIce: false
     });
     if(searchQuery) handleSearchSubmit(searchQuery);
   };
@@ -679,9 +677,11 @@ export default function App() {
   const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
 
   const filteredOrders = React.useMemo(() => {
-    if (!adminSearchQuery) return orders;
+    // กรองเอาเฉพาะออเดอร์ปกติที่ไม่ได้ทำ Soft-Delete มาแสดงให้แอดมินดู
+    const activeOrders = orders.filter(o => !o.isDeleted);
+    if (!adminSearchQuery) return activeOrders;
     const q = adminSearchQuery.trim().toLowerCase();
-    return orders.filter(o => 
+    return activeOrders.filter(o => 
       o.id.toLowerCase().includes(q) || 
       (o.lineName || '').toLowerCase().includes(q) || 
       (o.address || '').toLowerCase().includes(q) ||
@@ -979,7 +979,7 @@ export default function App() {
                    <div className="flex-1 font-bold text-sm text-primary">
                      {i.qty}x {i.name} <br/>
                      <span className="text-gray-400 text-[10px] uppercase">
-                       ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
+                       ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง (+฿5)' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
                        {i.selectedToppings?.length > 0 && ` • เพิ่ม: ${i.selectedToppings.map(t=>t.name).join(', ')}`}
                      </span>
                    </div>
@@ -1092,14 +1092,13 @@ export default function App() {
                 
                 {storeSettings.isStoreOpen !== false ? (
                   <button 
-                    // 🌟 แก้ไข: เพิ่มการเช็ค isProcessingOrder และ e.preventDefault() เพื่อแก้ปัญหา Race Condition ทำให้แอป Crash
                     onClick={async (e) => {
                       e.preventDefault();
-                      if (isProcessingOrder.current) return; // ดักไว้เลย ถ้ากำลังโหลดห้ามทำซ้ำเด็ดขาด ป้องกันแอปเด้ง
+                      if (isProcessingOrder.current) return; 
                       if (!address) return showAlert("กรุณากรอกที่อยู่จัดส่งครับ");
                       if (paymentMethod === 'promptpay' && !slipImage) return showAlert("กรุณาแนบสลิปการโอนเงินครับ");
                       
-                      isProcessingOrder.current = true; // ล็อคไม่ให้กดปุ่มซ้ำ
+                      isProcessingOrder.current = true; 
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
@@ -1111,7 +1110,8 @@ export default function App() {
                           userId: lineProfile.userId || "guest_user", lineName: lineProfile.displayName || "ลูกค้าทั่วไป", address, note,
                           paymentMethod,
                           hasSlip: paymentMethod === 'promptpay',
-                          hasDeliveryImage: false
+                          hasDeliveryImage: false,
+                          isDeleted: false
                         });
 
                         if (paymentMethod === 'promptpay' && slipImage) {
@@ -1128,9 +1128,10 @@ export default function App() {
                             const beanText = i.bean ? ` • เมล็ด: ${i.bean}` : '';
                             const teaText = i.teaType ? ` • รสชา: ${i.teaType}` : '';
                             const shotText = i.addShot ? ` • เพิ่มช็อตกาแฟ` : '';
+                            const iceText = i.separateIce ? ` • แยกน้ำแข็ง (+฿5)` : '';
                             const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
-                            return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${pearlText}${toppingsText})`;
+                            return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${iceText}${pearlText}${toppingsText})`;
                           }).join('\n') + 
                           `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
 
@@ -1149,19 +1150,16 @@ export default function App() {
 
                         setCart([]); setSlipImage(''); setSlipStatus('idle'); setAddress(''); setNote(''); setAcceptedTerms(false);
 
-                        if (liffSuccess) {
-                           setView('myOrders');
-                           showAlert("สั่งซื้อสำเร็จ ระบบได้ยิงออร์เดอร์เข้าแชทร้านอัตโนมัติแล้วครับ! 🐮🎉");
-                        } else {
-                           setSuccessModalData({
-                              orderId: orderRef.id,
-                              text: orderSummaryText
-                           });
-                        }
+                        // แสดงบ๊อกซ์แจ้งเตือนสำเร็จเสมอและเตรียมพร้อมยิง API LINE Share Target Picker/ Schema
+                        setSuccessModalData({
+                           orderId: orderRef.id,
+                           text: orderSummaryText,
+                           autoSent: liffSuccess
+                        });
                       } catch (err) {
                         showAlert("เกิดข้อผิดพลาดในการบันทึก: " + (err.message || err));
                       } finally {
-                        isProcessingOrder.current = false; // ปลดล็อค
+                        isProcessingOrder.current = false; 
                         setIsLoading(false);
                       }
                     }}
@@ -1193,7 +1191,7 @@ export default function App() {
                 </div>
              ) : (
                  <div className="space-y-6">
-                   {orders.filter(o => o.userId === lineProfile.userId).map(o => {
+                   {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
                      const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
                      return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
@@ -1208,7 +1206,7 @@ export default function App() {
                           
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
-                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''})
+                                {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
                                 {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
                               </p>
                           ))}</div>
@@ -1237,7 +1235,7 @@ export default function App() {
                           )}
                        </div>
                    )})}
-                   {orders.filter(o => o.userId === lineProfile.userId).length === 0 && (
+                   {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).length === 0 && (
                       <div className="py-20 text-center text-gray-400 font-bold opacity-50">คุณยังไม่เคยสั่งซื้อสินค้าเลยครับ 🐮</div>
                    )}
                  </div>
@@ -1355,6 +1353,32 @@ export default function App() {
                    </div>
                 </div>
 
+                {/* 🌟 6. ปุ่มคำสั่งลบออเดอร์ที่ถูกซ่อนถาวรเพื่อปรับยอดขาย */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 mt-4 space-y-3">
+                   <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
+                   <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร (ยอดคำนวณจะถูกหักออก) ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
+                   <button 
+                      onClick={() => {
+                         showConfirm("คุณต้องการลบข้อมูลออเดอร์ที่ถูกซ่อนไว้ทั้งหมดออกจากคลาวด์ถาวรใช่หรือไม่? การดำเนินการนี้จะทำให้ยอดประวัติรายวัน/รายเดือน/รายปีถูกลดทอนออก และไม่สามารถกู้คืนได้", async () => {
+                            setIsLoading(true);
+                            try {
+                               const hiddenOrders = orders.filter(o => o.isDeleted);
+                               const promises = hiddenOrders.map(o => deleteDoc(doc(db, 'orders', o.id)));
+                               await Promise.all(promises);
+                               showAlert("ทำความสะอาดระบบและลบออเดอร์ที่ซ่อนถาวรเรียบร้อยค่ะ! ✨🐮");
+                            } catch (e) {
+                               showAlert("เกิดข้อผิดพลาดในการลบ: " + e.message);
+                            } finally {
+                               setIsLoading(false);
+                            }
+                         });
+                      }}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                   >
+                      <Trash2 size={14}/> ล้างข้อมูลออเดอร์ที่ถูกซ่อนทั้งหมดถาวร
+                   </button>
+                </div>
+
                 <button onClick={exportToCSV} className="w-full bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 mt-4">
                   <Download size={18} /> Export บัญชีรายรับ (CSV)
                 </button>
@@ -1376,7 +1400,7 @@ export default function App() {
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
-                           <span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{orders.length - orders.indexOf(orders.find(item=>item.id===o.id))}</span>
+                           <span className="bg-primary text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-bold">#{filteredOrders.length - idx}</span>
                            <div>
                               <span className="font-bold text-sm text-primary">{o.lineName}</span>
                               <p className="text-[9px] text-gray-400 font-bold"><Clock size={10} className="inline mr-1"/>{dateStr}</p>
@@ -1393,7 +1417,7 @@ export default function App() {
                       
                       <div className="space-y-1 border-t border-gray-100 pt-3 mb-3">{(o.items || []).map((i, idx) => (
                           <div key={idx} className="text-xs text-gray-600 flex justify-between font-medium">
-                            <span>{i.qty}x {i.name} ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.hasFreePearl && i.addPearl ? '+มุกฟรี':''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
+                            <span>{i.qty}x {i.name} ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? '+มุกฟรี':''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
                             <span className="font-bold">฿{i.price * i.qty}</span>
                           </div>
                       ))}</div>
@@ -1436,7 +1460,23 @@ export default function App() {
 
                       <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
                         {o.hasSlip && <button onClick={() => viewImage(o.id, 'slip')} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>}
-                        <button onClick={() => deleteDoc(doc(db, 'orders', o.id))} className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all border border-red-100"><Trash2 size={16}/></button>
+                        
+                        {/* ปรับปรุงฟังก์ชันถังขยะออเดอร์ ให้ทำ Soft-Delete เพื่อซ่อนประวัติจากคิวของร้านและลูกค้า โดยรักษายอดขายไว้ */}
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                             showConfirm("ซ่อนออร์เดอร์นี้ใช่หรือไม่? (ประวัติของลูกค้าและคิวแอดมินจะถูกซ่อน แต่ระบบจะยังคงรักษายอดสะสม Dashboard ไว้เพื่อทำบัญชีรายรับ)", async () => {
+                                try {
+                                   await updateDoc(doc(db, 'orders', o.id), { isDeleted: true });
+                                } catch (e) {
+                                   showAlert("เกิดข้อผิดพลาด: " + e.message);
+                                }
+                             });
+                          }} 
+                          className="bg-red-50 text-red-500 py-3 rounded-xl flex items-center justify-center active:scale-95 transition-all border border-red-100"
+                        >
+                           <Trash2 size={16}/>
+                        </button>
                       </div>
 
                       <div className="flex gap-2 border-t border-gray-100 pt-3 mt-2">
@@ -1934,7 +1974,7 @@ export default function App() {
                        <input type="text" placeholder="ระบบจะดึงให้อัตโนมัติ..." className="flex-1 p-4 rounded-2xl text-[10px] outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all bg-white text-gray-500 font-bold" value={editAdminLineId} onChange={e => setEditAdminLineId(e.target.value)} readOnly />
                        <button onClick={() => setEditAdminLineId(lineProfile.userId)} className="bg-blue-500 text-white px-3 rounded-2xl text-[10px] font-bold shadow-sm active:scale-95 whitespace-nowrap hover:bg-blue-600 transition-colors">ดึง LINE ID ของฉัน</button>
                     </div>
-                    <p className="text-[9px] text-blue-600 font-bold mt-2 leading-relaxed bg-blue-100/50 p-2 rounded-lg border border-blue-100">* ให้คุณแอดมินเปิดระบบนี้จาก <b>มือถือเครื่องที่จะรับแจ้งเตือน</b> แล้วกดปุ่ม "ดึง LINE ID ของฉัน" จากนั้นกดบันทึกด้านล่างได้เลยครับ</p>
+                    <p className="text-[9px] text-blue-600 font-bold mt-2 leading-relaxed bg-blue-100/50 p-2 rounded-lg border border-red-100">* ให้คุณแอดมินเปิดระบบนี้จาก <b>มือถือเครื่องที่จะรับแจ้งเตือน</b> แล้วกดปุ่ม "ดึง LINE ID ของฉัน" จากนั้นกดบันทึกด้านล่างได้เลยครับ</p>
                   </div>
 
                   <button onClick={async () => {
@@ -1951,7 +1991,16 @@ export default function App() {
       </main>
 
       {/* --- --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- --- */}
-      {optionModalItem && (
+      {optionModalItem && (() => {
+        // คำนวณราคาสรุปแบบ Real-time ภายใน Modal ป้องกันสูตรคำนวณราคาคลาดเคลื่อน
+        const isItemBlendedInPreview = optionModalItem.isOnlyBlend || tempOptions.isBlended;
+        const previewToppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+        const previewShotPrice = tempOptions.addShot ? 20 : 0;
+        // หากลูกค้าเลือก "แยกน้ำแข็ง" (และต้องไม่ใช่เมนูปั่น) จะบวกเพิ่ม 5 บาท
+        const previewIcePrice = (!isItemBlendedInPreview && tempOptions.separateIce) ? 5 : 0;
+        const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewShotPrice + previewIcePrice;
+
+        return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
           
           <div className="bg-white rounded-t-[3.5rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-500 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -2044,9 +2093,26 @@ export default function App() {
                   </div>
                 )}
 
+                {/* ตัวเลือกบริการ "แยกน้ำแข็ง (+฿5)" (แสดงเฉพาะกรณีที่เป็นเมนูแบบเย็น) */}
+                {!isItemBlendedInPreview && (
+                  <div className="space-y-3 animate-in fade-in">
+                     <label className="text-[10px] font-bold block mb-1 text-gray-400 uppercase tracking-widest">การเสิร์ฟ</label>
+                     <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.separateIce ? 'border-accent bg-[var(--theme-bg)] shadow-inner' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.separateIce ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                            {tempOptions.separateIce && <CheckCircle size={14} />}
+                          </div>
+                          <span className={`text-sm font-bold ${tempOptions.separateIce ? 'text-primary' : 'text-gray-500'}`}>แยกน้ำแข็ง (ใส่ถุงซิปล็อค)</span>
+                        </div>
+                        <span className="text-sm font-bold text-accent">+฿5</span>
+                        <input type="checkbox" className="hidden" checked={tempOptions.separateIce || false} onChange={(e) => setTempOptions({...tempOptions, separateIce: e.target.checked})} />
+                     </label>
+                  </div>
+                )}
+
                 {optionModalItem.isOnlyBlend ? (
                   <div className="grid grid-cols-1 gap-5">
-                     <button onClick={() => setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
+                     <button onClick={() => setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
                        <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
                        {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
                      </button>
@@ -2054,7 +2120,7 @@ export default function App() {
                 ) : optionModalItem.allowBlend !== false ? (
                   <div className="grid grid-cols-2 gap-5">
                      <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น</span></button>
-                     <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
+                     <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-5">
@@ -2067,12 +2133,15 @@ export default function App() {
                   const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
                   const shotPrice = tempOptions.addShot ? 20 : 0;
                   const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice;
+                  const icePrice = (!isItemBlended && tempOptions.separateIce) ? 5 : 0;
+                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice + icePrice;
+                  
                   const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
                   const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
                   const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
                   const shotStr = tempOptions.addShot ? `-addShot` : '';
-                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}`;
+                  const iceStr = (!isItemBlended && tempOptions.separateIce) ? `-separateIce` : '';
+                  const cartId = `${optionModalItem.id}-${tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
                   
                   setCart(prev => {
                     const ex = prev.find(i => i.cartId === cartId);
@@ -2081,12 +2150,13 @@ export default function App() {
                   });
                   setOptionModalItem(null);
                 }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
-                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{optionModalItem.price + ((optionModalItem.isOnlyBlend || tempOptions.isBlended) ? getAddedBlendPrice(optionModalItem) : 0) + ((tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0)) + (tempOptions.addShot ? 20 : 0)}
+                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{previewTotalPrice}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
       {deliveryModal && (
@@ -2135,7 +2205,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ (สำหรับลูกค้าทั่วไป) */}
+      {/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ */}
       {showStoreClosedModal && (
         <div className="fixed inset-0 bg-black/80 z-[350] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 border-4 border-red-500 shadow-2xl animate-in zoom-in-95">
@@ -2160,13 +2230,22 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Failsafe Modal สีแดง: สำหรับบังคับให้ลูกค้ากดส่งบิล (กรณีระบบยิงแชทออโต้ไม่ผ่าน) */}
+      {/* 🌟 หน้าจอสั่งซื้อสำเร็จและแชร์บิล LINE (Failsafe Modal) */}
       {successModalData && (
         <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in border-4 border-red-500">
-             <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce"><AlertCircle size={40}/></div>
-             <h3 className="text-2xl font-bold text-red-600 leading-tight">⚠️ ขั้นตอนสุดท้าย!<br/>อย่าเพิ่งปิดหน้าจอนี้</h3>
-             <p className="text-sm text-gray-700 leading-relaxed font-bold">เพื่อยืนยันการสั่งซื้อให้สมบูรณ์<br/><span className="text-red-500 text-base underline">ลูกค้าต้องกด "ส่งบิล" หรือ "คัดลอกข้อความ" ไปให้ที่แชทร้านด้วยนะคะ</span></p>
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in border-4 border-accent">
+             <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+                <CheckCircle size={32}/>
+             </div>
+             <h3 className="text-2xl font-bold text-primary leading-tight">
+                {successModalData.autoSent ? "🐮 สั่งซื้อสำเร็จแล้วค่ะ!" : "⚠️ ขั้นตอนสุดท้าย!"}
+             </h3>
+             <p className="text-xs text-gray-700 leading-relaxed font-bold">
+                {successModalData.autoSent 
+                   ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชทห้องสั่งซื้อของคุณเรียบร้อยแล้วค่ะ แต่ถ้าคุณต้องการแชร์บิลเพิ่มเติมไปยังแอดมินหรือเพื่อนร่วมก๊วน สามารถกดปุ่มแชร์ด้านล่างได้เลยค่ะ" 
+                   : "เพื่อยืนยันออร์เดอร์ให้สมบูรณ์ รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของทางร้านนะคะ 💖"
+                }
+             </p>
              
              <div className="bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300 text-left max-h-32 overflow-y-auto shadow-inner">
                 <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
@@ -2174,17 +2253,35 @@ export default function App() {
 
              <div className="space-y-3">
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
+                     // คัดลอกลง Clipboard สแตนด์บายไว้ก่อนเสมอ
                      navigator.clipboard.writeText(successModalData.text);
-                     if (storeSettings.shopLineUrl) {
-                        window.location.href = storeSettings.shopLineUrl;
+                     
+                     // 1. ตรวจสอบ API LINE Target Picker สำหรับใช้ใน Client LIFF
+                     if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
+                        try {
+                           await window.liff.shareTargetPicker([{
+                              type: "text",
+                              text: successModalData.text
+                           }]);
+                        } catch (err) {
+                           console.log("LIFF Target Picker API Error, using Schema fallback:", err);
+                           window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+                        }
                      } else {
-                        showAlert("คัดลอกข้อความสำเร็จ! รบกวนนำไปวางส่งในแชทร้านที่คุณทักมาด้วยนะคะ 🙏");
+                        // 2. หากเปิดผ่านบราวเซอร์นอก ให้พึ่ง LINE Share Schema
+                        window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+                        // หากมีลิงก์เพื่อนร้าน ให้ดีเลย์เปลี่ยนเส้นทางไปหาทันที
+                        if (storeSettings.shopLineUrl) {
+                           setTimeout(() => {
+                              window.location.href = storeSettings.shopLineUrl;
+                           }, 1200);
+                        }
                      }
                   }}
                   className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
                 >
-                   <Share2 size={20}/> กดคัดลอกบิล แล้วไปที่แชทร้านค้า
+                   <Share2 size={20}/> แชร์บิลไปที่ LINE 💬
                 </button>
                 <button 
                   onClick={() => {
@@ -2193,14 +2290,14 @@ export default function App() {
                   }}
                   className="w-full text-gray-400 py-2 text-xs font-bold mt-2 hover:text-gray-600"
                 >
-                   ส่งเรียบร้อยแล้ว / ปิดหน้าต่างนี้
+                   เสร็จสิ้น / ดูรายการคำสั่งซื้อ
                 </button>
              </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 Failsafe Modal สำหรับยืนยันจัดส่งเมื่อแชร์ผ่าน LIFF ไม่ได้ (ของแอดมิน) */}
+      {/* 🌟 Failsafe Modal สำหรับแอดมินใช้แชร์เมื่อส่งของสำเร็จ */}
       {adminDeliverySuccessData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
@@ -2224,7 +2321,7 @@ export default function App() {
                 <button 
                   onClick={() => {
                      navigator.clipboard.writeText(adminDeliverySuccessData.text);
-                     showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชทลูกค้าได้เลยครับ");
+                     showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแช้ทลูกค้าได้เลยครับ");
                   }}
                   className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
                 >
@@ -2241,7 +2338,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ (กรณีดาวน์โหลดตรงไม่ได้) */}
+      {/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ */}
       {downloadPreview && (
         <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
           <p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
