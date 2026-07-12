@@ -1133,7 +1133,7 @@ export default function App() {
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
                             return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${iceText}${pearlText}${toppingsText})`;
                           }).join('\n') + 
-                          `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 เช็คบิล: ${orderLink}`;
+                          `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
 
                         let liffSuccess = false;
                         if (window.liff && window.liff.isLoggedIn() && window.liff.isInClient()) {
