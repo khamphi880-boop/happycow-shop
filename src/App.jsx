@@ -2289,12 +2289,237 @@ export default function App() {
             )}
 
             <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-
+center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+{isDelivering ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
+{isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันการจัดส่ง</>}
+</button>
+</div>
+</div>
+)}
 
-วิธีรวมไฟล์ (Step-by-Step Guide)
+{/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
+{selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
+<div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
+<img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
+</div>
+)}
 
-1.  คัดลอกส่วนที่ 1: คัดลอกโค้ดทั้งหมดในบล็อกด้านบนนี้ (ตั้งแต่ import React ...
-    ไปจนถึงบรรทัดสุดท้ายที่เป็น <button onClick={handleConfirmDelivery} ... flex
-    items-center justify-)
-2.  คัดลอกส่วนที่ 2: เปิดโค้ดส่วนที่ 2 (Part 2) ที่ได้รับก่อนหน้านี้
-    แล้วนำบรรทัดแรกของ Part 2 (center gap-2 ${deliveryLocation === 'pickup' ...)
-    มาวางต่อท้ายตัวอักษร justify- ของ Part 1 ได้ทันทีเลยครับ
+{/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ */}
+{showStoreClosedModal && (
+<div className="fixed inset-0 bg-black/80 z-[350] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
+<div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 border-4 border-red-500 shadow-2xl animate-in zoom-in-95">
+<div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+<AlertCircle size={48} />
+</div>
+<h3 className="text-2xl font-bold text-red-600 leading-tight">🐮 ขณะนี้ร้านปิดให้บริการ</h3>
+<p className="text-sm text-gray-700 leading-relaxed font-bold">
+ขออภัยลูกค้าทุกท่านด้วยนะคะ <br />
+ขณะนี้ทางร้าน <span className="text-red-500 text-base underline font-extrabold">"ปิดรับออเดอร์ชั่วคราว"</span> ค่ะ <br />
+แต่ลูกค้ายังสามารถเลือกดูเมนูเครื่องดื่มต่างๆ ก่อนได้นะคะ 💖
+</p>
+<div className="space-y-3 pt-2">
+<button 
+ onClick={() => setShowStoreClosedModal(false)}
+ className="w-full bg-primary text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-opacity-95 transition-all"
+>
+ รับทราบ (เข้าชมเมนูเครื่องดื่ม)
+</button>
+</div>
+</div>
+</div>
+)}
+
+{/* 🌟 หน้าจอสั่งซื้อสำเร็จและแชร์บิล LINE (Failsafe Modal) */}
+{successModalData && (
+<div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
+<div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in border-4 border-accent">
+<div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+ <CheckCircle size={32}/>
+</div>
+<h3 className="text-2xl font-bold text-primary leading-tight">
+ {successModalData.autoSent ? "🐮 สั่งซื้อสำเร็จแล้วค่ะ!" : "⚠️ ขั้นตอนสุดท้าย!"}
+</h3>
+<p className="text-xs text-gray-700 leading-relaxed font-bold">
+ {successModalData.autoSent 
+    ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชทห้องสั่งซื้อของคุณเรียบร้อยแล้วค่ะ แต่ถ้าคุณต้องการแชร์บิลเพิ่มเติมไปยังแอดมินหรือเพื่อนร่วมก๊วน สามารถกดปุ่มแชร์ด้านล่างได้เลยค่ะ" 
+    : "เพื่อยืนยันออร์เดอร์ให้สมบูรณ์ รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของทางร้านนะคะ 💖"
+ }
+</p>
+
+<div className="bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300 text-left max-h-32 overflow-y-auto shadow-inner">
+ <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
+</div>
+
+<div className="space-y-3">
+ <button 
+   onClick={async () => {
+      // คัดลอกลง Clipboard สแตนด์บายไว้ก่อนเสมอ
+      navigator.clipboard.writeText(successModalData.text);
+      
+      // 1. ตรวจสอบ API LINE Target Picker สำหรับใช้ใน Client LIFF
+      if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
+         try {
+            await window.liff.shareTargetPicker([{
+               type: "text",
+               text: successModalData.text
+            }]);
+         } catch (err) {
+            console.log("LIFF Target Picker API Error, using Schema fallback:", err);
+            window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+         }
+      } else {
+         // 2. หากเปิดผ่านบราวเซอร์นอก ให้พึ่ง LINE Share Schema
+         window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+         // หากมีลิงก์เพื่อนร้าน ให้ดีเลย์เปลี่ยนเส้นทางไปหาทันที
+         if (storeSettings.shopLineUrl) {
+            setTimeout(() => {
+               window.location.href = storeSettings.shopLineUrl;
+            }, 1200);
+         }
+      }
+   }}
+   className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
+ >
+    <Share2 size={20}/> แชร์บิลไปที่ LINE 💬
+ </button>
+ <button 
+   onClick={() => {
+      setSuccessModalData(null);
+      setView('myOrders');
+   }}
+   className="w-full text-gray-400 py-2 text-xs font-bold mt-2 hover:text-gray-600"
+ >
+    เสร็จสิ้น / ดูรายการคำสั่งซื้อ
+ </button>
+</div>
+</div>
+</div>
+)}
+
+{/* 🌟 Failsafe Modal สำหรับแอดมินใช้แชร์เมื่อส่งของสำเร็จ */}
+{adminDeliverySuccessData && (
+<div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+<div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
+<div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
+<h3 className="text-xl font-bold text-primary">อัปเดตสถานะสำเร็จ! 🛵</h3>
+<p className="text-xs text-gray-500 leading-relaxed">ระบบบันทึกการส่งแล้ว คุณสามารถแชร์ข้อความนี้ให้ลูกค้าผ่านแอป LINE ได้</p>
+
+<div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
+ <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{adminDeliverySuccessData.text}</pre>
+</div>
+
+<div className="space-y-3">
+ <a 
+   href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
+   target="_blank" 
+   rel="noreferrer"
+   className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-green-600"
+ >
+    <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
+ </a>
+ <button 
+   onClick={() => {
+      navigator.clipboard.writeText(adminDeliverySuccessData.text);
+      showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแช้ทลูกค้าได้เลยครับ");
+   }}
+   className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
+ >
+    คัดลอกข้อความ
+ </button>
+ <button 
+   onClick={() => setAdminDeliverySuccessData(null)}
+   className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
+ >
+    ปิดหน้าต่าง
+ </button>
+</div>
+</div>
+</div>
+)}
+
+{/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ */}
+{downloadPreview && (
+<div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
+<p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
+<Download size={18}/> กรุณากดค้างที่รูปภาพด้านล่าง<br/>แล้วเลือก "บันทึกรูปภาพ" (Save Image)
+</p>
+<img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in pointer-events-auto" alt="preview to save" />
+<button onClick={() => setDownloadPreview(null)} className="mt-8 bg-white text-primary px-8 py-4 rounded-2xl font-bold active:scale-95 shadow-md flex items-center gap-2">
+<X size={18}/> ปิดหน้าต่าง
+</button>
+</div>
+)}
+
+{/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
+{showAdminModal && (
+<div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
+<div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
+<h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
+<input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner font-bold text-primary" placeholder="••••••" />
+<div className="flex gap-4">
+<button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
+<button onClick={() => {
+  if(adminPassword === '570402') { 
+     localStorage.setItem('happycow_isAdmin', 'true');
+     setView('admin'); 
+     setAdminTab('orders'); 
+     setShowAdminModal(false); 
+     setAdminPassword(''); 
+  }
+  else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
+}} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 hover:opacity-90">ยืนยัน</button>
+</div>
+</div>
+</div>
+)}
+
+{/* 🌟 Custom Message Box แทนที่ Alert ดั้งเดิม */}
+{msgBox.isOpen && (
+<div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+<div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+{msgBox.type === 'confirm' ? (
+ <AlertCircle size={48} className="text-orange-500 mx-auto mb-5" />
+) : (
+ <CheckCircle size={48} className="text-green-500 mx-auto mb-5" />
+)}
+
+<h3 className="font-bold text-sm text-gray-800 mb-8 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
+
+{msgBox.type === 'confirm' ? (
+<div className="flex gap-3">
+ <button 
+   onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
+   className="flex-1 py-4 bg-gray-100 rounded-2xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+ >
+   ยกเลิก
+ </button>
+ <button 
+   onClick={() => {
+     if (msgBox.onConfirm) msgBox.onConfirm();
+     setMsgBox({ ...msgBox, isOpen: false });
+   }} 
+   className="flex-1 py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:bg-opacity-90 transition-opacity shadow-md"
+ >
+   ยืนยันตกลง
+ </button>
+</div>
+) : (
+<button 
+ onClick={() => {
+   setMsgBox({ ...msgBox, isOpen: false });
+   if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
+       window.liff.closeWindow();
+   }
+ }} 
+ className="w-full py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-opacity shadow-md"
+>
+ รับทราบ
+</button>
+)}
+</div>
+</div>
+)}
+
+</div>
+);
+}
