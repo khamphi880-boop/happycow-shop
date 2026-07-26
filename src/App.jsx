@@ -1,18 +1,3 @@
-Brief Change Log
-
-1.  เพิ่ม Helper Function isWhipOrCreamCheeseItem:
-    สำหรับตรวจสอบว่าสินค้าเป็นเมนูวิปครีม หรือครีมชีส
-    (อ้างอิงจากหมวดหมู่หรือชื่อเมนู)
-2.  ซ่อน/ยกเว้นการเลือกความหวาน (Sweetness): สำหรับเมนูวิปครีมและครีมชีส
-    เพื่อไม่บังคับเลือกและไม่แสดงข้อความระดับความหวานในหน้าสรุปออร์เดอร์
-3.  ซ่อนตัวเลือก "แยกน้ำแข็ง" (Separate Ice):
-    ปรับปรุงส่วนเลือกออปชันโดยซ่อนตัวเลือกแยกน้ำแข็งสำหรับเมนูประเภทวิปครีมและครีมชีส
-4.  รองรับประเภท เย็น / ปั่น / ปกติ (Cold / Blended / Regular):
-    คงไว้ซึ่งระบบให้ลูกค้าสามารถเลือกเสิร์ฟแบบ เย็น / ปั่น / ปกติ
-    ตามที่ตั้งค่าไว้ในรายการเมนู
-5.  ทำ Comment กำกับ // [MODIFIED]: ระบุจุดที่มีการเปลี่ยนแปลงแก้ไขอย่างชัดเจน
-
-Code Block
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -93,7 +78,6 @@ export default function App() {
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
-  // [MODIFIED] เพิ่ม state สำหรับ dynamic sauces จาก Firestore
   const [sauces, setSauces] = useState([]);
   
   const [cart, setCart] = useState(() => {
@@ -168,15 +152,19 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   
-  const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
+  // [MODIFIED] เพิ่ม allowedSweetness เป็น array ระดับความหวานเริ่มต้น
+  const [newMenu, setNewMenu] = useState({ 
+    name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
+    hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, 
+    isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
+    allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%']
+  });
   const [editingMenu, setEditingMenu] = useState(null); 
   const [newTopping, setNewTopping] = useState({ name: '', price: '' }); 
-  // [MODIFIED] State สำหรับจัดการเพิ่มซอสราดแต่งหน้าใหม่ของแอดมิน
   const [newSauce, setNewSauce] = useState({ name: '', price: 0 });
 
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
-  // [MODIFIED] State แสดง/ซ่อนฟอร์มเพิ่มซอสราด
   const [showAddSauceForm, setShowAddSauceForm] = useState(false);
 
   const [successModalData, setSuccessModalData] = useState(null);
@@ -273,7 +261,6 @@ export default function App() {
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
-    // [MODIFIED] เพิ่ม listener ดึงรายการซอสราดจาก Firestore
     const unsubSauces = onSnapshot(collection(db, 'sauces'), snapshot => { 
       const fetchedSauces = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setSauces(fetchedSauces.length > 0 ? fetchedSauces : DEFAULT_SAUCES); 
@@ -459,6 +446,7 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
+  // [MODIFIED] บันทึกระดับความหวานที่อนุญาตลงใน Firestore
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return showAlert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -474,15 +462,22 @@ export default function App() {
         isPromoted: newMenu.isPromoted || false, 
         isSoldOut: newMenu.isSoldOut || false, 
         hasTeaType: newMenu.hasTeaType || false, 
+        allowedSweetness: newMenu.allowedSweetness || SWEETNESS, // [MODIFIED]
         createdAt: Date.now(), 
         sortOrder: Date.now() 
       });
       showAlert('เพิ่มเมนูสำเร็จ! 🐮'); 
-      setNewMenu({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
+      setNewMenu({ 
+        name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
+        hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, 
+        isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
+        allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%'] 
+      });
       setShowAddMenuForm(false);
     } catch (e) { showAlert(e.message); }
   };
 
+  // [MODIFIED] บันทึกการปรับเปลี่ยนระดับความหวานเมื่อแก้ไขเมนู
   const handleUpdateMenu = async () => {
     if (!editingMenu.name || !editingMenu.price || !editingMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     try {
@@ -496,7 +491,8 @@ export default function App() {
         allowBlend: editingMenu.isOnlyBlend ? true : (editingMenu.allowBlend !== false), 
         isPromoted: editingMenu.isPromoted || false, 
         isSoldOut: editingMenu.isSoldOut || false, 
-        hasTeaType: editingMenu.hasTeaType || false 
+        hasTeaType: editingMenu.hasTeaType || false,
+        allowedSweetness: editingMenu.allowedSweetness || SWEETNESS // [MODIFIED]
       });
       showAlert('แก้ไขเมนูสำเร็จ! ✨'); 
       setEditingMenu(null);
@@ -555,7 +551,6 @@ export default function App() {
       });
   };
 
-  // [MODIFIED] ฟังก์ชันเพิ่มซอสราดใหม่ลงใน Firestore
   const handleAddSauce = async () => {
     if (!newSauce.name) return showAlert('กรุณากรอกชื่อซอสราดครับ');
     try { 
@@ -566,7 +561,6 @@ export default function App() {
     } catch (e) { showAlert(e.message); }
   };
 
-  // [MODIFIED] ฟังก์ชันลบซอสราดออกจาก Firestore
   const handleDeleteSauce = (id) => { 
       showConfirm('ลบซอสราดนี้ใช่หรือไม่?', async () => {
           await deleteDoc(doc(db, 'sauces', id));
@@ -707,11 +701,17 @@ export default function App() {
   const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); showAlert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { showAlert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); showAlert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { showAlert("Error: " + e.message); } };
 
+  // [MODIFIED] ตั้งค่าตั้งต้นระดับความหวานตามที่เมนูนั้นอนุญาต
   const openOptionModal = (item) => {
     if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
+
+    // คำนวณหาความหวานเริ่มต้นจากรายการที่อนุญาต
+    const allowed = (item.allowedSweetness && item.allowedSweetness.length > 0) ? item.allowedSweetness : SWEETNESS;
+    const defaultSweetness = allowed.includes('100%') ? '100%' : (allowed[0] || '100%');
+
     setTempOptions({ 
-      sweetness: '100%', isBlended: item.isOnlyBlend ? true : false, addPearl: item.hasFreePearl || false, 
+      sweetness: defaultSweetness, isBlended: item.isOnlyBlend ? true : false, addPearl: item.hasFreePearl || false, 
       selectedToppings: [], selectedSauces: [], bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null, teaType: item.hasTeaType ? 'มัทฉะ' : null, addShot: false,
       separateIce: false
     });
@@ -830,7 +830,7 @@ export default function App() {
         
         @keyframes borderGlowPulse { 
           0% { box-shadow: 0 0 0 0px rgba(245, 158, 11, 0.7); border-color: #f59e0b; }
-          50% { shadow: 0 0 0 8px rgba(245, 158, 11, 0); border-color: #f59e0b; }
+          50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); border-color: #f59e0b; }
           100% { box-shadow: 0 0 0 0px rgba(245, 158, 11, 0); border-color: #f59e0b; }
         }
         .order-highlight { animation: borderGlowPulse 2.5s infinite ease-in-out; border-width: 3px !important; }
@@ -1631,6 +1631,34 @@ export default function App() {
                           {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
+
+                      {/* [MODIFIED] เลือกระดับความหวานที่อนุญาตสำหรับเมนูใหม่ */}
+                      <div className="p-3 bg-white rounded-2xl border border-gray-100 text-left">
+                        <label className="text-[11px] font-bold text-gray-500 block mb-2">ระดับความหวานที่เลือกได้:</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {SWEETNESS.map(level => {
+                            const isSelected = (newMenu.allowedSweetness || SWEETNESS).includes(level);
+                            return (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => {
+                                  const current = newMenu.allowedSweetness || SWEETNESS;
+                                  const updated = isSelected 
+                                    ? current.filter(s => s !== level) 
+                                    : [...current, level];
+                                  setNewMenu({ ...newMenu, allowedSweetness: updated });
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                  isSelected ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-400 border-gray-100'
+                                }`}
+                              >
+                                {level}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                       
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-blue-50 rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-100">
@@ -1695,7 +1723,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* [MODIFIED] ส่วนจัดการซอสราดแต่งหน้าในระบบแอดมิน */}
+                {/* ส่วนจัดการซอสราดแต่งหน้าในระบบแอดมิน */}
                 <div className="bg-amber-50 p-6 rounded-[2.5rem] border-2 border-dashed border-amber-200 shadow-inner relative mt-8">
                   {!showAddSauceForm ? (
                      <button onClick={() => setShowAddSauceForm(true)} className="w-full py-2 text-amber-700 font-bold flex items-center justify-center gap-2 hover:bg-amber-100 rounded-2xl transition-all">
@@ -1804,7 +1832,7 @@ export default function App() {
                                     {item.isSoldOut && <span className="text-[8px] bg-gray-500 text-white px-1.5 py-0.5 rounded-full">หมด</span>}
                                   </p>
                                   <p className="text-xs text-accent font-bold">฿{item.price} {item.hasFreePearl && !item.isSoldOut ? '🌟' : ''}</p>
-                                  <div className="flex gap-1 mt-1">
+                                  <div className="flex gap-1 mt-1 flex-wrap">
                                     {item.isOnlyBlend && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-sm">เฉพาะปั่น</span>}
                                     {item.allowBlend === false && !item.isOnlyBlend && <p className="text-[9px] text-blue-400 bg-blue-50 px-1 rounded-sm">ไม่มีปั่น</p>}
                                     {item.allowTopping === false && <p className="text-[9px] text-red-400 bg-red-50 px-1 rounded-sm">ห้ามเพิ่มท็อปปิ้ง</p>}
@@ -1844,6 +1872,34 @@ export default function App() {
                                   <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-orange-400 border border-transparent font-bold text-gray-600" value={editingMenu.category} onChange={e => setEditingMenu({...editingMenu, category: e.target.value})}>
                                     {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
                                   </select>
+                                </div>
+
+                                {/* [MODIFIED] เลือกระดับความหวานที่อนุญาตขณะแก้ไขเมนู */}
+                                <div className="p-3 bg-white rounded-2xl border border-orange-100 text-left">
+                                  <label className="text-[11px] font-bold text-orange-800 block mb-2">ระดับความหวานที่เลือกได้:</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {SWEETNESS.map(level => {
+                                      const current = editingMenu.allowedSweetness || SWEETNESS;
+                                      const isSelected = current.includes(level);
+                                      return (
+                                        <button
+                                          key={level}
+                                          type="button"
+                                          onClick={() => {
+                                            const updated = isSelected 
+                                              ? current.filter(s => s !== level) 
+                                              : [...current, level];
+                                            setEditingMenu({ ...editingMenu, allowedSweetness: updated });
+                                          }}
+                                          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                            isSelected ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-gray-50 text-gray-400 border-gray-100'
+                                          }`}
+                                        >
+                                          {level}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-2 mt-2">
@@ -2130,10 +2186,8 @@ export default function App() {
       {optionModalItem && (() => {
         const isItemBlendedInPreview = optionModalItem.isOnlyBlend || tempOptions.isBlended;
         const previewToppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-        // [MODIFIED] คำนวณราคาซอสราดที่เลือกเพิ่มเติม (หากซอสมีกำหนดราคา)
         const previewSaucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + Number(s.price || 0), 0);
         const previewShotPrice = tempOptions.addShot ? 20 : 0;
-        // [MODIFIED] เช็คประเภทเมนูว่าเป็นวิปครีมหรือครีมชีสหรือไม่
         const isWhipOrCreamCheese = isWhipOrCreamCheeseItem(optionModalItem);
         const previewIcePrice = (!isItemBlendedInPreview && !isWhipOrCreamCheese && tempOptions.separateIce) ? 5 : 0;
         const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewSaucesPrice + previewShotPrice + previewIcePrice;
@@ -2141,6 +2195,11 @@ export default function App() {
         const isWhipCreamOrSauceItem = isWhipOrCreamCheese || 
                                        optionModalItem.allowSauce !== false ||
                                        (optionModalItem.name && (optionModalItem.name.includes('วิปครีม') || optionModalItem.name.includes('ครีมชีส')));
+
+        // [MODIFIED] คำนวณรายการความหวานที่อนุญาตสำหรับเมนูนี้
+        const allowedSweetnessList = (optionModalItem.allowedSweetness && optionModalItem.allowedSweetness.length > 0) 
+          ? optionModalItem.allowedSweetness 
+          : SWEETNESS;
 
         return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-sm p-4 animate-in fade-in">
@@ -2156,13 +2215,15 @@ export default function App() {
               <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400 hover:bg-gray-100 transition-colors"><X/></button></div>
               <div className="space-y-8">
                 
-                {/* [MODIFIED] เมนูวิปครีมและครีมชีส ไม่จำเป็นต้องระบุความหวาน (ซ่อนตัวเลือกความหวาน) */}
-                {!isWhipOrCreamCheese && (
+                {/* [MODIFIED] แสดงเฉพาะระดับความหวานที่แอดมินเปิดให้เลือกในเมนูนี้เท่านั้น (และซ่อนหากเป็นวิปครีม/ครีมชีส) */}
+                {!isWhipOrCreamCheese && allowedSweetnessList.length > 0 && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
-                    <div className="grid grid-cols-3 gap-2">{SWEETNESS.map(l => (
+                    <div className="grid grid-cols-3 gap-2">
+                      {allowedSweetnessList.map(l => (
                         <button key={l} onClick={() => setTempOptions({...tempOptions, sweetness: l})} className={`py-3.5 rounded-2xl text-[10px] font-bold border transition-all ${tempOptions.sweetness === l ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>{l}</button>
-                    ))}</div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2201,7 +2262,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* [MODIFIED] ส่วนเลือกซอสราดแต่งหน้า Dynamic จาก Firestore */}
+                {/* ส่วนเลือกซอสราดแต่งหน้า Dynamic จาก Firestore */}
                 {isWhipCreamOrSauceItem && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-[#A67C52] uppercase tracking-widest flex items-center gap-1">
@@ -2282,7 +2343,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* [MODIFIED] ซ่อนตัวเลือกแยกน้ำแข็ง สำหรับเมนูวิปครีมและครีมชีส */}
+                {/* ซ่อนตัวเลือกแยกน้ำแข็ง สำหรับเมนูวิปครีมและครีมชีส */}
                 {!isItemBlendedInPreview && !isWhipOrCreamCheese && (
                   <div className="space-y-3 animate-in fade-in">
                      <label className="text-[10px] font-bold block mb-1 text-gray-400 uppercase tracking-widest">การเสิร์ฟ</label>
@@ -2299,7 +2360,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* [MODIFIED] ตัวเลือกประเภทเมนู (เย็น / ปั่น / ปกติ) */}
+                {/* ตัวเลือกประเภทเมนู (เย็น / ปั่น / ปกติ) */}
                 {optionModalItem.isOnlyBlend ? (
                   <div className="grid grid-cols-1 gap-5">
                      <button onClick={() => setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
@@ -2333,283 +2394,285 @@ export default function App() {
                   const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
                   const shotStr = tempOptions.addShot ? `-addShot` : '';
                   const iceStr = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? `-separateIce` : '';
-               // [MODIFIED] คำนวณรหัส ID สินค้าในตะกร้าโดยละเว้นค่าการแยกน้ำแข็งและระดับความหวานสำหรับเมนูกลุ่มวิปครีม/ครีมชีส
-               const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
                   
-               setCart(prev => {
-                 const ex = prev.find(i => i.cartId === cartId);
-                 if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                 return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
-               });
-               setOptionModalItem(null);
-             }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
-               <Plus size={24}/> เพิ่มลงตะกร้า • ฿{previewTotalPrice}
-           </button>
-         </div>
-       </div>
-     </div>
-     );
-   })()}
-
-   {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
-   {deliveryModal && (
-     <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
-       <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
-         <div className="flex justify-between items-center">
-           <h3 className="font-bold text-lg text-primary">ยืนยันการจัดส่งออร์เดอร์</h3>
-           <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
-         </div>
-
-         <div className="space-y-3">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block">จุดส่งสินค้า</label>
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={() => setDeliveryLocation('room')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'room' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Home size={20}/><span className="text-[10px]">หน้าห้อง</span></button>
-              <button onClick={() => setDeliveryLocation('building')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'building' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Building size={20}/><span className="text-[10px]">หน้าตึก</span></button>
-              <button onClick={() => { setDeliveryLocation('pickup'); setDeliveryImage(''); }} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'pickup' ? 'border-green-400 bg-green-50 text-green-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><UserCheck size={20}/><span className="text-[10px]">รับเองที่ร้าน</span></button>
+                  // [MODIFIED] สร้าง cartId โดยอิงตามระดับความหวานที่ลูกค้าเลือก
+                  const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
+                  
+                  setCart(prev => {
+                    const ex = prev.find(i => i.cartId === cartId);
+                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
+                  });
+                  setOptionModalItem(null);
+                }} className="w-full py-6 bg-primary text-white rounded-[2.5rem] font-bold text-lg active:scale-95 flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all">
+                  <Plus size={24}/> เพิ่มลงตะกร้า • ฿{previewTotalPrice}
+              </button>
             </div>
-         </div>
+          </div>
+        </div>
+        );
+      })()}
 
-         {deliveryLocation !== 'pickup' && (
-             <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center animate-in fade-in zoom-in-95">
-                <p className="text-xs font-bold mb-3 text-primary">แนบรูปถ่ายเป็นหลักฐาน</p>
-                <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm active:scale-95 transition-all hover:border-accent hover:text-accent">
-                   <Camera size={16}/> {deliveryImage ? 'เปลี่ยนรูปภาพ' : 'ถ่ายรูป / เลือกจากแกลเลอรี'}
-                   <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                      const file = e.target.files[0];
-                      if(file){ setDeliveryImage(await compressImage(file)); }
-                   }} />
-                </label>
-                {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm border border-gray-100" alt="Delivery Proof"/>}
-             </div>
-         )}
+      {/* Modal ถ่ายรูปยืนยันการส่งของ (แอดมินหลังบ้าน) */}
+      {deliveryModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+          <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-lg text-primary">ยืนยันการจัดส่งออร์เดอร์</h3>
+              <button onClick={() => setDeliveryModal(null)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
+            </div>
 
-         <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-           {isDelivering ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
-           {isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันการจัดส่ง</>}
-         </button>
-       </div>
-     </div>
-   )}
+            <div className="space-y-3">
+               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block">จุดส่งสินค้า</label>
+               <div className="grid grid-cols-3 gap-2">
+                 <button onClick={() => setDeliveryLocation('room')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'room' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Home size={20}/><span className="text-[10px]">หน้าห้อง</span></button>
+                 <button onClick={() => setDeliveryLocation('building')} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'building' ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><Building size={20}/><span className="text-[10px]">หน้าตึก</span></button>
+                 <button onClick={() => { setDeliveryLocation('pickup'); setDeliveryImage(''); }} className={`py-3 rounded-2xl border-2 font-bold flex flex-col items-center gap-2 transition-all ${deliveryLocation === 'pickup' ? 'border-green-400 bg-green-50 text-green-600 shadow-sm' : 'border-gray-50 text-gray-400 bg-white'}`}><UserCheck size={20}/><span className="text-[10px]">รับเองที่ร้าน</span></button>
+               </div>
+            </div>
 
-   {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
-   {selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
-     <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
-       <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
-     </div>
-   )}
+            {deliveryLocation !== 'pickup' && (
+                <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200 text-center animate-in fade-in zoom-in-95">
+                   <p className="text-xs font-bold mb-3 text-primary">แนบรูปถ่ายเป็นหลักฐาน</p>
+                   <label className="cursor-pointer bg-white border border-gray-200 text-gray-500 py-3 px-6 rounded-xl text-[11px] font-bold inline-flex items-center gap-2 shadow-sm active:scale-95 transition-all hover:border-accent hover:text-accent">
+                      <Camera size={16}/> {deliveryImage ? 'เปลี่ยนรูปภาพ' : 'ถ่ายรูป / เลือกจากแกลเลอรี'}
+                      <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                         const file = e.target.files[0];
+                         if(file){ setDeliveryImage(await compressImage(file)); }
+                      }} />
+                   </label>
+                   {deliveryImage && <img src={deliveryImage} className="mt-4 h-32 w-full object-cover rounded-xl shadow-sm border border-gray-100" alt="Delivery Proof"/>}
+                </div>
+            )}
 
-   {/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ */}
-   {showStoreClosedModal && (
-     <div className="fixed inset-0 bg-black/80 z-[350] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
-       <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 border-4 border-red-500 shadow-2xl animate-in zoom-in-95">
-         <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
-           <AlertCircle size={48} />
-         </div>
-         <h3 className="text-2xl font-bold text-red-600 leading-tight">🐮 ขณะนี้ร้านปิดให้บริการ</h3>
-         <p className="text-sm text-gray-700 leading-relaxed font-bold">
-           ขออภัยลูกค้าทุกท่านด้วยนะคะ <br />
-           ขณะนี้ทางร้าน <span className="text-red-500 text-base underline font-extrabold">"ปิดรับออเดอร์ชั่วคราว"</span> ค่ะ <br />
-           แต่ลูกค้ายังสามารถเลือกดูเมนูเครื่องดื่มต่างๆ ก่อนได้นะคะ 💖
-         </p>
-         <div className="space-y-3 pt-2">
-           <button 
-             onClick={() => setShowStoreClosedModal(false)}
-             className="w-full bg-primary text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-opacity-95 transition-all"
-           >
-             รับทราบ (เข้าชมเมนูเครื่องดื่ม)
-           </button>
-         </div>
-       </div>
-     </div>
-   )}
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+              {isDelivering ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
+              {isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันการจัดส่ง</>}
+            </button>
+          </div>
+        </div>
+      )}
 
-   {/* 🌟 หน้าจอสั่งซื้อสำเร็จและแชร์บิล LINE (Failsafe Modal) */}
-   {successModalData && (
-     <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
-       <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in border-4 border-accent">
-         <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
-           <CheckCircle size={32}/>
-         </div>
-         <h3 className="text-2xl font-bold text-primary leading-tight">
-           {successModalData.autoSent ? "🐮 สั่งซื้อสำเร็จแล้วค่ะ!" : "⚠️ ขั้นตอนสุดท้าย!"}
-         </h3>
-         <p className="text-xs text-gray-700 leading-relaxed font-bold">
-           {successModalData.autoSent 
-             ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชทห้องสั่งซื้อของคุณเรียบร้อยแล้วค่ะ แต่ถ้าคุณต้องการแชร์บิลเพิ่มเติมไปยังแอดมินหรือเพื่อนร่วมก๊วน สามารถกดปุ่มแชร์ด้านล่างได้เลยค่ะ" 
-             : "เพื่อยืนยันออร์เดอร์ให้สมบูรณ์ รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของทางร้านนะคะ 💖"
-           }
-         </p>
+      {/* Modal ดูรูปภาพสลิปแบบขยายใหญ่ */}
+      {selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
+        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
+          <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in" alt="slip preview" />
+        </div>
+      )}
 
-         <div className="bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300 text-left max-h-32 overflow-y-auto shadow-inner">
-           <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
-         </div>
+      {/* 🌟 Pop Up แจ้งเตือนร้านปิดตัวใหญ่พิเศษเมื่อเข้าเว็บ */}
+      {showStoreClosedModal && (
+        <div className="fixed inset-0 bg-black/80 z-[350] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 border-4 border-red-500 shadow-2xl animate-in zoom-in-95">
+            <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+              <AlertCircle size={48} />
+            </div>
+            <h3 className="text-2xl font-bold text-red-600 leading-tight">🐮 ขณะนี้ร้านปิดให้บริการ</h3>
+            <p className="text-sm text-gray-700 leading-relaxed font-bold">
+              ขออภัยลูกค้าทุกท่านด้วยนะคะ <br />
+              ขณะนี้ทางร้าน <span className="text-red-500 text-base underline font-extrabold">"ปิดรับออเดอร์ชั่วคราว"</span> ค่ะ <br />
+              แต่ลูกค้ายังสามารถเลือกดูเมนูเครื่องดื่มต่างๆ ก่อนได้นะคะ 💖
+            </p>
+            <div className="space-y-3 pt-2">
+              <button 
+                onClick={() => setShowStoreClosedModal(false)}
+                className="w-full bg-primary text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-opacity-95 transition-all"
+              >
+                รับทราบ (เข้าชมเมนูเครื่องดื่ม)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-         <div className="space-y-3">
-           <button 
-             onClick={async () => {
-               navigator.clipboard.writeText(successModalData.text);
-               
-               if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
-                 try {
-                   await window.liff.shareTargetPicker([{
-                     type: "text",
-                     text: successModalData.text
-                   }]);
-                 } catch (err) {
-                   console.log("LIFF Target Picker API Error, using Schema fallback:", err);
-                   window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
-                 }
-               } else {
-                 window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
-                 if (storeSettings.shopLineUrl) {
-                   setTimeout(() => {
-                     window.location.href = storeSettings.shopLineUrl;
-                   }, 1200);
-                 }
-               }
-             }}
-             className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
-           >
-             <Share2 size={20}/> แชร์บิลไปที่ LINE 💬
-           </button>
-           <button 
-             onClick={() => {
-               setSuccessModalData(null);
-               setView('myOrders');
-             }}
-             className="w-full text-gray-400 py-2 text-xs font-bold mt-2 hover:text-gray-600"
-           >
-             เสร็จสิ้น / ดูรายการคำสั่งซื้อ
-           </button>
-         </div>
-       </div>
-     </div>
-   )}
+      {/* 🌟 หน้าจอสั่งซื้อสำเร็จและแชร์บิล LINE (Failsafe Modal) */}
+      {successModalData && (
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in border-4 border-accent">
+            <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+              <CheckCircle size={32}/>
+            </div>
+            <h3 className="text-2xl font-bold text-primary leading-tight">
+              {successModalData.autoSent ? "🐮 สั่งซื้อสำเร็จแล้วค่ะ!" : "⚠️ ขั้นตอนสุดท้าย!"}
+            </h3>
+            <p className="text-xs text-gray-700 leading-relaxed font-bold">
+              {successModalData.autoSent 
+                ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชทห้องสั่งซื้อของคุณเรียบร้อยแล้วค่ะ แต่ถ้าคุณต้องการแชร์บิลเพิ่มเติมไปยังแอดมินหรือเพื่อนร่วมก๊วน สามารถกดปุ่มแชร์ด้านล่างได้เลยค่ะ" 
+                : "เพื่อยืนยันออร์เดอร์ให้สมบูรณ์ รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของทางร้านนะคะ 💖"
+              }
+            </p>
 
-   {/* 🌟 Failsafe Modal สำหรับแอดมินใช้แชร์เมื่อส่งของสำเร็จ */}
-   {adminDeliverySuccessData && (
-     <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
-       <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
-         <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
-         <h3 className="text-xl font-bold text-primary">อัปเดตสถานะสำเร็จ! 🛵</h3>
-         <p className="text-xs text-gray-500 leading-relaxed">ระบบบันทึกการส่งแล้ว คุณสามารถแชร์ข้อความนี้ให้ลูกค้าผ่านแอป LINE ได้</p>
+            <div className="bg-gray-50 p-4 rounded-2xl border border-dashed border-gray-300 text-left max-h-32 overflow-y-auto shadow-inner">
+              <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{successModalData.text}</pre>
+            </div>
 
-         <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
-           <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{adminDeliverySuccessData.text}</pre>
-         </div>
+            <div className="space-y-3">
+              <button 
+                onClick={async () => {
+                  navigator.clipboard.writeText(successModalData.text);
+                  
+                  if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
+                    try {
+                      await window.liff.shareTargetPicker([{
+                        type: "text",
+                        text: successModalData.text
+                      }]);
+                    } catch (err) {
+                      console.log("LIFF Target Picker API Error, using Schema fallback:", err);
+                      window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+                    }
+                  } else {
+                    window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
+                    if (storeSettings.shopLineUrl) {
+                      setTimeout(() => {
+                        window.location.href = storeSettings.shopLineUrl;
+                      }, 1200);
+                    }
+                  }
+                }}
+                className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-base font-bold shadow-lg active:scale-95 hover:bg-green-600 transition-all"
+              >
+                <Share2 size={20}/> แชร์บิลไปที่ LINE 💬
+              </button>
+              <button 
+                onClick={() => {
+                  setSuccessModalData(null);
+                  setView('myOrders');
+                }}
+                className="w-full text-gray-400 py-2 text-xs font-bold mt-2 hover:text-gray-600"
+              >
+                เสร็จสิ้น / ดูรายการคำสั่งซื้อ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-         <div className="space-y-3">
-           <a 
-             href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
-             target="_blank" 
-             rel="noreferrer"
-             className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-green-600"
-           >
-             <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
-           </a>
-           <button 
-             onClick={() => {
-               navigator.clipboard.writeText(adminDeliverySuccessData.text);
-               showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแช้ทลูกค้าได้เลยครับ");
-             }}
-             className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
-           >
-             คัดลอกข้อความ
-           </button>
-           <button 
-             onClick={() => setAdminDeliverySuccessData(null)}
-             className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
-           >
-             ปิดหน้าต่าง
-           </button>
-         </div>
-       </div>
-     </div>
-   )}
+      {/* 🌟 Failsafe Modal สำหรับแอดมินใช้แชร์เมื่อส่งของสำเร็จ */}
+      {adminDeliverySuccessData && (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
+            <h3 className="text-xl font-bold text-primary">อัปเดตสถานะสำเร็จ! 🛵</h3>
+            <p className="text-xs text-gray-500 leading-relaxed">ระบบบันทึกการส่งแล้ว คุณสามารถแชร์ข้อความนี้ให้ลูกค้าผ่านแอป LINE ได้</p>
 
-   {/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ */}
-   {downloadPreview && (
-     <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
-       <p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
-         <Download size={18}/> กรุณากดค้างที่รูปภาพด้านล่าง<br/>แล้วเลือก "บันทึกรูปภาพ" (Save Image)
-       </p>
-       <img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in pointer-events-auto" alt="preview to save" />
-       <button onClick={() => setDownloadPreview(null)} className="mt-8 bg-white text-primary px-8 py-4 rounded-2xl font-bold active:scale-95 shadow-md flex items-center gap-2">
-         <X size={18}/> ปิดหน้าต่าง
-       </button>
-     </div>
-   )}
+            <div className="bg-gray-50 p-4 rounded-2xl border border-dashed text-left max-h-40 overflow-y-auto">
+              <pre className="text-[10px] text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{adminDeliverySuccessData.text}</pre>
+            </div>
 
-   {/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
-   {showAdminModal && (
-     <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
-       <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
-         <h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
-         <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner font-bold text-primary" placeholder="••••••" />
-         <div className="flex gap-4">
-           <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
-           <button onClick={() => {
-             if(adminPassword === '570402') { 
-               localStorage.setItem('happycow_isAdmin', 'true');
-               setView('admin'); 
-               setAdminTab('orders'); 
-               setShowAdminModal(false); 
-               setAdminPassword(''); 
-             }
-             else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
-           }} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 hover:opacity-90">ยืนยัน</button>
-         </div>
-       </div>
-     </div>
-   )}
+            <div className="space-y-3">
+              <a 
+                href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-4 rounded-full text-sm font-bold shadow-md active:scale-95 hover:bg-green-600"
+              >
+                <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
+              </a>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(adminDeliverySuccessData.text);
+                  showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแช้ทลูกค้าได้เลยครับ");
+                }}
+                className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
+              >
+                คัดลอกข้อความ
+              </button>
+              <button 
+                onClick={() => setAdminDeliverySuccessData(null)}
+                className="w-full text-gray-400 py-2 text-xs font-bold mt-2"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-   {/* 🌟 Custom Message Box แทนที่ Alert ดั้งเดิม */}
-   {msgBox.isOpen && (
-     <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
-       <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
-         {msgBox.type === 'confirm' ? (
-           <AlertCircle size={48} className="text-orange-500 mx-auto mb-5" />
-         ) : (
-           <CheckCircle size={48} className="text-green-500 mx-auto mb-5" />
-         )}
+      {/* 🌟 Modal แผนสำรองสำหรับให้แอดมินกดค้างเพื่อบันทึกรูปภาพ */}
+      {downloadPreview && (
+        <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
+          <p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
+            <Download size={18}/> กรุณากดค้างที่รูปภาพด้านล่าง<br/>แล้วเลือก "บันทึกรูปภาพ" (Save Image)
+          </p>
+          <img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in pointer-events-auto" alt="preview to save" />
+          <button onClick={() => setDownloadPreview(null)} className="mt-8 bg-white text-primary px-8 py-4 rounded-2xl font-bold active:scale-95 shadow-md flex items-center gap-2">
+            <X size={18}/> ปิดหน้าต่าง
+          </button>
+        </div>
+      )}
 
-         <h3 className="font-bold text-sm text-gray-800 mb-8 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
+      {/* Modal แอดมินล็อกอินควบคุมระบบหลังบ้าน */}
+      {showAdminModal && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl text-center">
+            <h3 className="font-bold text-xl mb-8 text-primary">แอดมินเข้าสู่ระบบ</h3>
+            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-gray-50 border-2 border-gray-100 p-5 rounded-2xl mb-8 text-center text-3xl outline-none tracking-[0.5em] focus:border-accent focus:bg-white transition-all shadow-inner font-bold text-primary" placeholder="••••••" />
+            <div className="flex gap-4">
+              <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-4 bg-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-200 transition-colors">ยกเลิก</button>
+              <button onClick={() => {
+                if(adminPassword === '570402') { 
+                  localStorage.setItem('happycow_isAdmin', 'true');
+                  setView('admin'); 
+                  setAdminTab('orders'); 
+                  setShowAdminModal(false); 
+                  setAdminPassword(''); 
+                }
+                else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
+              }} className="flex-1 py-4 bg-primary text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 hover:opacity-90">ยืนยัน</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-         {msgBox.type === 'confirm' ? (
-           <div className="flex gap-3">
-             <button 
-               onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
-               className="flex-1 py-4 bg-gray-100 rounded-2xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
-             >
-               ยกเลิก
-             </button>
-             <button 
-               onClick={() => {
-                 if (msgBox.onConfirm) msgBox.onConfirm();
-                 setMsgBox({ ...msgBox, isOpen: false });
-               }} 
-               className="flex-1 py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:bg-opacity-90 transition-opacity shadow-md"
-             >
-               ยืนยันตกลง
-             </button>
-           </div>
-         ) : (
-           <button 
-             onClick={() => {
-               setMsgBox({ ...msgBox, isOpen: false });
-               if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
-                   window.liff.closeWindow();
-               }
-             }} 
-             className="w-full py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-opacity shadow-md"
-           >
-             รับทราบ
-           </button>
-         )}
-       </div>
-     </div>
-   )}
+      {/* 🌟 Custom Message Box แทนที่ Alert ดั้งเดิม */}
+      {msgBox.isOpen && (
+        <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-[2rem] w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+            {msgBox.type === 'confirm' ? (
+              <AlertCircle size={48} className="text-orange-500 mx-auto mb-5" />
+            ) : (
+              <CheckCircle size={48} className="text-green-500 mx-auto mb-5" />
+            )}
 
- </div>
-);
+            <h3 className="font-bold text-sm text-gray-800 mb-8 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
+
+            {msgBox.type === 'confirm' ? (
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
+                  className="flex-1 py-4 bg-gray-100 rounded-2xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button 
+                  onClick={() => {
+                    if (msgBox.onConfirm) msgBox.onConfirm();
+                    setMsgBox({ ...msgBox, isOpen: false });
+                  }} 
+                  className="flex-1 py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:bg-opacity-90 transition-opacity shadow-md"
+                >
+                  ยืนยันตกลง
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  setMsgBox({ ...msgBox, isOpen: false });
+                  if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
+                      window.liff.closeWindow();
+                  }
+                }} 
+                className="w-full py-4 bg-primary text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-opacity shadow-md"
+              >
+                รับทราบ
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
 }
+
