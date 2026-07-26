@@ -28,14 +28,14 @@ const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'ก
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
 const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
-// [MODIFIED] SAUCES - ตั้งค่าเริ่มต้นสำหรับ fallback หากระบบยังไม่มีข้อมูลซอสใน Firestore
+// [MODIFIED] SAUCES - รายการซอสเริ่มต้นสำหรับปุ่มนำเข้าเข้าสู่ฐานข้อมูล Firestore
 const DEFAULT_SAUCES = [
-  { id: 'sauce_choco', name: 'ซอสช็อกโกแลต', price: 0 },
-  { id: 'sauce_caramel', name: 'ซอสคาราเมล', price: 0 },
-  { id: 'sauce_strawberry', name: 'ซอสสตรอว์เบอร์รี่', price: 0 },
-  { id: 'sauce_condensed', name: 'นมข้นหวาน', price: 0 },
-  { id: 'sauce_matcha', name: 'ซอสมัทฉะ', price: 0 },
-  { id: 'sauce_thai_tea', name: 'ซอสชาไทย', price: 0 }
+  { name: 'ซอสช็อกโกแลต', price: 0 },
+  { name: 'ซอสคาราเมล', price: 0 },
+  { name: 'ซอสสตรอว์เบอร์รี่', price: 0 },
+  { name: 'นมข้นหวาน', price: 0 },
+  { name: 'ซอสมัทฉะ', price: 0 },
+  { name: 'ซอสชาไทย', price: 0 }
 ];
 
 const THEMES = {
@@ -152,10 +152,10 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   
-  // [MODIFIED] เพิ่ม allowedSweetness เป็น array ระดับความหวานเริ่มต้น
+  // [MODIFIED] เปลี่ยน allowSauce เป็น false โดยเริ่มต้นสำหรับเมนูทั่วไป
   const [newMenu, setNewMenu] = useState({ 
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
-    hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, 
+    hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
     isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
     allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%']
   });
@@ -193,7 +193,7 @@ export default function App() {
   const previousOrderCount = useRef(0);
   const isProcessingOrder = useRef(false);
 
-  // [MODIFIED] Helper Function ตรวจสอบว่าเมนูนี้เป็นวิปครีมหรือครีมชีสหรือไม่
+  // Helper Function ตรวจสอบว่าเมนูนี้เป็นวิปครีมหรือครีมชีสหรือไม่
   const isWhipOrCreamCheeseItem = (item) => {
     if (!item) return false;
     return item.category === 'วิปครีมและครีมชีส' || 
@@ -261,9 +261,10 @@ export default function App() {
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
+    // [MODIFIED] ดึงข้อมูลรายการซอสราดทั้งหมดจาก Firestore
     const unsubSauces = onSnapshot(collection(db, 'sauces'), snapshot => { 
       const fetchedSauces = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setSauces(fetchedSauces.length > 0 ? fetchedSauces : DEFAULT_SAUCES); 
+      setSauces(fetchedSauces); 
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
@@ -446,7 +447,6 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // [MODIFIED] บันทึกระดับความหวานที่อนุญาตลงใน Firestore
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return showAlert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -456,20 +456,20 @@ export default function App() {
         price: Number(newMenu.price), 
         blendPrice: Number(newMenu.blendPrice), 
         allowTopping: newMenu.allowTopping !== false, 
-        allowSauce: newMenu.allowSauce !== false,
+        allowSauce: newMenu.allowSauce || false,
         isOnlyBlend: newMenu.isOnlyBlend || false, 
         allowBlend: newMenu.isOnlyBlend ? true : (newMenu.allowBlend !== false), 
         isPromoted: newMenu.isPromoted || false, 
         isSoldOut: newMenu.isSoldOut || false, 
         hasTeaType: newMenu.hasTeaType || false, 
-        allowedSweetness: newMenu.allowedSweetness || SWEETNESS, // [MODIFIED]
+        allowedSweetness: newMenu.allowedSweetness || SWEETNESS,
         createdAt: Date.now(), 
         sortOrder: Date.now() 
       });
       showAlert('เพิ่มเมนูสำเร็จ! 🐮'); 
       setNewMenu({ 
         name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
-        hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, 
+        hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
         isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
         allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%'] 
       });
@@ -477,7 +477,6 @@ export default function App() {
     } catch (e) { showAlert(e.message); }
   };
 
-  // [MODIFIED] บันทึกการปรับเปลี่ยนระดับความหวานเมื่อแก้ไขเมนู
   const handleUpdateMenu = async () => {
     if (!editingMenu.name || !editingMenu.price || !editingMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     try {
@@ -486,13 +485,13 @@ export default function App() {
         price: Number(editingMenu.price), 
         blendPrice: Number(editingMenu.blendPrice), 
         allowTopping: editingMenu.allowTopping !== false, 
-        allowSauce: editingMenu.allowSauce !== false,
+        allowSauce: editingMenu.allowSauce || false,
         isOnlyBlend: editingMenu.isOnlyBlend || false, 
         allowBlend: editingMenu.isOnlyBlend ? true : (editingMenu.allowBlend !== false), 
         isPromoted: editingMenu.isPromoted || false, 
         isSoldOut: editingMenu.isSoldOut || false, 
         hasTeaType: editingMenu.hasTeaType || false,
-        allowedSweetness: editingMenu.allowedSweetness || SWEETNESS // [MODIFIED]
+        allowedSweetness: editingMenu.allowedSweetness || SWEETNESS
       });
       showAlert('แก้ไขเมนูสำเร็จ! ✨'); 
       setEditingMenu(null);
@@ -551,20 +550,42 @@ export default function App() {
       });
   };
 
+  // [MODIFIED] ฟังก์ชันเพิ่มซอสราดใหม่ลงใน Firestore โดยแอดมิน
   const handleAddSauce = async () => {
     if (!newSauce.name) return showAlert('กรุณากรอกชื่อซอสราดครับ');
     try { 
-      await addDoc(collection(db, 'sauces'), { name: newSauce.name, price: Number(newSauce.price || 0) }); 
+      await addDoc(collection(db, 'sauces'), { name: newSauce.name.trim(), price: Number(newSauce.price || 0) }); 
       showAlert('เพิ่มซอสราดแต่งหน้าสำเร็จ! ✨'); 
       setNewSauce({ name: '', price: 0 }); 
       setShowAddSauceForm(false); 
     } catch (e) { showAlert(e.message); }
   };
 
+  // [MODIFIED] ฟังก์ชันลบซอสราดออกจาก Firestore
   const handleDeleteSauce = (id) => { 
       showConfirm('ลบซอสราดนี้ใช่หรือไม่?', async () => {
-          await deleteDoc(doc(db, 'sauces', id));
+          try {
+            await deleteDoc(doc(db, 'sauces', id));
+            showAlert('ลบซอสราดเรียบร้อยค่ะ');
+          } catch (e) {
+            showAlert('เกิดข้อผิดพลาด: ' + e.message);
+          }
       });
+  };
+
+  // [MODIFIED] ฟังก์ชันนำเข้าซอสเริ่มต้นเข้า Firestore กรณีระบบยังไม่มีซอส
+  const handleSeedDefaultSauces = async () => {
+    try {
+      setIsLoading(true);
+      for (const sauce of DEFAULT_SAUCES) {
+        await addDoc(collection(db, 'sauces'), { name: sauce.name, price: sauce.price });
+      }
+      showAlert('นำเข้าซอสเริ่มต้นเข้าสู่ระบบเรียบร้อยแล้วค่ะ! ✨');
+    } catch (e) {
+      showAlert('เกิดข้อผิดพลาดในการนำเข้าซอส: ' + e.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSearchSubmit = async (term) => {
@@ -701,12 +722,10 @@ export default function App() {
   const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); showAlert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { showAlert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); showAlert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { showAlert("Error: " + e.message); } };
 
-  // [MODIFIED] ตั้งค่าตั้งต้นระดับความหวานตามที่เมนูนั้นอนุญาต
   const openOptionModal = (item) => {
     if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
 
-    // คำนวณหาความหวานเริ่มต้นจากรายการที่อนุญาต
     const allowed = (item.allowedSweetness && item.allowedSweetness.length > 0) ? item.allowedSweetness : SWEETNESS;
     const defaultSweetness = allowed.includes('100%') ? '100%' : (allowed[0] || '100%');
 
@@ -719,7 +738,6 @@ export default function App() {
   };
 
   const getBlendText = (item) => {
-    // [MODIFIED] ไม่แสดงคำว่า เย็น/ปั่น สำหรับเมนูวิปครีมและครีมชีส
     if (isWhipOrCreamCheeseItem(item)) return ''; 
     if (item.isOnlyBlend) return 'ปั่น';
     if (item.allowBlend === false) return 'เย็น/ปกติ';
@@ -1067,7 +1085,6 @@ export default function App() {
                    <div className="flex-1 font-bold text-sm text-primary">
                      {i.qty}x {i.name} <br/>
                      <span className="text-gray-400 text-[10px] uppercase">
-                       {/* [MODIFIED] ซ่อนระดับความหวานหากเป็นเมนูวิปครีมหรือครีมชีส */}
                        ({getBlendText(i)}{isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง (+฿5)' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
                        {i.selectedSauces?.length > 0 && ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
                        {i.selectedToppings?.length > 0 && ` • เพิ่ม: ${i.selectedToppings.map(t=>t.name).join(', ')}`}
@@ -1222,7 +1239,6 @@ export default function App() {
                             const saucesText = i.selectedSauces?.length > 0 ? ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}` : '';
                             const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
-                            // [MODIFIED] ซ่อนการระบุความหวานในข้อความสรุปออร์เดอร์หากเป็นเมนูวิปครีม/ครีมชีส
                             const sweetText = isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`;
                             return `- ${i.qty}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
                           }).join('\n') + 
@@ -1298,7 +1314,6 @@ export default function App() {
                           
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
-                                {/* [MODIFIED] ซ่อนระดับความหวานในหน้าประวัติสั่งซื้อสำหรับวิปครีม/ครีมชีส */}
                                 {item.qty}x {item.name} ({getBlendText(item)}{isWhipOrCreamCheeseItem(item) ? '' : ` • หวาน ${item.sweetness}`}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
                                 {item.selectedSauces?.length > 0 && ` + ราดซอส: ${item.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
                                 {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
@@ -1447,7 +1462,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 6. ปุ่มคำสั่งลบออเดอร์ที่ถูกซ่อนถาวรเพื่อปรับยอดขาย */}
+                {/* 🌟 ปุ่มคำสั่งลบออเดอร์ที่ถูกซ่อนถาวรเพื่อปรับยอดขาย */}
                 <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 mt-4 space-y-3">
                    <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
                    <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร (ยอดคำนวณจะถูกหักออก) ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
@@ -1511,7 +1526,6 @@ export default function App() {
                       
                       <div className="space-y-1 border-t border-gray-100 pt-3 mb-3">{(o.items || []).map((i, idx) => (
                           <div key={idx} className="text-xs text-gray-600 flex justify-between font-medium">
-                            {/* [MODIFIED] ซ่อนการแสดงความหวานในรายการสินค้าแอดมินสำหรับวิปครีมและครีมชีส */}
                             <span>{i.qty}x {i.name} ({getBlendText(i)}{isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? ' +มุกฟรี':''}{i.selectedSauces?.length > 0 ? ` + ราดซอส:${i.selectedSauces.map(s=>typeof s==='object'?s.name:s).join(',')}` : ''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
                             <span className="font-bold">฿{i.price * i.qty}</span>
                           </div>
@@ -1634,7 +1648,6 @@ export default function App() {
                         </select>
                       </div>
 
-                      {/* [MODIFIED] เลือกระดับความหวานที่อนุญาตสำหรับเมนูใหม่ */}
                       <div className="p-3 bg-white rounded-2xl border border-gray-100 text-left">
                         <label className="text-[11px] font-bold text-gray-500 block mb-2">ระดับความหวานที่เลือกได้:</label>
                         <div className="flex flex-wrap gap-1.5">
@@ -1676,11 +1689,6 @@ export default function App() {
                         <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-gray-50 cursor-pointer transition-all hover:bg-gray-50">
                           <input type="checkbox" checked={newMenu.allowTopping !== false} onChange={e => setNewMenu({...newMenu, allowTopping: e.target.checked})} className="w-4 h-4 accent-[#A67C52] cursor-pointer" />
                           <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
-                        </label>
-
-                        <label className="flex items-center justify-center gap-1 p-3 bg-amber-50 rounded-2xl shadow-sm border border-amber-100 cursor-pointer transition-all hover:bg-amber-100">
-                          <input type="checkbox" checked={newMenu.allowSauce !== false} onChange={e => setNewMenu({...newMenu, allowSauce: e.target.checked})} className="w-4 h-4 accent-amber-600 cursor-pointer" />
-                          <span className="text-[10px] font-bold text-amber-800">ราดซอสได้</span>
                         </label>
 
                         <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-orange-50 cursor-pointer transition-all hover:bg-orange-50">
@@ -1725,37 +1733,62 @@ export default function App() {
                   )}
                 </div>
 
-                {/* ส่วนจัดการซอสราดแต่งหน้าในระบบแอดมิน */}
+                {/* [MODIFIED] ส่วนบริหารจัดการซอสราดแต่งหน้าในระบบแอดมิน */}
                 <div className="bg-amber-50 p-6 rounded-[2.5rem] border-2 border-dashed border-amber-200 shadow-inner relative mt-8">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-bold text-sm text-amber-900 uppercase tracking-widest flex items-center justify-center gap-2">
+                      ✨ บริหารจัดการซอสราดแต่งหน้า (สำหรับวิปครีม/ครีมชีส)
+                    </h3>
+                  </div>
+
                   {!showAddSauceForm ? (
-                     <button onClick={() => setShowAddSauceForm(true)} className="w-full py-2 text-amber-700 font-bold flex items-center justify-center gap-2 hover:bg-amber-100 rounded-2xl transition-all">
-                        <Plus size={18}/> คลิกเพื่อเพิ่มซอสราดแต่งหน้า (สำหรับวิปครีม/ครีมชีส)
-                     </button>
+                     <div className="space-y-2">
+                       <button onClick={() => setShowAddSauceForm(true)} className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs">
+                          <Plus size={18}/> เพิ่มซอสราดแต่งหน้าใหม่เข้าสู่ระบบ
+                       </button>
+                       {sauces.length === 0 && (
+                         <button onClick={handleSeedDefaultSauces} className="w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold rounded-xl transition-all text-xs border border-amber-300 flex items-center justify-center gap-2">
+                            ⚡ นำเข้าซอสเริ่มต้น (ช็อกโกแลต, คาราเมล, สตรอว์เบอร์รี่ ฯลฯ)
+                         </button>
+                       )}
+                     </div>
                   ) : (
-                    <div className="space-y-4 text-center animate-in fade-in slide-in-from-top-2">
-                      <div className="flex justify-between items-center border-b border-amber-200 pb-3 mb-2">
+                    <div className="space-y-4 text-center animate-in fade-in slide-in-from-top-2 bg-white p-4 rounded-2xl border border-amber-200 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-amber-100 pb-3 mb-2">
                         <h3 className="font-bold text-sm text-amber-800 uppercase tracking-widest flex items-center gap-2"><Plus size={16}/> เพิ่มซอสราดแต่งหน้าใหม่</h3>
-                        <button onClick={() => setShowAddSauceForm(false)} className="text-amber-400 p-1 hover:bg-amber-200 rounded-full transition-colors"><X size={16}/></button>
+                        <button onClick={() => setShowAddSauceForm(false)} className="text-amber-400 p-1 hover:bg-amber-100 rounded-full transition-colors"><X size={16}/></button>
                       </div>
                       <div className="flex gap-2">
-                        <input type="text" placeholder="ชื่อซอส (เช่น ซอสช็อกโกแลต)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-transparent bg-white font-bold" value={newSauce.name} onChange={e => setNewSauce({...newSauce, name: e.target.value})} />
-                        <input type="number" placeholder="ราคา (+฿)" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-transparent bg-white font-bold" value={newSauce.price} onChange={e => setNewSauce({...newSauce, price: e.target.value})} />
+                        <input type="text" placeholder="ชื่อซอส (เช่น ซอสคาราเมลเข้มข้น)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-amber-100 bg-gray-50 font-bold" value={newSauce.name} onChange={e => setNewSauce({...newSauce, name: e.target.value})} />
+                        <input type="number" placeholder="ราคา (+฿)" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-amber-100 bg-gray-50 font-bold" value={newSauce.price} onChange={e => setNewSauce({...newSauce, price: e.target.value})} />
                       </div>
-                      <button onClick={handleAddSauce} className="w-full bg-amber-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all hover:bg-amber-700">บันทึกซอสราดใหม่</button>
+                      <div className="flex gap-2">
+                         <button onClick={() => setShowAddSauceForm(false)} className="w-1/3 bg-gray-100 text-gray-500 py-3 rounded-2xl font-bold text-xs">ยกเลิก</button>
+                         <button onClick={handleAddSauce} className="w-2/3 bg-amber-600 text-white py-3 rounded-2xl font-bold text-xs shadow-lg active:scale-95 transition-all hover:bg-amber-700">บันทึกซอสราดใหม่</button>
+                      </div>
                     </div>
                   )}
 
-                  {sauces.length > 0 && (
-                    <div className="space-y-2 mt-4 text-left pt-4 border-t border-amber-200/50">
-                      <p className="text-xs font-bold text-amber-800 mb-2">รายการซอสราดในระบบ</p>
-                      {sauces.map(s => (
+                  <div className="space-y-2 mt-4 text-left pt-4 border-t border-amber-200/50">
+                    <p className="text-xs font-bold text-amber-900 mb-2 flex justify-between items-center">
+                      <span>รายการซอสราดที่มีในระบบ ({sauces.length} รายการ)</span>
+                      {sauces.length > 0 && (
+                        <button onClick={handleSeedDefaultSauces} className="text-[10px] text-amber-700 hover:underline font-bold">
+                          + นำเข้าซอสเริ่มต้นเพิ่ม
+                        </button>
+                      )}
+                    </p>
+                    {sauces.length === 0 ? (
+                      <p className="text-xs text-amber-600 font-bold text-center py-4 bg-amber-100/50 rounded-xl border border-amber-200">ยังไม่มีรายการซอสราดในระบบ กดปุ่มด้านบนเพื่อเพิ่มได้เลยค่ะ</p>
+                    ) : (
+                      sauces.map(s => (
                         <div key={s.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-amber-100 shadow-sm">
-                          <span className="text-sm font-bold text-primary">{s.name} <span className="text-amber-600 text-xs">({s.price > 0 ? `+฿${s.price}` : 'ฟรี'})</span></span>
+                          <span className="text-sm font-bold text-primary">{s.name} <span className="text-amber-600 text-xs font-bold">({s.price > 0 ? `+฿${s.price}` : 'ฟรี'})</span></span>
                           <button onClick={() => handleDeleteSauce(s.id)} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 shadow-inner relative mt-8">
@@ -1838,7 +1871,6 @@ export default function App() {
                                     {item.isOnlyBlend && <span className="text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-sm">เฉพาะปั่น</span>}
                                     {item.allowBlend === false && !item.isOnlyBlend && <p className="text-[9px] text-blue-400 bg-blue-50 px-1 rounded-sm">ไม่มีปั่น</p>}
                                     {item.allowTopping === false && <p className="text-[9px] text-red-400 bg-red-50 px-1 rounded-sm">ห้ามเพิ่มท็อปปิ้ง</p>}
-                                    {item.allowSauce !== false && <p className="text-[9px] text-amber-700 bg-amber-50 px-1 rounded-sm border border-amber-200">ราดซอสได้</p>}
                                     {item.hasTeaType && <p className="text-[9px] text-green-600 bg-green-50 px-1 rounded-sm border border-green-200">เลือกผงชาได้</p>}
                                   </div>
                                 </div>
@@ -1876,7 +1908,6 @@ export default function App() {
                                   </select>
                                 </div>
 
-                                {/* [MODIFIED] เลือกระดับความหวานที่อนุญาตขณะแก้ไขเมนู */}
                                 <div className="p-3 bg-white rounded-2xl border border-orange-100 text-left">
                                   <label className="text-[11px] font-bold text-orange-800 block mb-2">ระดับความหวานที่เลือกได้:</label>
                                   <div className="flex flex-wrap gap-1.5">
@@ -1918,11 +1949,6 @@ export default function App() {
                                   <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-gray-50 cursor-pointer transition-all hover:bg-gray-50">
                                     <input type="checkbox" checked={editingMenu.allowTopping !== false} onChange={e => setEditingMenu({...editingMenu, allowTopping: e.target.checked})} className="w-4 h-4 accent-[#A67C52] cursor-pointer" />
                                     <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
-                                  </label>
-
-                                  <label className="flex items-center justify-center gap-1 p-3 bg-amber-50 rounded-2xl shadow-sm border border-amber-100 cursor-pointer transition-all hover:bg-amber-100">
-                                    <input type="checkbox" checked={editingMenu.allowSauce !== false} onChange={e => setEditingMenu({...editingMenu, allowSauce: e.target.checked})} className="w-4 h-4 accent-amber-600 cursor-pointer" />
-                                    <span className="text-[10px] font-bold text-amber-800">ราดซอสได้</span>
                                   </label>
 
                                   <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-orange-50 cursor-pointer transition-all hover:bg-orange-50">
@@ -2194,11 +2220,9 @@ export default function App() {
         const previewIcePrice = (!isItemBlendedInPreview && !isWhipOrCreamCheese && tempOptions.separateIce) ? 5 : 0;
         const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewSaucesPrice + previewShotPrice + previewIcePrice;
 
-        const isWhipCreamOrSauceItem = isWhipOrCreamCheese || 
-                                       optionModalItem.allowSauce !== false ||
-                                       (optionModalItem.name && (optionModalItem.name.includes('วิปครีม') || optionModalItem.name.includes('ครีมชีส')));
+        // [MODIFIED] ซอสราดแต่งหน้าจะแสดงเฉพาะเมนูวิปครีมและครีมชีสเท่านั้น (ซ่อนในเมนูน้ำทั่วไป)
+        const isWhipCreamOrSauceItem = isWhipOrCreamCheese;
 
-        // [MODIFIED] คำนวณรายการความหวานที่อนุญาตสำหรับเมนูนี้
         const allowedSweetnessList = (optionModalItem.allowedSweetness && optionModalItem.allowedSweetness.length > 0) 
           ? optionModalItem.allowedSweetness 
           : SWEETNESS;
@@ -2217,7 +2241,6 @@ export default function App() {
               <div className="flex justify-between items-center"><h3 className="text-2xl font-serif font-bold text-primary">{optionModalItem.name}</h3><button onClick={() => setOptionModalItem(null)} className="p-4 bg-gray-50 rounded-2xl text-gray-400 hover:bg-gray-100 transition-colors"><X/></button></div>
               <div className="space-y-8">
                 
-                {/* [MODIFIED] แสดงเฉพาะระดับความหวานที่แอดมินเปิดให้เลือกในเมนูนี้เท่านั้น (และซ่อนหากเป็นวิปครีม/ครีมชีส) */}
                 {!isWhipOrCreamCheese && allowedSweetnessList.length > 0 && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest">ความหวาน</label>
@@ -2264,43 +2287,47 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ส่วนเลือกซอสราดแต่งหน้า Dynamic จาก Firestore */}
+                {/* [MODIFIED] ส่วนเลือกซอสราดแต่งหน้า Dynamic จาก Firestore (จะแสดงเฉพาะเมื่อเป็นเมนูกลุ่มวิปครีม/ครีมชีส) */}
                 {isWhipCreamOrSauceItem && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-[#A67C52] uppercase tracking-widest flex items-center gap-1">
                       ✨ เลือกราดซอสแต่งหน้า (เลือกได้หลายอย่าง)
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {sauces.map(s => {
-                        const isSelected = tempOptions.selectedSauces?.some(item => typeof item === 'object' ? item.id === s.id : item === s.name);
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              setTempOptions(prev => {
-                                const currentSauces = prev.selectedSauces || [];
-                                if (isSelected) {
-                                  return { 
-                                    ...prev, 
-                                    selectedSauces: currentSauces.filter(item => typeof item === 'object' ? item.id !== s.id : item !== s.name) 
-                                  };
-                                } else {
-                                  return { 
-                                    ...prev, 
-                                    selectedSauces: [...currentSauces, { id: s.id, name: s.name, price: Number(s.price || 0) }] 
-                                  };
-                                }
-                              });
-                            }}
-                            className={`py-3 px-3 rounded-2xl text-[11px] font-bold border transition-all flex items-center justify-between ${isSelected ? 'bg-amber-700 text-white border-amber-700 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:border-gray-300'}`}
-                          >
-                            <span className="truncate">{s.name} {s.price > 0 && <span className="text-[9px] opacity-80">(+฿{s.price})</span>}</span>
-                            {isSelected ? <Check size={14} className="text-white flex-shrink-0" /> : <Plus size={14} className="text-gray-300 flex-shrink-0" />}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {sauces.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">ยังไม่มีซอสราดในระบบ</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {sauces.map(s => {
+                          const isSelected = tempOptions.selectedSauces?.some(item => typeof item === 'object' ? item.id === s.id : item === s.name);
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setTempOptions(prev => {
+                                  const currentSauces = prev.selectedSauces || [];
+                                  if (isSelected) {
+                                    return { 
+                                      ...prev, 
+                                      selectedSauces: currentSauces.filter(item => typeof item === 'object' ? item.id !== s.id : item !== s.name) 
+                                    };
+                                  } else {
+                                    return { 
+                                      ...prev, 
+                                      selectedSauces: [...currentSauces, { id: s.id, name: s.name, price: Number(s.price || 0) }] 
+                                    };
+                                  }
+                                });
+                              }}
+                              className={`py-3 px-3 rounded-2xl text-[11px] font-bold border transition-all flex items-center justify-between ${isSelected ? 'bg-amber-700 text-white border-amber-700 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:border-gray-300'}`}
+                            >
+                              <span className="truncate">{s.name} {s.price > 0 && <span className="text-[9px] opacity-80">(+฿{s.price})</span>}</span>
+                              {isSelected ? <Check size={14} className="text-white flex-shrink-0" /> : <Plus size={14} className="text-gray-300 flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2345,7 +2372,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ซ่อนตัวเลือกแยกน้ำแข็ง สำหรับเมนูวิปครีมและครีมชีส */}
                 {!isItemBlendedInPreview && !isWhipOrCreamCheese && (
                   <div className="space-y-3 animate-in fade-in">
                      <label className="text-[10px] font-bold block mb-1 text-gray-400 uppercase tracking-widest">การเสิร์ฟ</label>
@@ -2362,26 +2388,25 @@ export default function App() {
                   </div>
                 )}
 
-               {/* [MODIFIED] ซ่อนตัวเลือกประเภทเมนู (เย็น/ปั่น) สำหรับเมนูวิปครีมและครีมชีส */}
-{!isWhipOrCreamCheese && (
-  optionModalItem.isOnlyBlend ? (
-    <div className="grid grid-cols-1 gap-5">
-       <button onClick={() => setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
-         <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
-         {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
-       </button>
-    </div>
-  ) : optionModalItem.allowBlend !== false ? (
-    <div className="grid grid-cols-2 gap-5">
-       <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
-       <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
-    </div>
-  ) : (
-    <div className="grid grid-cols-1 gap-5">
-       <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
-    </div>
-  )
-)}
+                {!isWhipOrCreamCheese && (
+                  optionModalItem.isOnlyBlend ? (
+                    <div className="grid grid-cols-1 gap-5">
+                       <button onClick={() => setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'}`}>
+                         <Zap size={32}/><span className="text-xs uppercase">เฉพาะปั่น (สมูทตี้) {getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}</span>
+                         {storeSettings.isBlendOut && <span className="text-red-500 text-[10px] mt-1">วันนี้เมนูปั่นหมดค่ะ</span>}
+                       </button>
+                    </div>
+                  ) : optionModalItem.allowBlend !== false ? (
+                    <div className="grid grid-cols-2 gap-5">
+                       <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${!tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50'}`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
+                       <button onClick={() => !storeSettings.isBlendOut && setTempOptions({...tempOptions, isBlended: true, separateIce: false})} disabled={storeSettings.isBlendOut} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all ${storeSettings.isBlendOut ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : (tempOptions.isBlended ? 'border-accent bg-[var(--theme-bg)] text-primary shadow-sm' : 'border-gray-50 text-gray-300 bg-white hover:bg-gray-50')}`}><Zap size={32}/><span className="text-xs uppercase text-center">{storeSettings.isBlendOut ? 'เมนูปั่นหมด' : `ปั่น ${getAddedBlendPrice(optionModalItem) > 0 ? `(+฿${getAddedBlendPrice(optionModalItem)})` : ''}`}</span></button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-5">
+                       <button onClick={() => setTempOptions({...tempOptions, isBlended: false})} className={`py-8 rounded-[2.5rem] border-2 font-bold flex flex-col items-center gap-4 transition-all border-accent bg-[var(--theme-bg)] text-primary shadow-sm`}><Coffee size={32}/><span className="text-xs uppercase">เย็น / ปกติ</span></button>
+                    </div>
+                  )
+                )}
               </div>
               
               <button onClick={() => {
@@ -2399,7 +2424,6 @@ export default function App() {
                   const shotStr = tempOptions.addShot ? `-addShot` : '';
                   const iceStr = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? `-separateIce` : '';
                   
-                  // [MODIFIED] สร้าง cartId โดยอิงตามระดับความหวานที่ลูกค้าเลือก
                   const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
                   
                   setCart(prev => {
@@ -2556,7 +2580,7 @@ export default function App() {
       {adminDeliverySuccessData && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center space-y-6 animate-in zoom-in">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl"><CheckCircle size={32}/></div>
             <h3 className="text-xl font-bold text-primary">อัปเดตสถานะสำเร็จ! 🛵</h3>
             <p className="text-xs text-gray-500 leading-relaxed">ระบบบันทึกการส่งแล้ว คุณสามารถแชร์ข้อความนี้ให้ลูกค้าผ่านแอป LINE ได้</p>
 
@@ -2679,4 +2703,3 @@ export default function App() {
     </div>
   );
 }
-
