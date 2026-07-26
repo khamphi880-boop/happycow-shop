@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
@@ -27,14 +28,14 @@ const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'ก
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
 const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
-// [MODIFIED] เพิ่มรายการซอสราดแต่งหน้าสำหรับเมนูวิปครีมและครีมชีส
-const SAUCES = [
-  { id: 'sauce_choco', name: 'ซอสช็อกโกแลต' },
-  { id: 'sauce_caramel', name: 'ซอสคาราเมล' },
-  { id: 'sauce_strawberry', name: 'ซอสสตรอว์เบอร์รี่' },
-  { id: 'sauce_condensed', name: 'นมข้นหวาน' },
-  { id: 'sauce_matcha', name: 'ซอสมัทฉะ' },
-  { id: 'sauce_thai_tea', name: 'ซอสชาไทย' }
+// [MODIFIED] SAUCES - ตั้งค่าเริ่มต้นสำหรับ fallback หากระบบยังไม่มีข้อมูลซอสใน Firestore
+const DEFAULT_SAUCES = [
+  { id: 'sauce_choco', name: 'ซอสช็อกโกแลต', price: 0 },
+  { id: 'sauce_caramel', name: 'ซอสคาราเมล', price: 0 },
+  { id: 'sauce_strawberry', name: 'ซอสสตรอว์เบอร์รี่', price: 0 },
+  { id: 'sauce_condensed', name: 'นมข้นหวาน', price: 0 },
+  { id: 'sauce_matcha', name: 'ซอสมัทฉะ', price: 0 },
+  { id: 'sauce_thai_tea', name: 'ซอสชาไทย', price: 0 }
 ];
 
 const THEMES = {
@@ -77,6 +78,8 @@ export default function App() {
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [toppings, setToppings] = useState([]); 
+  // [MODIFIED] เพิ่ม state สำหรับ dynamic sauces จาก Firestore
+  const [sauces, setSauces] = useState([]);
   
   const [cart, setCart] = useState(() => {
     try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
@@ -150,19 +153,21 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   
-  // [MODIFIED] เพิ่ม allowSauce ใน newMenu state
   const [newMenu, setNewMenu] = useState({ name: '', price: '', category: 'นม', image: '', blendPrice: 5, hasFreePearl: false, allowTopping: true, allowSauce: true, allowBlend: true, isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false });
   const [editingMenu, setEditingMenu] = useState(null); 
   const [newTopping, setNewTopping] = useState({ name: '', price: '' }); 
+  // [MODIFIED] State สำหรับจัดการเพิ่มซอสราดแต่งหน้าใหม่ของแอดมิน
+  const [newSauce, setNewSauce] = useState({ name: '', price: 0 });
 
   const [showAddMenuForm, setShowAddMenuForm] = useState(false);
   const [showAddToppingForm, setShowAddToppingForm] = useState(false);
+  // [MODIFIED] State แสดง/ซ่อนฟอร์มเพิ่มซอสราด
+  const [showAddSauceForm, setShowAddSauceForm] = useState(false);
 
   const [successModalData, setSuccessModalData] = useState(null);
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
-  // [MODIFIED] เพิ่ม selectedSauces ใน tempOptions
   const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [], selectedSauces: [], separateIce: false });
   const [lineProfile, setLineProfile] = useState({ displayName: 'ลูกค้าทั่วไป', pictureUrl: '', userId: '' });
 
@@ -245,6 +250,12 @@ export default function App() {
       setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
     });
 
+    // [MODIFIED] เพิ่ม listener ดึงรายการซอสราดจาก Firestore
+    const unsubSauces = onSnapshot(collection(db, 'sauces'), snapshot => { 
+      const fetchedSauces = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setSauces(fetchedSauces.length > 0 ? fetchedSauces : DEFAULT_SAUCES); 
+    });
+
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -273,7 +284,7 @@ export default function App() {
       }
     });
 
-    return () => { unsubMenus(); unsubToppings(); unsubSettings(); };
+    return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
   // --- 🌟 useEffect (Lazy Load Orders) ---
@@ -395,7 +406,7 @@ export default function App() {
       }
     } catch (e) {
       showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
-    } finally {
+    } fontally {
       setLoadingSlipId(null);
     }
   };
@@ -425,7 +436,6 @@ export default function App() {
 
   const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
-  // [MODIFIED] เพิ่ม allowSauce ในการบันทึกเมนูใหม่
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     if (newMenu.category === '🔥 เมนูขายดี') return showAlert('หมวดหมู่ "เมนูขายดี" เป็นระบบอัตโนมัติ กรุณาเลือกหมวดหมู่อื่นครับ');
@@ -450,7 +460,6 @@ export default function App() {
     } catch (e) { showAlert(e.message); }
   };
 
-  // [MODIFIED] เพิ่ม allowSauce ในการแก้ไขเมนู
   const handleUpdateMenu = async () => {
     if (!editingMenu.name || !editingMenu.price || !editingMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
     try {
@@ -520,6 +529,24 @@ export default function App() {
   const handleDeleteTopping = (id) => { 
       showConfirm('ลบท็อปปิ้งนี้ใช่หรือไม่?', async () => {
           await deleteDoc(doc(db, 'toppings', id));
+      });
+  };
+
+  // [MODIFIED] ฟังก์ชันเพิ่มซอสราดใหม่ลงใน Firestore
+  const handleAddSauce = async () => {
+    if (!newSauce.name) return showAlert('กรุณากรอกชื่อซอสราดครับ');
+    try { 
+      await addDoc(collection(db, 'sauces'), { name: newSauce.name, price: Number(newSauce.price || 0) }); 
+      showAlert('เพิ่มซอสราดแต่งหน้าสำเร็จ! ✨'); 
+      setNewSauce({ name: '', price: 0 }); 
+      setShowAddSauceForm(false); 
+    } catch (e) { showAlert(e.message); }
+  };
+
+  // [MODIFIED] ฟังก์ชันลบซอสราดออกจาก Firestore
+  const handleDeleteSauce = (id) => { 
+      showConfirm('ลบซอสราดนี้ใช่หรือไม่?', async () => {
+          await deleteDoc(doc(db, 'sauces', id));
       });
   };
 
@@ -657,7 +684,6 @@ export default function App() {
   const updateStoreStatus = async (status) => { try { await setDoc(doc(db, 'settings', 'store'), { isStoreOpen: status }, { merge: true }); showAlert(`เปลี่ยนสถานะเรียบร้อย! 🐮`); } catch(e) { showAlert("Error: " + e.message); } };
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); showAlert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { showAlert("Error: " + e.message); } };
 
-  // [MODIFIED] อัปเดต openOptionModal เพื่อตั้งค่า selectedSauces: []
   const openOptionModal = (item) => {
     if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
@@ -1015,10 +1041,9 @@ export default function App() {
                  <div key={i.cartId} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
                    <div className="flex-1 font-bold text-sm text-primary">
                      {i.qty}x {i.name} <br/>
-                     {/* [MODIFIED] แสดงรายละเอียดซอสราดแต่งหน้าในตะกร้าสินค้า */}
                      <span className="text-gray-400 text-[10px] uppercase">
                        ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง (+฿5)' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
-                       {i.selectedSauces?.length > 0 && ` • ราดซอส: ${i.selectedSauces.join(', ')}`}
+                       {i.selectedSauces?.length > 0 && ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
                        {i.selectedToppings?.length > 0 && ` • เพิ่ม: ${i.selectedToppings.map(t=>t.name).join(', ')}`}
                      </span>
                    </div>
@@ -1161,7 +1186,6 @@ export default function App() {
 
                         const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${orderRef.id}`;
                         
-                        // [MODIFIED] แสดงรายละเอียดซอสราดและท็อปปิ้งในข้อความสรุปสั่งซื้อสำหรับแชท LINE
                         const orderSummaryText = `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${orderRef.id.slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${lineProfile.displayName || "ลูกค้าทั่วไป"}\n` + 
                           cart.map(i => {
                             const blendText = getBlendText(i);
@@ -1169,7 +1193,7 @@ export default function App() {
                             const teaText = i.teaType ? ` • รสชา: ${i.teaType}` : '';
                             const shotText = i.addShot ? ` • เพิ่มช็อตกาแฟ` : '';
                             const iceText = i.separateIce ? ` • แยกน้ำแข็ง (+฿5)` : '';
-                            const saucesText = i.selectedSauces?.length > 0 ? ` • ราดซอส: ${i.selectedSauces.join(', ')}` : '';
+                            const saucesText = i.selectedSauces?.length > 0 ? ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}` : '';
                             const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
                             return `- ${i.qty}x ${i.name} (${blendText} • หวาน ${i.sweetness}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
@@ -1244,11 +1268,10 @@ export default function App() {
                             <div className="text-2xl font-serif font-bold text-primary">฿{o.total}</div>
                           </div>
                           
-                          {/* [MODIFIED] แสดงรายละเอียดซอสราดและท็อปปิ้งในหน้าประวัติสั่งซื้อของลูกค้า */}
                           <div className="space-y-1">{(o.items || []).map((item, idx) => (
                               <p key={idx} className="text-[11px] font-bold text-gray-500">
                                 {item.qty}x {item.name} ({getBlendText(item)} • หวาน {item.sweetness}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
-                                {item.selectedSauces?.length > 0 && ` + ราดซอส: ${item.selectedSauces.join(', ')}`}
+                                {item.selectedSauces?.length > 0 && ` + ราดซอส: ${item.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
                                 {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
                               </p>
                           ))}</div>
@@ -1457,10 +1480,9 @@ export default function App() {
                       </div>
                       <div className="text-[10px] text-gray-500 mb-3 flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100"><MapPin size={12} className="flex-shrink-0 text-accent"/> {o.address}</div>
                       
-                      {/* [MODIFIED] แสดงซอสราดและท็อปปิ้งในหน้ารายการสั่งซื้อของแอดมิน */}
                       <div className="space-y-1 border-t border-gray-100 pt-3 mb-3">{(o.items || []).map((i, idx) => (
                           <div key={idx} className="text-xs text-gray-600 flex justify-between font-medium">
-                            <span>{i.qty}x {i.name} ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? ' +มุกฟรี':''}{i.selectedSauces?.length > 0 ? ` + ราดซอส:${i.selectedSauces.join(',')}` : ''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
+                            <span>{i.qty}x {i.name} ({getBlendText(i)} • หวาน {i.sweetness}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? ' +มุกฟรี':''}{i.selectedSauces?.length > 0 ? ` + ราดซอส:${i.selectedSauces.map(s=>typeof s==='object'?s.name:s).join(',')}` : ''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
                             <span className="font-bold">฿{i.price * i.qty}</span>
                           </div>
                       ))}</div>
@@ -1598,7 +1620,6 @@ export default function App() {
                           <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
                         </label>
 
-                        {/* [MODIFIED] เพิ่มตัวเลือก allowSauce ในฟอร์มสร้างเมนู */}
                         <label className="flex items-center justify-center gap-1 p-3 bg-amber-50 rounded-2xl shadow-sm border border-amber-100 cursor-pointer transition-all hover:bg-amber-100">
                           <input type="checkbox" checked={newMenu.allowSauce !== false} onChange={e => setNewMenu({...newMenu, allowSauce: e.target.checked})} className="w-4 h-4 accent-amber-600 cursor-pointer" />
                           <span className="text-[10px] font-bold text-amber-800">ราดซอสได้</span>
@@ -1642,6 +1663,39 @@ export default function App() {
                         }} />
                       </label>
                       <button onClick={handleAddNewMenu} className="w-full bg-accent text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-[#8e6843]"><Plus size={18}/> บันทึกเมนูใหม่</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* [MODIFIED] ส่วนจัดการซอสราดแต่งหน้าในระบบแอดมิน */}
+                <div className="bg-amber-50 p-6 rounded-[2.5rem] border-2 border-dashed border-amber-200 shadow-inner relative mt-8">
+                  {!showAddSauceForm ? (
+                     <button onClick={() => setShowAddSauceForm(true)} className="w-full py-2 text-amber-700 font-bold flex items-center justify-center gap-2 hover:bg-amber-100 rounded-2xl transition-all">
+                        <Plus size={18}/> คลิกเพื่อเพิ่มซอสราดแต่งหน้า (สำหรับวิปครีม/ครีมชีส)
+                     </button>
+                  ) : (
+                    <div className="space-y-4 text-center animate-in fade-in slide-in-from-top-2">
+                      <div className="flex justify-between items-center border-b border-amber-200 pb-3 mb-2">
+                        <h3 className="font-bold text-sm text-amber-800 uppercase tracking-widest flex items-center gap-2"><Plus size={16}/> เพิ่มซอสราดแต่งหน้าใหม่</h3>
+                        <button onClick={() => setShowAddSauceForm(false)} className="text-amber-400 p-1 hover:bg-amber-200 rounded-full transition-colors"><X size={16}/></button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input type="text" placeholder="ชื่อซอส (เช่น ซอสช็อกโกแลต)" className="w-2/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-transparent bg-white font-bold" value={newSauce.name} onChange={e => setNewSauce({...newSauce, name: e.target.value})} />
+                        <input type="number" placeholder="ราคา (+฿)" className="w-1/3 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-amber-500 border border-transparent bg-white font-bold" value={newSauce.price} onChange={e => setNewSauce({...newSauce, price: e.target.value})} />
+                      </div>
+                      <button onClick={handleAddSauce} className="w-full bg-amber-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all hover:bg-amber-700">บันทึกซอสราดใหม่</button>
+                    </div>
+                  )}
+
+                  {sauces.length > 0 && (
+                    <div className="space-y-2 mt-4 text-left pt-4 border-t border-amber-200/50">
+                      <p className="text-xs font-bold text-amber-800 mb-2">รายการซอสราดในระบบ</p>
+                      {sauces.map(s => (
+                        <div key={s.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-amber-100 shadow-sm">
+                          <span className="text-sm font-bold text-primary">{s.name} <span className="text-amber-600 text-xs">({s.price > 0 ? `+฿${s.price}` : 'ฟรี'})</span></span>
+                          <button onClick={() => handleDeleteSauce(s.id)} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"><Trash2 size={16}/></button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1780,7 +1834,6 @@ export default function App() {
                                     <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
                                   </label>
 
-                                  {/* [MODIFIED] เพิ่มตัวเลือก allowSauce ในฟอร์มแก้ไขเมนู */}
                                   <label className="flex items-center justify-center gap-1 p-3 bg-amber-50 rounded-2xl shadow-sm border border-amber-100 cursor-pointer transition-all hover:bg-amber-100">
                                     <input type="checkbox" checked={editingMenu.allowSauce !== false} onChange={e => setEditingMenu({...editingMenu, allowSauce: e.target.checked})} className="w-4 h-4 accent-amber-600 cursor-pointer" />
                                     <span className="text-[10px] font-bold text-amber-800">ราดซอสได้</span>
@@ -2049,11 +2102,12 @@ export default function App() {
       {optionModalItem && (() => {
         const isItemBlendedInPreview = optionModalItem.isOnlyBlend || tempOptions.isBlended;
         const previewToppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+        // [MODIFIED] คำนวณราคาซอสราดที่เลือกเพิ่มเติม (หากซอสมีกำหนดราคา)
+        const previewSaucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + Number(s.price || 0), 0);
         const previewShotPrice = tempOptions.addShot ? 20 : 0;
         const previewIcePrice = (!isItemBlendedInPreview && tempOptions.separateIce) ? 5 : 0;
-        const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewShotPrice + previewIcePrice;
+        const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewSaucesPrice + previewShotPrice + previewIcePrice;
 
-        // [MODIFIED] ตรวจสอบว่าเป็นเมนูวิปครีม/ครีมชีส หรือมีการอนุญาตให้เลือกซอสราดหรือไม่
         const isWhipCreamOrSauceItem = optionModalItem.category === 'วิปครีมและครีมชีส' || 
                                        optionModalItem.category === 'ครีมและครีมชีส' || 
                                        optionModalItem.allowSauce !== false ||
@@ -2113,15 +2167,15 @@ export default function App() {
                   </div>
                 )}
 
-                {/* [MODIFIED] ส่วนเลือกราดซอสแต่งหน้า สำหรับเมนูวิปครีมและรายการที่รองรับ */}
+                {/* [MODIFIED] ส่วนเลือกซอสราดแต่งหน้า Dynamic จาก Firestore */}
                 {isWhipCreamOrSauceItem && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-[#A67C52] uppercase tracking-widest flex items-center gap-1">
                       ✨ เลือกราดซอสแต่งหน้า (เลือกได้หลายอย่าง)
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                      {SAUCES.map(s => {
-                        const isSelected = tempOptions.selectedSauces?.includes(s.name);
+                      {sauces.map(s => {
+                        const isSelected = tempOptions.selectedSauces?.some(item => typeof item === 'object' ? item.id === s.id : item === s.name);
                         return (
                           <button
                             key={s.id}
@@ -2130,16 +2184,22 @@ export default function App() {
                               setTempOptions(prev => {
                                 const currentSauces = prev.selectedSauces || [];
                                 if (isSelected) {
-                                  return { ...prev, selectedSauces: currentSauces.filter(name => name !== s.name) };
+                                  return { 
+                                    ...prev, 
+                                    selectedSauces: currentSauces.filter(item => typeof item === 'object' ? item.id !== s.id : item !== s.name) 
+                                  };
                                 } else {
-                                  return { ...prev, selectedSauces: [...currentSauces, s.name] };
+                                  return { 
+                                    ...prev, 
+                                    selectedSauces: [...currentSauces, { id: s.id, name: s.name, price: Number(s.price || 0) }] 
+                                  };
                                 }
                               });
                             }}
                             className={`py-3 px-3 rounded-2xl text-[11px] font-bold border transition-all flex items-center justify-between ${isSelected ? 'bg-amber-700 text-white border-amber-700 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:border-gray-300'}`}
                           >
-                            <span>{s.name}</span>
-                            {isSelected ? <Check size={14} className="text-white" /> : <Plus size={14} className="text-gray-300" />}
+                            <span className="truncate">{s.name} {s.price > 0 && <span className="text-[9px] opacity-80">(+฿{s.price})</span>}</span>
+                            {isSelected ? <Check size={14} className="text-white flex-shrink-0" /> : <Plus size={14} className="text-gray-300 flex-shrink-0" />}
                           </button>
                         );
                       })}
@@ -2157,7 +2217,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* [MODIFIED] ส่วนเลือกท็อปปิ้งเสริม (สามารถเลือกหลายอย่างได้) */}
                 {toppings.length > 0 && optionModalItem.allowTopping !== false && (
                   <div>
                     <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest flex items-center gap-1">
@@ -2189,7 +2248,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ตัวเลือกบริการ "แยกน้ำแข็ง (+฿5)" (แสดงเฉพาะกรณีที่เป็นเมนูแบบเย็น) */}
                 {!isItemBlendedInPreview && (
                   <div className="space-y-3 animate-in fade-in">
                      <label className="text-[10px] font-bold block mb-1 text-gray-400 uppercase tracking-widest">การเสิร์ฟ</label>
@@ -2225,16 +2283,16 @@ export default function App() {
                 )}
               </div>
               
-              {/* [MODIFIED] คำนวณรหัสสินค้าและเพิ่มลงตะกร้าพร้อมซอสราด */}
               <button onClick={() => {
                   const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
+                  const saucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + Number(s.price || 0), 0);
                   const shotPrice = tempOptions.addShot ? 20 : 0;
                   const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
                   const icePrice = (!isItemBlended && tempOptions.separateIce) ? 5 : 0;
-                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + shotPrice + icePrice;
+                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + saucesPrice + shotPrice + icePrice;
                   
                   const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
-                  const saucesStr = (tempOptions.selectedSauces || []).sort().join('-');
+                  const saucesStr = (tempOptions.selectedSauces || []).map(s => typeof s === 'object' ? s.id : s).sort().join('-');
                   const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
                   const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
                   const shotStr = tempOptions.addShot ? `-addShot` : '';
@@ -2288,8 +2346,7 @@ export default function App() {
                 </div>
             )}
 
-            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-
-center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
 {isDelivering ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
 {isDelivering ? 'กำลังบันทึกและแจ้งเตือน...' : <><CheckCircle size={18}/> ยืนยันการจัดส่ง</>}
 </button>
@@ -2353,10 +2410,8 @@ center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 te
 <div className="space-y-3">
  <button 
    onClick={async () => {
-      // คัดลอกลง Clipboard สแตนด์บายไว้ก่อนเสมอ
       navigator.clipboard.writeText(successModalData.text);
       
-      // 1. ตรวจสอบ API LINE Target Picker สำหรับใช้ใน Client LIFF
       if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
          try {
             await window.liff.shareTargetPicker([{
@@ -2368,9 +2423,7 @@ center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 te
             window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
          }
       } else {
-         // 2. หากเปิดผ่านบราวเซอร์นอก ให้พึ่ง LINE Share Schema
          window.open(`https://line.me/R/share?text=${encodeURIComponent(successModalData.text)}`, '_blank');
-         // หากมีลิงก์เพื่อนร้าน ให้ดีเลย์เปลี่ยนเส้นทางไปหาทันที
          if (storeSettings.shopLineUrl) {
             setTimeout(() => {
                window.location.href = storeSettings.shopLineUrl;
@@ -2523,3 +2576,4 @@ center gap-2 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-green-500 te
 </div>
 );
 }
+
