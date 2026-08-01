@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
@@ -156,10 +156,6 @@ export default function App() {
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); // [MODIFIED] State กำลังซิงค์ทั้งหมดไป Google Sheets
 
-  // [MODIFIED] State สำหรับเก็บข้อมูลสั่งซื้อและสถานะโหลดข้อมูลตรงจาก Google Sheets 100%
-  const [sheetOrdersData, setSheetOrdersData] = useState([]);
-  const [isLoadingSheetDashboard, setIsLoadingSheetDashboard] = useState(false);
-
   const [newMenu, setNewMenu] = useState({ 
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
     hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
@@ -230,29 +226,6 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] ฟังก์ชันดึงข้อมูลสรุปรายรับตรงจาก Google Sheets 100%
-  const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
-    if (!storeSettings?.googleSheetUrl) return;
-
-    setIsLoadingSheetDashboard(true);
-    try {
-      const res = await fetch(storeSettings.googleSheetUrl);
-      const json = await res.json();
-
-      if (json && json.status === 'success') {
-        setSheetOrdersData(Array.isArray(json.data) ? json.data : []);
-      } else {
-        console.warn("Google Sheets API returned non-success status:", json);
-        setSheetOrdersData([]);
-      }
-    } catch (err) {
-      console.error("Error fetching Google Sheets dashboard:", err);
-      setSheetOrdersData([]);
-    } finally {
-      setIsLoadingSheetDashboard(false);
-    }
-  }, [storeSettings?.googleSheetUrl]);
-
   // [MODIFIED] ฟังก์ชันซิงค์ออร์เดอร์ทั้งหมดลง Google Sheets ในคลิกเดียว
   const syncAllToGoogleSheets = async () => {
     if (!storeSettings.googleSheetUrl) {
@@ -281,13 +254,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_note', note); }, [note]);
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
-
-  // [MODIFIED] เรียกดึงข้อมูลจาก Google Sheets ทันทีที่แอดมินเปิดหน้า Dashboard
-  useEffect(() => {
-    if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
-      fetchDashboardDataFromGoogleSheets();
-    }
-  }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   // --- 🌟 useEffect หลัก (Core Data) ---
   useEffect(() => {
@@ -886,42 +852,46 @@ export default function App() {
     );
   }, [orders, adminSearchQuery]);
 
-  // [MODIFIED] คำนวณสรุปสถิติต่างๆ จากข้อมูลใน Google Sheets 100% (ข้อมูลไม่หายแม้จะลบใน Firebase)
-  const sheetStats = useMemo(() => {
-    const completedSheetOrders = (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => 
-      o?.status && String(o.status).includes("จัดส่งสำเร็จ")
-    );
+  // [MODIFIED] คำนวณข้อมูลสำหรับ Web Dashboard
+  const pendingCount = orders.filter(o => !o.isDeleted && o.status === 'pending').length;
+  const cookingCount = orders.filter(o => !o.isDeleted && o.status === 'cooking').length;
+  const completedCount = orders.filter(o => !o.isDeleted && o.status === 'completed').length;
 
-    let totalRevenue = 0;
-    let promptPaySum = 0;
-    let cashSum = 0;
-    let thaiSum = 0;
+  const completedOrdersList = React.useMemo(() => orders.filter(o => o.status === 'completed' && !o.isDeleted), [orders]);
+  const promptPayTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'promptpay').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
+  const cashTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
+  const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
+  const grandTotal = calculateRevenue().yearly || 1;
 
-    completedSheetOrders.forEach(o => {
-      const amount = Number(o?.total) || 0;
-      const paymentMethod = String(o?.paymentMethod || '');
-
-      totalRevenue += amount;
-
-      if (paymentMethod.includes("โอนพร้อมเพย์")) {
-        promptPaySum += amount;
-      } else if (paymentMethod.includes("เงินสด")) {
-        cashSum += amount;
-      } else if (paymentMethod.includes("ไทยช่วยไทยพลัส")) {
-        thaiSum += amount;
-      }
+  const peakHoursData = React.useMemo(() => {
+    const hoursMap = { '08:00-11:00': 0, '11:00-14:00': 0, '14:00-17:00': 0, '17:00-20:00': 0, '20:00+': 0 };
+    completedOrdersList.forEach(o => {
+      const h = new Date(o.timestamp).getHours();
+      if (h >= 8 && h < 11) hoursMap['08:00-11:00'] += 1;
+      else if (h >= 11 && h < 14) hoursMap['11:00-14:00'] += 1;
+      else if (h >= 14 && h < 17) hoursMap['14:00-17:00'] += 1;
+      else if (h >= 17 && h < 20) hoursMap['17:00-20:00'] += 1;
+      else hoursMap['20:00+'] += 1;
     });
+    return hoursMap;
+  }, [completedOrdersList]);
+  const maxPeakCount = Math.max(...Object.values(peakHoursData), 1);
 
-    return {
-      totalOrdersCount: sheetOrdersData.length,
-      completedCount: completedSheetOrders.length,
-      totalRevenue,
-      promptPaySum,
-      cashSum,
-      thaiSum,
-      grandTotal: totalRevenue || 1
-    };
-  }, [sheetOrdersData]);
+  const topProducts = React.useMemo(() => {
+    const map = {};
+    completedOrdersList.forEach(o => {
+      (o.items || []).forEach(item => {
+        if (!map[item.name]) map[item.name] = { qty: 0, revenue: 0 };
+        map[item.name].qty += item.qty;
+        map[item.name].revenue += (item.price * item.qty);
+      });
+    });
+    return Object.entries(map)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+  }, [completedOrdersList]);
+  const maxTopQty = topProducts[0]?.qty || 1;
 
   const sliderRef = useRef(null);
   useEffect(() => {
@@ -1510,11 +1480,11 @@ export default function App() {
               ))}
             </div>
 
-            {/* [MODIFIED] TAB: แดชบอร์ดดึงข้อมูลตรงจาก Google Sheets 100% */}
+            {/* [MODIFIED] TAB: แดชบอร์ดวิเคราะห์และจัดการข้อมูลในเว็บ */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
                 
-                {/* [MODIFIED] Header ควบคุม Google Sheets Data Sync */}
+                {/* 🌟 1. Google Sheets Live Sync Control Bar */}
                 <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-[2.5rem] shadow-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-emerald-700">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
@@ -1522,114 +1492,282 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-bold text-xs flex items-center gap-1.5">
-                        Google Sheets Live Data
-                        <span className={`w-2 h-2 rounded-full ${storeSettings?.googleSheetUrl ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
+                        Google Sheets Real-time Sync
+                        <span className={`w-2 h-2 rounded-full ${storeSettings.googleSheetUrl ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
                       </h4>
                       <p className="text-[10px] text-emerald-200/80 font-medium">
-                        {storeSettings?.googleSheetUrl ? `ดึงข้อมูลจากคลาวด์แล้ว (${sheetStats?.totalOrdersCount || 0} บิลถาวร)` : 'ยังไม่ได้เชื่อมต่อ Google Sheets'}
+                        {storeSettings.googleSheetUrl ? 'เชื่อมต่อระบบคลาวด์สำเร็จ (พร้อมซิงค์ข้อมูล)' : 'ยังไม่ได้ใส่ URL Google Sheets ในหน้าตั้งค่า'}
                       </p>
                     </div>
                   </div>
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button 
-                      onClick={fetchDashboardDataFromGoogleSheets} 
-                      disabled={isLoadingSheetDashboard}
+                      onClick={syncAllToGoogleSheets} 
+                      disabled={isSyncingAll}
                       className="flex-1 sm:flex-initial bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
-                      {isLoadingSheetDashboard ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Sparkles size={14}/>}
-                      {isLoadingSheetDashboard ? 'กำลังโหลด...' : 'รีเฟรชข้อมูล Sheets'}
+                      {isSyncingAll ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Sparkles size={14}/>}
+                      {isSyncingAll ? 'กำลังซิงค์...' : 'ซิงค์ประวัติทั้งหมด'}
                     </button>
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 การ์ดสรุปยอดขายถาวร (ดึงจาก Google Sheets 100%) */}
+                {/* 🌟 2. สถานะออร์เดอร์ Real-time (Order Status Cards) */}
+                <div>
+                  <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2">
+                    <BellRing size={16} className="text-orange-500"/> สถานะคิวออร์เดอร์ปัจจุบัน
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div 
+                      onClick={() => setAdminTab('orders')}
+                      className="bg-orange-50 border-2 border-orange-200 p-4 rounded-[2rem] text-center cursor-pointer active:scale-95 transition-all shadow-sm hover:shadow-md"
+                    >
+                      <p className="text-[10px] font-bold text-orange-600 uppercase mb-1">รอยืนยัน 🟠</p>
+                      <h2 className="text-3xl font-bold text-orange-600">{pendingCount}</h2>
+                      <p className="text-[8px] text-orange-400 font-bold mt-1">ออร์เดอร์ใหม่</p>
+                    </div>
+
+                    <div 
+                      onClick={() => setAdminTab('orders')}
+                      className="bg-blue-50 border-2 border-blue-200 p-4 rounded-[2rem] text-center cursor-pointer active:scale-95 transition-all shadow-sm hover:shadow-md"
+                    >
+                      <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">กำลังปรุง 👩‍🍳</p>
+                      <h2 className="text-3xl font-bold text-blue-600">{cookingCount}</h2>
+                      <p className="text-[8px] text-blue-400 font-bold mt-1">กำลังทำเครื่องดื่ม</p>
+                    </div>
+
+                    <div 
+                      onClick={() => setAdminTab('orders')}
+                      className="bg-green-50 border-2 border-green-200 p-4 rounded-[2rem] text-center cursor-pointer active:scale-95 transition-all shadow-sm hover:shadow-md"
+                    >
+                      <p className="text-[10px] font-bold text-green-600 uppercase mb-1">สำเร็จแล้ว 🟢</p>
+                      <h2 className="text-3xl font-bold text-green-600">{completedCount}</h2>
+                      <p className="text-[8px] text-green-400 font-bold mt-1">จัดส่งเสร็จสิ้น</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 🌟 3. การ์ดสรุปยอดขาย (Sales Summary Header) */}
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
-                    <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> รายรับรวมสะสมทั้งหมด (จาก Google Sheets)</span>
-                    <span className="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full font-bold">ข้อมูลถาวร</span>
+                    <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้</span>
+                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{new Date().toLocaleDateString('th-TH')}</span>
                   </div>
-                  <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{(sheetStats?.totalRevenue || 0).toLocaleString()}</h1>
-                  <p className="text-[10px] opacity-70 mt-2">* ยอดขายนี้ดึงตรงจาก Google Sheets แม้ลบออร์เดอร์ในแอป ยอดขายนี้ก็จะไม่หายครับ</p>
+                  <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{revData.daily.toLocaleString()}</h1>
+                  <div className="flex gap-4 mt-4 pt-4 border-t border-white/10 text-xs relative z-10">
+                    <div>
+                      <span className="opacity-70 text-[10px] block">เดือนนี้</span>
+                      <span className="font-bold text-base">฿{revData.monthly.toLocaleString()}</span>
+                    </div>
+                    <div className="border-l border-white/20 pl-4">
+                      <span className="opacity-70 text-[10px] block">ปีนี้</span>
+                      <span className="font-bold text-base">฿{revData.yearly.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 จำแนกช่องทางชำระเงินจาก Google Sheets */}
+                {/* 🌟 4. จำแนกช่องทางชำระเงิน (Payment Method Breakdown) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <h3 className="font-bold text-sm text-primary flex items-center gap-2">
-                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (ข้อมูลจาก Google Sheets)
+                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน
                   </h3>
                   
                   <div className="space-y-3">
-                    {/* โอนพร้อมเพย์ */}
                     <div>
                       <div className="flex justify-between text-xs font-bold mb-1">
                         <span className="text-gray-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
-                        <span className="text-primary">฿{(sheetStats?.promptPaySum || 0).toLocaleString()} ({Math.round(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                        <span className="text-primary">฿{promptPayTotal.toLocaleString()} ({Math.round((promptPayTotal/grandTotal)*100 || 0)}%)</span>
                       </div>
                       <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((promptPayTotal/grandTotal)*100, 100)}%` }}></div>
                       </div>
                     </div>
 
-                    {/* เงินสด */}
                     <div>
                       <div className="flex justify-between text-xs font-bold mb-1">
                         <span className="text-gray-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
-                        <span className="text-primary">฿{(sheetStats?.cashSum || 0).toLocaleString()} ({Math.round(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                        <span className="text-primary">฿{cashTotal.toLocaleString()} ({Math.round((cashTotal/grandTotal)*100 || 0)}%)</span>
                       </div>
                       <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((cashTotal/grandTotal)*100, 100)}%` }}></div>
                       </div>
                     </div>
 
-                    {/* ไทยช่วยไทยพลัส */}
                     <div>
                       <div className="flex justify-between text-xs font-bold mb-1">
                         <span className="text-gray-600 flex items-center gap-1"><Sparkles size={12} className="text-orange-500"/> ไทยช่วยไทยพลัส</span>
-                        <span className="text-primary">฿{(sheetStats?.thaiSum || 0).toLocaleString()} ({Math.round(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                        <span className="text-primary">฿{thaiChueiThaiTotal.toLocaleString()} ({Math.round((thaiChueiThaiTotal/grandTotal)*100 || 0)}%)</span>
                       </div>
                       <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((thaiChueiThaiTotal/grandTotal)*100, 100)}%` }}></div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets */}
+                {/* 🌟 5. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers Leaderboard) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
-                    <ClipboardList size={16} className="text-blue-500"/> ประวัติการสั่งซื้อย้อนหลังถาวร ({sheetOrdersData?.length || 0} บิล)
+                    <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด
                   </h3>
                   
-                  <div className="space-y-2 max-h-80 overflow-y-auto hide-scrollbar">
-                    {(Array.isArray(sheetOrdersData) ? sheetOrdersData : []).slice().reverse().map((o, idx) => {
-                      const safeOrderId = o?.orderId ? String(o.orderId).slice(0, 6) : `ROW-${idx + 1}`;
-                      const safeLineName = o?.lineName || 'ไม่ระบุชื่อ';
-                      const safeTimestamp = o?.timestampStr || 'ไม่ระบุเวลา';
-                      const safePayment = o?.paymentMethod || 'ไม่ระบุ';
-                      const safeTotal = Number(o?.total || 0).toLocaleString();
-                      const safeStatus = o?.status || 'จัดส่งสำเร็จ';
+                  {topProducts.length > 0 ? (
+                    <div className="space-y-3.5">
+                      {topProducts.map((p, idx) => (
+                        <div key={p.name} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-gray-700 flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                {idx + 1}
+                              </span>
+                              {p.name}
+                            </span>
+                            <span className="font-bold text-primary">{p.qty} แก้ว <span className="text-gray-400 font-normal">(฿{p.revenue.toLocaleString()})</span></span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${idx === 0 ? 'bg-amber-500' : 'bg-accent'}`} 
+                              style={{ width: `${(p.qty / maxTopQty) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-xs text-gray-400 py-6 font-bold">ยังไม่มีข้อมูลยอดขายเมนู</p>
+                  )}
+                </div>
 
+                {/* 🌟 6. ช่วงเวลาขายดี (Peak Hours Analytics Bar Chart) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                  <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
+                    <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
+                  </h3>
+                  
+                  <div className="flex items-end gap-2 h-32 pt-4 px-2">
+                    {Object.entries(peakHoursData).map(([slot, count]) => {
+                      const heightPercent = (count / maxPeakCount) * 100;
                       return (
-                        <div key={o?.orderId || idx} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center text-xs">
-                          <div>
-                            <span className="font-bold text-primary block">#{safeOrderId} - {safeLineName}</span>
-                            <span className="text-[9px] text-gray-400 font-bold">{safeTimestamp} • {safePayment}</span>
+                        <div key={slot} className="flex-1 flex flex-col items-center h-full justify-end gap-1 group">
+                          <span className="text-[9px] font-bold text-primary opacity-80">{count} บิล</span>
+                          <div className="w-full bg-indigo-50 rounded-t-xl overflow-hidden flex items-end h-20">
+                            <div 
+                              className="w-full bg-indigo-500 rounded-t-xl transition-all duration-700 group-hover:bg-indigo-600" 
+                              style={{ height: `${Math.max(heightPercent, 8)}%` }}
+                            ></div>
                           </div>
-                          <div className="text-right">
-                            <span className="font-bold text-emerald-600 block">฿{safeTotal}</span>
-                            <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{safeStatus}</span>
-                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 tracking-tighter truncate w-full text-center">{slot}</span>
                         </div>
                       );
                     })}
-
-                    {(!sheetOrdersData || sheetOrdersData.length === 0) && (
-                      <p className="text-center text-xs text-gray-400 py-8 font-bold">ยังไม่มีข้อมูลประวัติใน Google Sheets</p>
-                    )}
                   </div>
                 </div>
 
+                {/* 🌟 7. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm">
+                   <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
+                     <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
+                       <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                       ผู้ใช้ออนไลน์ขณะนี้ (Real-time)
+                     </h3>
+                     <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">{activeUsers.length} คน</span>
+                   </div>
+
+                   {activeUsers.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {activeUsers.map(u => (
+                           <div key={u.id} className="bg-green-50 text-green-700 text-[10px] font-bold px-3 py-1.5 rounded-xl border border-green-200 flex items-center gap-1.5 shadow-sm">
+                             <UserCheck size={12}/> {u.displayName}
+                           </div>
+                        ))}
+                      </div>
+                   ) : (
+                      <p className="text-center text-xs text-gray-400 font-bold py-4">ยังไม่มีลูกค้าออนไลน์ในขณะนี้</p>
+                   )}
+                </div>
+
+                {/* 📊 สถิติผู้เข้าชม 7 วัน */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
+                   <div className="space-y-3.5">
+                      {recentVisits.map((v, index) => {
+                         const percent = (v.count / maxVisitCount) * 100;
+                         const isToday = index === 6;
+                         return (
+                            <div key={v.dateStr} className="space-y-1">
+                               <div className="flex justify-between items-center text-xs">
+                                  <span className={`font-bold ${isToday ? 'text-accent' : 'text-gray-500'}`}>{v.thaiDateStr} {isToday && '(วันนี้)'}</span>
+                                  <span className="font-bold text-primary">{v.count} คน</span>
+                               </div>
+                               <div className="w-full bg-gray-50 rounded-full h-2.5 overflow-hidden border border-gray-100/50">
+                                  <div className={`h-full rounded-full transition-all duration-1000 ${isToday ? 'bg-accent' : 'bg-primary/70'}`} style={{ width: `${percent}%` }}></div>
+                               </div>
+                            </div>
+                         );
+                      })}
+                   </div>
+                </div>
+
+                {/* Storage Graph */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
+                     <span className="text-[9px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full border">ประมาณการ</span>
+                   </div>
+                   <p className="text-xs font-bold text-gray-500 mb-3">ใช้ไปประมาณ <span className="text-accent">{storageData.usageMB} MB</span> / 5,000 MB</p>
+                   <div className="w-full bg-gray-100 rounded-full h-3 mb-1 overflow-hidden shadow-inner">
+                     <div className={`h-3 rounded-full transition-all duration-1000 ${storageData.storagePercent > 80 ? 'bg-red-500' : storageData.storagePercent > 50 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${Math.max(storageData.storagePercent, 1)}%` }}></div>
+                   </div>
+                </div>
+
+                {/* สรุปรายรับรายวัน */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
+                   <div className="space-y-3">
+                      {revData.dailyHistory.map((d, idx) => (
+                         <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className={idx === 0 ? "font-bold text-accent" : "text-gray-500 font-bold"}>{idx === 0 ? `วันนี้ (${d.date})` : d.date}</span>
+                            <span className={`font-bold ${idx === 0 ? "text-accent" : "text-primary"}`}>฿{d.total.toLocaleString()}</span>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+
+                {/* ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-3">
+                   <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
+                   <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
+                   <button 
+                      onClick={() => {
+                         showConfirm("คุณต้องการลบข้อมูลออเดอร์ที่ถูกซ่อนไว้ทั้งหมดออกจากคลาวด์ถาวรใช่หรือไม่?", async () => {
+                            setIsLoading(true);
+                            try {
+                               const hiddenOrders = orders.filter(o => o.isDeleted);
+                               const promises = hiddenOrders.map(o => deleteDoc(doc(db, 'orders', o.id)));
+                               await Promise.all(promises);
+                               showAlert("ทำความสะอาดระบบและลบออเดอร์ที่ซ่อนถาวรเรียบร้อยค่ะ! ✨🐮");
+                            } catch (e) {
+                               showAlert("เกิดข้อผิดพลาดในการลบ: " + e.message);
+                            } finally {
+                               setIsLoading(false);
+                            }
+                         });
+                      }}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                   >
+                      <Trash2 size={14}/> ล้างข้อมูลออเดอร์ที่ถูกซ่อนทั้งหมดถาวร
+                   </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={exportToCSV} className="flex-1 bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <Download size={16} /> Export รายรับ (CSV)
+                  </button>
+                  <button onClick={exportMenuToCSV} className="flex-1 bg-blue-600 text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <Download size={16} /> Export เมนู (CSV)
+                  </button>
+                </div>
               </div>
             )}
 
