@@ -4,7 +4,7 @@ import {
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
-  Sparkles, Database, Users
+  Sparkles, Database, Users, Filter, Calendar
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
@@ -26,8 +26,9 @@ const LIFF_ID = "2009828681-C1cb8QC3";
 const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'กาแฟ', 'มัทฉะ', 'สมูทตี้โยเกิร์ต', 'วิปครีมและครีมชีส'];
 const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
 const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-// [MODIFIED] SAUCES - รายการซอสเริ่มต้นสำหรับปุ่มนำเข้าเข้าสู่ฐานข้อมูล Firestore
+// รายการซอสเริ่มต้นสำหรับปุ่มนำเข้าเข้าสู่ฐานข้อมูล Firestore
 const DEFAULT_SAUCES = [
   { name: 'ซอสช็อกโกแลต', price: 0 },
   { name: 'ซอสคาราเมล', price: 0 },
@@ -136,7 +137,6 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
 
-  // [MODIFIED] เพิ่ม googleSheetUrl ใน storeSettings
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
@@ -152,13 +152,18 @@ export default function App() {
   const [editAutoCloseEnabled, setEditAutoCloseEnabled] = useState(false);
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
-  const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState(''); // [MODIFIED]
+  const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState(''); 
   
-  const [isSyncingAll, setIsSyncingAll] = useState(false); // [MODIFIED] State กำลังซิงค์ทั้งหมดไป Google Sheets
+  const [isSyncingAll, setIsSyncingAll] = useState(false); 
 
-  // [MODIFIED] State สำหรับเก็บข้อมูลสั่งซื้อและสถานะโหลดข้อมูลตรงจาก Google Sheets 100%
+  // State สำหรับเก็บข้อมูลสั่งซื้อและสถานะโหลดข้อมูลตรงจาก Google Sheets 100%
   const [sheetOrdersData, setSheetOrdersData] = useState([]);
   const [isLoadingSheetDashboard, setIsLoadingSheetDashboard] = useState(false);
+
+  // [MODIFIED] State สำหรับการกรองประวัติการสั่งซื้อย้อนหลังถาวร (วัน/เดือน/ปี)
+  const [sheetFilterDay, setSheetFilterDay] = useState('all');
+  const [sheetFilterMonth, setSheetFilterMonth] = useState('all');
+  const [sheetFilterYear, setSheetFilterYear] = useState('all');
 
   const [newMenu, setNewMenu] = useState({ 
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
@@ -178,7 +183,10 @@ export default function App() {
   const [adminDeliverySuccessData, setAdminDeliverySuccessData] = useState(null);
 
   const [optionModalItem, setOptionModalItem] = useState(null);
-  const [tempOptions, setTempOptions] = useState({ sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [], selectedSauces: [], separateIce: false });
+  const [tempOptions, setTempOptions] = useState({ 
+    sweetness: '100%', isBlended: false, addPearl: true, selectedToppings: [], 
+    selectedSauces: [], bean: 'คั่วเข้ม', teaType: 'มัทฉะ', addShot: false, separateIce: false 
+  });
   const [lineProfile, setLineProfile] = useState({ displayName: 'ลูกค้าทั่วไป', pictureUrl: '', userId: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,7 +221,7 @@ export default function App() {
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
-  // [MODIFIED] ฟังก์ชันส่งข้อมูลออร์เดอร์ไปยัง Google Sheets (Background Fetch)
+  // ฟังก์ชันส่งข้อมูลออร์เดอร์ไปยัง Google Sheets (Background Fetch)
   const sendOrderToGoogleSheets = async (orderData) => {
     const endpoint = storeSettings.googleSheetUrl;
     if (!endpoint || !endpoint.startsWith('http')) return;
@@ -230,7 +238,7 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] ฟังก์ชันดึงข้อมูลสรุปรายรับตรงจาก Google Sheets 100%
+  // ฟังก์ชันดึงข้อมูลสรุปรายรับตรงจาก Google Sheets 100%
   const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
     if (!storeSettings?.googleSheetUrl) return;
 
@@ -253,7 +261,7 @@ export default function App() {
     }
   }, [storeSettings?.googleSheetUrl]);
 
-  // [MODIFIED] ฟังก์ชันซิงค์ออร์เดอร์ทั้งหมดลง Google Sheets ในคลิกเดียว
+  // ฟังก์ชันซิงค์ออร์เดอร์ทั้งหมดลง Google Sheets ในคลิกเดียว
   const syncAllToGoogleSheets = async () => {
     if (!storeSettings.googleSheetUrl) {
       return showAlert("กรุณาตั้งค่า Google Sheet Web App URL ในเมนูตั้งค่าก่อนครับ");
@@ -282,7 +290,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
 
-  // [MODIFIED] เรียกดึงข้อมูลจาก Google Sheets ทันทีที่แอดมินเปิดหน้า Dashboard
+  // เรียกดึงข้อมูลจาก Google Sheets ทันทีที่แอดมินเปิดหน้า Dashboard
   useEffect(() => {
     if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
       fetchDashboardDataFromGoogleSheets();
@@ -342,7 +350,6 @@ export default function App() {
       setSauces(fetchedSauces); 
     });
 
-    // [MODIFIED] อ่านค่า googleSheetUrl จาก Firestore
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -358,7 +365,7 @@ export default function App() {
            autoCloseEnabled: data.autoCloseEnabled || false,
            maxQueue: data.maxQueue || 3,
            autoCloseDays: data.autoCloseDays || [],
-           googleSheetUrl: data.googleSheetUrl || '' // [MODIFIED]
+           googleSheetUrl: data.googleSheetUrl || '' 
         });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
@@ -369,7 +376,7 @@ export default function App() {
         setEditAutoCloseEnabled(data.autoCloseEnabled || false);
         setEditMaxQueue(data.maxQueue || 3);
         setEditAutoCloseDays(data.autoCloseDays || []);
-        setEditGoogleSheetUrl(data.googleSheetUrl || ''); // [MODIFIED]
+        setEditGoogleSheetUrl(data.googleSheetUrl || ''); 
       }
     });
 
@@ -671,7 +678,6 @@ export default function App() {
     try { await setDoc(doc(db, 'settings', 'search_stats'), { [cleanTerm]: increment(1) }, { merge: true }); } catch (e) { console.error("Error saving search stats", e); }
   };
 
-  // [MODIFIED] อัปเดตการยอมรับออร์เดอร์พร้อมซิงค์ Google Sheets
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
@@ -686,7 +692,6 @@ export default function App() {
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
   };
 
-  // [MODIFIED] อัปเดตการจัดส่งเรียบร้อยพร้อมซิงค์ Google Sheets
   const handleConfirmDelivery = async () => {
     if (deliveryLocation !== 'pickup' && !deliveryImage) return showAlert('กรุณาแนบรูปภาพการจัดส่งครับ 📸');
     setIsDelivering(true);
@@ -886,7 +891,7 @@ export default function App() {
     );
   }, [orders, adminSearchQuery]);
 
-  // ตัวแปรสำหรับสถิติในหน้า Firebase Dashboard เดิม
+  // ตัวแปรสำหรับสถิติในหน้า Firebase Dashboard
   const pendingCount = orders.filter(o => !o.isDeleted && o.status === 'pending').length;
   const cookingCount = orders.filter(o => !o.isDeleted && o.status === 'cooking').length;
   const completedCount = orders.filter(o => !o.isDeleted && o.status === 'completed').length;
@@ -927,12 +932,18 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] คำนวณสรุปสถิติต่างๆ จากข้อมูลใน Google Sheets 100% (ข้อมูลไม่หายแม้จะลบใน Firebase)
+  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100%
   const sheetStats = useMemo(() => {
     const completedSheetOrders = (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => 
       o?.status && String(o.status).includes("จัดส่งสำเร็จ")
     );
 
+    const now = new Date();
+    const todayDay = now.getDate();
+    const todayMonth = now.getMonth() + 1;
+    const todayYear = now.getFullYear();
+
+    let todayRevenue = 0;
     let totalRevenue = 0;
     let promptPaySum = 0;
     let cashSum = 0;
@@ -941,19 +952,36 @@ export default function App() {
     completedSheetOrders.forEach(o => {
       const amount = Number(o?.total) || 0;
       const paymentMethod = String(o?.paymentMethod || '');
+      
+      // ตรวจสอบวัน/เวลา สำหรับยอดรวมวันนี้
+      let isToday = false;
+      if (o?.timestamp) {
+        const orderDate = new Date(o.timestamp);
+        if (orderDate.getDate() === todayDay && (orderDate.getMonth() + 1) === todayMonth && orderDate.getFullYear() === todayYear) {
+          isToday = true;
+        }
+      } else if (o?.timestampStr) {
+        const todayStrTh = now.toLocaleDateString('th-TH');
+        if (String(o.timestampStr).includes(todayStrTh)) {
+          isToday = true;
+        }
+      }
+
+      if (isToday) todayRevenue += amount;
 
       totalRevenue += amount;
 
-      if (paymentMethod.includes("โอนพร้อมเพย์")) {
+      if (paymentMethod.includes("โอนพร้อมเพย์") || paymentMethod.includes("promptpay")) {
         promptPaySum += amount;
-      } else if (paymentMethod.includes("เงินสด")) {
+      } else if (paymentMethod.includes("เงินสด") || paymentMethod.includes("cash")) {
         cashSum += amount;
-      } else if (paymentMethod.includes("ไทยช่วยไทยพลัส")) {
+      } else if (paymentMethod.includes("ไทยช่วยไทยพลัส") || paymentMethod.includes("thaichueithai")) {
         thaiSum += amount;
       }
     });
 
     return {
+      todayRevenue,
       totalOrdersCount: sheetOrdersData.length,
       completedCount: completedSheetOrders.length,
       totalRevenue,
@@ -962,6 +990,44 @@ export default function App() {
       thaiSum,
       grandTotal: totalRevenue || 1
     };
+  }, [sheetOrdersData]);
+
+  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวร จาก Google Sheets ตามวัน/เดือน/ปี
+  const filteredSheetOrders = useMemo(() => {
+    return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
+      if (!o) return false;
+      
+      let orderDate = null;
+      if (o.timestamp) {
+        orderDate = new Date(o.timestamp);
+      } else if (o.timestampStr) {
+        orderDate = new Date(o.timestampStr);
+      }
+
+      if (!orderDate || isNaN(orderDate.getTime())) return true; // หากแปลงวันที่ไม่ได้ แสดงไว้ก่อน
+
+      const d = orderDate.getDate().toString();
+      const m = (orderDate.getMonth() + 1).toString();
+      const y = orderDate.getFullYear().toString();
+
+      if (sheetFilterDay !== 'all' && d !== sheetFilterDay) return false;
+      if (sheetFilterMonth !== 'all' && m !== sheetFilterMonth) return false;
+      if (sheetFilterYear !== 'all' && y !== sheetFilterYear) return false;
+
+      return true;
+    });
+  }, [sheetOrdersData, sheetFilterDay, sheetFilterMonth, sheetFilterYear]);
+
+  // สร้างตัวเลือกปีแบบไดนามิกจากข้อมูลที่มี
+  const availableYears = useMemo(() => {
+    const years = new Set([new Date().getFullYear().toString()]);
+    (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).forEach(o => {
+      if (o.timestamp) {
+        const y = new Date(o.timestamp).getFullYear();
+        if (!isNaN(y)) years.add(y.toString());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
   }, [sheetOrdersData]);
 
   const sliderRef = useRef(null);
@@ -1396,7 +1462,7 @@ export default function App() {
                           }, { merge: true });
                         }
 
-                        // [MODIFIED] ซิงค์ออร์เดอร์ใหม่ลง Google Sheets ทันที
+                        // ซิงค์ออร์เดอร์ใหม่ลง Google Sheets ทันที
                         sendOrderToGoogleSheets({
                           orderId: orderRef.id,
                           timestamp: orderTime,
@@ -1533,7 +1599,6 @@ export default function App() {
              )}
           </div>
         )}
-
         {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
@@ -1551,7 +1616,7 @@ export default function App() {
               ))}
             </div>
 
-            {/* [MODIFIED] TAB: แดชบอร์ด (รวมข้อมูล Google Sheets + สถิติ Firebase เดิม 100%) */}
+            {/* TAB: แดชบอร์ด (รวมข้อมูล Google Sheets + สถิติ Firebase) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
                 
@@ -1592,15 +1657,37 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 2. การ์ดสรุปยอดขายถาวร (จาก Google Sheets 100%) */}
-                <div className="bg-emerald-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
-                  <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
-                    <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> รายรับรวมสะสมทั้งหมด (จาก Google Sheets)</span>
-                    <span className="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full font-bold">ข้อมูลถาวร</span>
+                {/* [MODIFIED] 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* การ์ดรายรับของวันนี้ */}
+                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
+                    <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
+                    <div className="flex justify-between items-center mb-2 relative z-10">
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-100">
+                        <Sparkles size={16} className="text-yellow-300"/> รายรับวันนี้ (Google Sheets)
+                      </span>
+                      <span className="text-[9px] bg-yellow-400 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
+                        {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2 text-white">
+                      ฿{(sheetStats?.todayRevenue || 0).toLocaleString()}
+                    </h1>
+                    <p className="text-[10px] text-emerald-100/80 font-medium relative z-10">
+                      สรุปรายรับที่คำนวณสดจากตาราง Google Sheets ของวันนี้
+                    </p>
                   </div>
-                  <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{(sheetStats?.totalRevenue || 0).toLocaleString()}</h1>
-                  <p className="text-[10px] opacity-70 mt-2">* ยอดขายนี้ดึงตรงจาก Google Sheets แม้ลบออร์เดอร์ในแอป ยอดขายนี้ก็จะไม่หายครับ</p>
+
+                  {/* การ์ดรายรับรวมสะสมทั้งหมด */}
+                  <div className="bg-emerald-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-800">
+                    <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
+                    <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
+                      <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> รายรับรวมสะสมทั้งหมด</span>
+                      <span className="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full font-bold">ข้อมูลถาวร</span>
+                    </div>
+                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2">฿{(sheetStats?.totalRevenue || 0).toLocaleString()}</h1>
+                    <p className="text-[10px] opacity-70 relative z-10">* ยอดขายนี้ดึงตรงจาก Google Sheets แม้ลบออร์เดอร์ในแอป ยอดจะไม่หาย</p>
+                  </div>
                 </div>
 
                 {/* 🌟 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
@@ -1642,14 +1729,80 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                  <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
-                    <ClipboardList size={16} className="text-blue-500"/> ประวัติการสั่งซื้อย้อนหลังถาวร ({sheetOrdersData?.length || 0} บิล)
-                  </h3>
+                {/* [MODIFIED] 🌟 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-50 pb-3">
+                    <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                      <ClipboardList size={16} className="text-blue-500"/> ประวัติการสั่งซื้อย้อนหลังถาวร ({filteredSheetOrders.length} / {sheetOrdersData?.length || 0} บิล)
+                    </h3>
+                    {(sheetFilterDay !== 'all' || sheetFilterMonth !== 'all' || sheetFilterYear !== 'all') && (
+                      <button 
+                        onClick={() => { setSheetFilterDay('all'); setSheetFilterMonth('all'); setSheetFilterYear('all'); }}
+                        className="text-[10px] text-red-500 bg-red-50 hover:bg-red-100 font-bold px-2.5 py-1 rounded-lg transition-all"
+                      >
+                        ล้างตัวกรอง
+                      </button>
+                    )}
+                  </div>
+
+                  {/* แถบตัวกรอง วัน / เดือน / ปี */}
+                  <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-100 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500">
+                      <Filter size={14} className="text-accent" />
+                      <span>กรองข้อมูลตาม วัน / เดือน / ปี:</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* กรองวัน (1-31) */}
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-400 block mb-1">วัน</label>
+                        <select 
+                          value={sheetFilterDay} 
+                          onChange={e => setSheetFilterDay(e.target.value)}
+                          className="w-full p-2 rounded-xl text-xs bg-white border border-gray-200 font-bold text-primary outline-none focus:ring-2 focus:ring-accent"
+                        >
+                          <option value="all">ทุกวัน</option>
+                          {[...Array(31)].map((_, i) => (
+                            <option key={i + 1} value={(i + 1).toString()}>วันที่ {i + 1}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* กรองเดือน (1-12) */}
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-400 block mb-1">เดือน</label>
+                        <select 
+                          value={sheetFilterMonth} 
+                          onChange={e => setSheetFilterMonth(e.target.value)}
+                          className="w-full p-2 rounded-xl text-xs bg-white border border-gray-200 font-bold text-primary outline-none focus:ring-2 focus:ring-accent"
+                        >
+                          <option value="all">ทุกเดือน</option>
+                          {THAI_MONTHS.map((m, idx) => (
+                            <option key={idx + 1} value={(idx + 1).toString()}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* กรองปี */}
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-400 block mb-1">ปี</label>
+                        <select 
+                          value={sheetFilterYear} 
+                          onChange={e => setSheetFilterYear(e.target.value)}
+                          className="w-full p-2 rounded-xl text-xs bg-white border border-gray-200 font-bold text-primary outline-none focus:ring-2 focus:ring-accent"
+                        >
+                          <option value="all">ทุกปี</option>
+                          {availableYears.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                   
+                  {/* รายการออร์เดอร์ที่ผ่านการกรอง */}
                   <div className="space-y-2 max-h-80 overflow-y-auto hide-scrollbar">
-                    {(Array.isArray(sheetOrdersData) ? sheetOrdersData : []).slice().reverse().map((o, idx) => {
+                    {filteredSheetOrders.slice().reverse().map((o, idx) => {
                       const safeOrderId = o?.orderId ? String(o.orderId).slice(0, 6) : `ROW-${idx + 1}`;
                       const safeLineName = o?.lineName || 'ไม่ระบุชื่อ';
                       const safeTimestamp = o?.timestampStr || 'ไม่ระบุเวลา';
@@ -1658,7 +1811,7 @@ export default function App() {
                       const safeStatus = o?.status || 'จัดส่งสำเร็จ';
 
                       return (
-                        <div key={o?.orderId || idx} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center text-xs">
+                        <div key={o?.orderId || idx} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center text-xs hover:bg-gray-100 transition-colors">
                           <div>
                             <span className="font-bold text-primary block">#{safeOrderId} - {safeLineName}</span>
                             <span className="text-[9px] text-gray-400 font-bold">{safeTimestamp} • {safePayment}</span>
@@ -1671,8 +1824,8 @@ export default function App() {
                       );
                     })}
 
-                    {(!sheetOrdersData || sheetOrdersData.length === 0) && (
-                      <p className="text-center text-xs text-gray-400 py-8 font-bold">ยังไม่มีข้อมูลประวัติใน Google Sheets</p>
+                    {filteredSheetOrders.length === 0 && (
+                      <p className="text-center text-xs text-gray-400 py-8 font-bold">ไม่พบข้อมูลประวัติสั่งซื้อตามเงื่อนไข วัน/เดือน/ปี ที่เลือก</p>
                     )}
                   </div>
                 </div>
@@ -2310,8 +2463,110 @@ export default function App() {
                                   {editingMenu && editingMenu.id === item.id ? <X size={16}/> : <Edit size={16}/>}
                                 </button>
                                 <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteMenu(item.id); }} className="p-3 text-red-500 hover:bg-red-100 active:scale-90 transition-all bg-red-50 rounded-xl"><Trash2 size={16}/></button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleDownloadImage(item.image, `menu_${item.name}.jpg`); }} className="p-3 text-green-500 hover:bg-green-100 active:scale-90 transition-all bg-green-50 rounded-xl" title="บันทึกรูปภาพเมนู"><Download size={16}/></button>
                               </div>
                             </div>
+
+                            {/* [MODIFIED] Inline Form สำหรับแก้ไขรายการเมนู */}
+                            {editingMenu && editingMenu.id === item.id && (
+                              <div className="bg-orange-50 p-5 rounded-3xl border border-orange-200 shadow-inner mt-2 mb-4 mx-1 animate-in slide-in-from-top-4 space-y-4">
+                                <div className="flex justify-between items-center mb-1 border-b border-orange-100 pb-2">
+                                   <h4 className="font-bold text-sm text-orange-600 flex items-center gap-2"><Edit size={16}/> แก้ไขเมนู</h4>
+                                </div>
+                                <input type="text" placeholder="ชื่อเมนู" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={editingMenu.name} onChange={e => setEditingMenu({...editingMenu, name: e.target.value})} />
+                                <div className="flex gap-2">
+                                  <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 border border-transparent bg-white font-bold" value={editingMenu.price} onChange={e => setEditingMenu({...editingMenu, price: e.target.value})} />
+                                  <select className="w-1/2 p-4 rounded-2xl text-sm outline-none shadow-sm bg-white focus:ring-2 focus:ring-orange-400 border border-transparent font-bold text-gray-600" value={editingMenu.category} onChange={e => setEditingMenu({...editingMenu, category: e.target.value})}>
+                                    {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                </div>
+
+                                <div className="p-3 bg-white rounded-2xl border border-orange-100 text-left">
+                                  <label className="text-[11px] font-bold text-orange-800 block mb-2">ระดับความหวานที่เลือกได้:</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {SWEETNESS.map(level => {
+                                      const current = editingMenu.allowedSweetness || SWEETNESS;
+                                      const isSelected = current.includes(level);
+                                      return (
+                                        <button
+                                          key={level}
+                                          type="button"
+                                          onClick={() => {
+                                            const updated = isSelected 
+                                              ? current.filter(s => s !== level) 
+                                              : [...current, level];
+                                            setEditingMenu({ ...editingMenu, allowedSweetness: updated });
+                                          }}
+                                          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                            isSelected ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-gray-50 text-gray-400 border-gray-100'
+                                          }`}
+                                        >
+                                          {level}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-blue-50 rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-100">
+                                    <input type="checkbox" checked={editingMenu.isOnlyBlend} onChange={e => setEditingMenu({...editingMenu, isOnlyBlend: e.target.checked, allowBlend: e.target.checked ? true : editingMenu.allowBlend})} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                                    <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1"><Zap size={14} className="text-blue-500" fill="currentColor"/> เป็นเมนูเฉพาะปั่นเท่านั้น (เช่น สมูทตี้)</span>
+                                  </label>
+
+                                  <label className={`flex items-center justify-center gap-1 p-3 rounded-2xl shadow-sm border cursor-pointer transition-all ${editingMenu.isOnlyBlend ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-white border-blue-50 hover:bg-blue-50'}`}>
+                                    <input type="checkbox" disabled={editingMenu.isOnlyBlend} checked={editingMenu.isOnlyBlend || editingMenu.allowBlend !== false} onChange={e => setEditingMenu({...editingMenu, allowBlend: e.target.checked})} className="w-4 h-4 accent-blue-400 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500">มีเมนูปั่น</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-gray-50 cursor-pointer transition-all hover:bg-gray-50">
+                                    <input type="checkbox" checked={editingMenu.allowTopping !== false} onChange={e => setEditingMenu({...editingMenu, allowTopping: e.target.checked})} className="w-4 h-4 accent-[#A67C52] cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500">ท็อปปิ้งได้</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-white rounded-2xl shadow-sm border border-orange-50 cursor-pointer transition-all hover:bg-orange-50">
+                                    <input type="checkbox" checked={editingMenu.hasFreePearl} onChange={e => setEditingMenu({...editingMenu, hasFreePearl: e.target.checked})} className="w-4 h-4 accent-orange-400 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1"><Star size={12} className="text-orange-400" fill="currentColor"/> มุกฟรี</span>
+                                  </label>
+
+                                  <label className="flex items-center justify-center gap-1 p-3 bg-gray-100 rounded-2xl shadow-sm border border-gray-200 cursor-pointer transition-all hover:bg-gray-200">
+                                    <input type="checkbox" checked={editingMenu.isSoldOut} onChange={e => setEditingMenu({...editingMenu, isSoldOut: e.target.checked})} className="w-4 h-4 accent-gray-600 cursor-pointer" />
+                                    <span className="text-[10px] font-bold text-gray-600 flex items-center gap-1">ปิดขายชั่วคราว</span>
+                                  </label>
+
+                                  <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-red-50 rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-100">
+                                    <input type="checkbox" checked={editingMenu.isPromoted} onChange={e => setEditingMenu({...editingMenu, isPromoted: e.target.checked})} className="w-4 h-4 accent-red-500 cursor-pointer" />
+                                    <span className="text-[11px] font-bold text-red-600 flex items-center gap-1"><Star size={14} className="text-red-500" fill="currentColor"/> ตั้งเป็นเมนูแนะนำ (โชว์แบนเนอร์สไลด์)</span>
+                                  </label>
+
+                                  {editingMenu.category === 'มัทฉะ' && (
+                                    <label className="col-span-2 flex items-center justify-center gap-1 p-3 bg-green-50 rounded-2xl shadow-sm border border-green-100 cursor-pointer transition-all hover:bg-green-100">
+                                      <input type="checkbox" checked={editingMenu.hasTeaType} onChange={e => setEditingMenu({...editingMenu, hasTeaType: e.target.checked})} className="w-4 h-4 accent-green-600 cursor-pointer" />
+                                      <span className="text-[11px] font-bold text-green-700 flex items-center gap-1">🍵 ให้ลูกค้าเลือกผงชา (มัทฉะ / โฮจิฉะ) ได้</span>
+                                    </label>
+                                  )}
+                                </div>
+
+                                {editingMenu.allowBlend !== false && editingMenu.category !== 'สมูทตี้โยเกิร์ต' && editingMenu.category !== 'ผลไม้และสมูทตี้' && (
+                                  <div className="mt-2 text-left">
+                                    <label className="text-[10px] font-bold text-gray-400 ml-2">บวกราคาเพิ่มสำหรับเมนูปั่น (บาท)</label>
+                                    <input type="number" placeholder="เช่น 5 หรือ 10" className="w-full mt-1 p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-orange-400 transition-all bg-white border border-transparent font-bold" value={editingMenu.blendPrice} onChange={e => setEditingMenu({...editingMenu, blendPrice: e.target.value})} />
+                                  </div>
+                                )}
+
+                                <label className="cursor-pointer bg-white border border-gray-200 p-4 rounded-2xl text-xs font-bold block shadow-sm text-gray-400 hover:text-orange-500 hover:border-orange-300 transition-all mt-4">
+                                  <Upload size={18} className="inline mr-2"/> {editingMenu.image ? 'เปลี่ยนรูปเมนู' : 'อัปโหลดรูปภาพเมนู'}
+                                  <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                    const file = e.target.files[0];
+                                    if (file) { try { setEditingMenu({...editingMenu, image: await compressImage(file)}); } catch(err) { console.error(err); } }
+                                  }} />
+                                </label>
+                                <div className="flex gap-2">
+                                  <button onClick={() => setEditingMenu(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-sm hover:bg-gray-50">ยกเลิก</button>
+                                  <button onClick={handleUpdateMenu} className="flex-[2] bg-orange-500 text-white py-4 rounded-2xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-orange-600"><Save size={18}/> บันทึกการแก้ไข</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -2335,24 +2590,142 @@ export default function App() {
                         </button>
                      ))}
                   </div>
+
+                  {storeSettings.theme === 'custom' && (
+                     <div className="mt-4 p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[11px] font-bold text-indigo-900 mb-3 block text-center">🖼️ อัปโหลดรูปพื้นหลังร้าน</label>
+                        <div className="flex flex-col gap-3">
+                           <label className="cursor-pointer bg-white border-2 border-dashed border-indigo-200 text-indigo-500 py-4 px-4 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-2 shadow-sm hover:bg-indigo-50 transition-all">
+                             <Upload size={20}/> {editCustomBgImage ? 'คลิกเพื่อเปลี่ยนรูปพื้นหลัง' : 'คลิกเลือกรูปภาพ'}
+                             <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                               const file = e.target.files[0];
+                               if(file) {
+                                 try {
+                                   const compressedImage = await compressImage(file, 1200, 1200, 0.8); 
+                                   setEditCustomBgImage(compressedImage);
+                                 } catch(err) { console.error(err); }
+                               }
+                             }} />
+                           </label>
+                           {editCustomBgImage && <img src={editCustomBgImage} className="w-full h-32 object-cover rounded-xl shadow-sm border border-gray-100" alt="Bg Preview" />}
+                           {editCustomBgImage && (
+                              <button onClick={async () => {
+                                 try { 
+                                    await setDoc(doc(db, 'settings', 'store'), { customBgImage: editCustomBgImage }, { merge: true }); 
+                                    showAlert('บันทึกรูปพื้นหลังสำเร็จ! 🎨'); 
+                                 } catch(e) { showAlert(e.message); }
+                              }} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all">
+                                 บันทึกรูปพื้นหลัง
+                              </button>
+                           )}
+                        </div>
+                     </div>
+                  )}
                 </div>
                 
-                {/* 2. สถานะร้าน */}
+                {/* 2. สถานะร้าน และวัตถุดิบ */}
                 <div className="bg-orange-50 p-6 rounded-[2.5rem] border-2 border-dashed border-orange-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">สถานะร้าน และ วัตถุดิบ</h3>
                   <div className="flex justify-center gap-3 pt-2">
                     <button onClick={() => updateStoreStatus(true)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-sm transition-all ${storeSettings.isStoreOpen !== false ? 'bg-green-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-green-200'}`}><CheckCircle size={18}/> เปิดร้านแล้ว</button>
                     <button onClick={() => updateStoreStatus(false)} className={`flex-1 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-sm transition-all ${storeSettings.isStoreOpen === false ? 'bg-red-500 text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100 hover:border-red-200'}`}><X size={18}/> ปิดร้านแล้ว</button>
                   </div>
+
+                  <div className="mt-4 pt-4 border-t border-orange-200/50">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-orange-100 cursor-pointer transition-all hover:bg-orange-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🚫 วันนี้ไม่มีเมนูปั่น</p>
+                        <p className="text-[10px] text-gray-500 mt-1">ปิดรับออร์เดอร์ที่เป็นเมนูปั่นทั้งหมด</p>
+                      </div>
+                      <input type="checkbox" checked={storeSettings.isBlendOut || false} onChange={async (e) => {
+                         try { await setDoc(doc(db, 'settings', 'store'), { isBlendOut: e.target.checked }, { merge: true }); } catch(err) { showAlert(err.message); }
+                      }} className="w-5 h-5 accent-orange-500 cursor-pointer" />
+                    </label>
+                  </div>
                 </div>
 
-                {/* 3. ตั้งค่าช่องทางชำระเงิน */}
+                {/* 3. ระบบปิดร้านอัตโนมัติ */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-4 shadow-inner relative mt-8">
+                  <h3 className="font-bold text-sm text-red-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">🤖 ปิดร้านอัตโนมัติ (คิวล้น)</h3>
+                  
+                  <div className="mt-2">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-red-100 cursor-pointer transition-all hover:bg-red-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🛑 ระบบปิดร้านออโต้เมื่อคิวเยอะ</p>
+                        <p className="text-[10px] text-gray-500 mt-1">ช่วยปิดร้านแทนแอดมิน เพื่อกันลูกค้ารอนาน</p>
+                      </div>
+                      <input type="checkbox" checked={editAutoCloseEnabled} onChange={e => setEditAutoCloseEnabled(e.target.checked)} className="w-5 h-5 accent-red-500 cursor-pointer" />
+                    </label>
+                  </div>
+
+                  <div className={`transition-all space-y-3 ${editAutoCloseEnabled ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
+                    <label className="text-[11px] text-gray-500 block font-bold">จำนวนคิวสูงสุดก่อนปิดรับออร์เดอร์</label>
+                    <input type="number" placeholder="เช่น 3 คิว" className="w-full p-4 rounded-2xl text-xs outline-none shadow-sm focus:ring-2 focus:ring-red-400 border border-transparent transition-all bg-white text-gray-700 font-bold" value={editMaxQueue} onChange={e => setEditMaxQueue(Number(e.target.value))} />
+
+                    <div className="pt-2">
+                      <label className="text-[11px] text-gray-500 mb-2 block font-bold">เลือกวันที่จะให้ระบบคิวอัตโนมัติทำงาน</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {THAI_DAYS.map((day, idx) => {
+                          const isSelected = editAutoCloseDays.includes(idx);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => {
+                                setEditAutoCloseDays(prev => 
+                                  prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx]
+                                );
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
+                                isSelected 
+                                  ? 'bg-red-500 text-white border-red-500 shadow-sm' 
+                                  : 'bg-white text-gray-500 border-gray-100 hover:border-red-200'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onClick={async () => {
+                    try { 
+                      await setDoc(doc(db, 'settings', 'store'), { 
+                        autoCloseEnabled: editAutoCloseEnabled, 
+                        maxQueue: editMaxQueue,
+                        autoCloseDays: editAutoCloseDays
+                      }, { merge: true }); 
+                      showAlert('อัปเดตระบบปิดร้านอัตโนมัติเรียบร้อย! 🛑'); 
+                    } catch(e) { showAlert("Error: " + e.message); }
+                  }} className="w-full bg-red-500 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
+                    บันทึกระบบคิวอัตโนมัติ
+                  </button>
+                </div>
+
+                {/* 4. ตั้งค่าช่องทางชำระเงิน */}
                 <div className="bg-gray-50 p-6 rounded-[2.5rem] border-2 border-dashed border-gray-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-accent uppercase tracking-widest text-center">ตั้งค่าช่องทางชำระเงิน</h3>
                   
                   <div>
                     <label className="text-xs text-gray-500 mb-2 block font-bold">หมายเลขพร้อมเพย์</label>
                     <input type="text" placeholder="เช่น 0812345678" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-accent border border-transparent transition-all font-bold" value={editPromptPay} onChange={e => setEditPromptPay(e.target.value)} />
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="text-xs text-gray-500 mb-2 block font-bold">อัปโหลดรูป QR Code ของร้าน (ถ้ามี)</label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex-1 cursor-pointer bg-white border border-gray-200 text-gray-500 py-4 px-4 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 hover:text-accent transition-all">
+                        <Upload size={16}/> {editQrCodeImage ? 'เปลี่ยนรูป QR Code' : 'เลือกรูปจากเครื่อง'}
+                        <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                          const file = e.target.files[0];
+                          if(file) { try { const compressedImage = await compressImage(file); setEditQrCodeImage(compressedImage); } catch(err) { console.error(err); } }
+                        }} />
+                      </label>
+                      {editQrCodeImage && <img src={editQrCodeImage} className="w-16 h-16 rounded-xl object-cover shadow-sm border border-gray-100 bg-white" alt="QR Preview" />}
+                      {editQrCodeImage && <button onClick={() => setEditQrCodeImage('')} className="p-3 text-red-400 hover:bg-red-50 rounded-xl transition-all active:scale-95"><Trash2 size={18}/></button>}
+                    </div>
                   </div>
 
                   <button onClick={async () => {
@@ -2362,7 +2735,42 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* [MODIFIED] 4. ตั้งค่าเชื่อมต่อ Google Sheets Web App */}
+                {/* 5. การแจ้งเตือนและลิงก์ร้าน */}
+                <div className="bg-blue-50 p-6 rounded-[2.5rem] border-2 border-dashed border-blue-200 space-y-4 shadow-inner relative">
+                  <h3 className="font-bold text-sm text-blue-700 uppercase tracking-widest text-center flex items-center justify-center gap-2"><BellRing size={16}/> แจ้งเตือนออร์เดอร์ (LINE)</h3>
+                  
+                  <div>
+                    <label className="text-xs text-gray-500 mb-2 block font-bold">ลิงก์เพิ่มเพื่อนร้าน (LINE Official Account)</label>
+                    <input type="text" placeholder="เช่น https://lin.ee/xxxxx" className="w-full p-4 rounded-2xl text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all text-blue-700 font-bold" value={editShopLineUrl} onChange={e => setEditShopLineUrl(e.target.value)} />
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-blue-100">
+                    <label className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-blue-100 cursor-pointer transition-all hover:bg-blue-50">
+                      <div>
+                        <p className="font-bold text-sm text-primary flex items-center gap-1">🔔 เปิดแจ้งเตือนผ่าน LINE ส่วนตัว</p>
+                        <p className="text-[10px] text-gray-500 mt-1">บอทจะทักไปบอกทันทีที่มีออร์เดอร์</p>
+                      </div>
+                      <input type="checkbox" checked={editNotifyAdmin} onChange={e => setEditNotifyAdmin(e.target.checked)} className="w-5 h-5 accent-blue-500 cursor-pointer" />
+                    </label>
+                  </div>
+
+                  <div className={`transition-all ${editNotifyAdmin ? 'opacity-100 h-auto' : 'opacity-40 h-auto pointer-events-none'}`}>
+                    <label className="text-[11px] text-gray-500 mb-2 block font-bold">LINE User ID ของแอดมิน</label>
+                    <div className="flex gap-2">
+                       <input type="text" placeholder="ระบบจะดึงให้อัตโนมัติ..." className="flex-1 p-4 rounded-2xl text-[10px] outline-none shadow-sm focus:ring-2 focus:ring-blue-400 border border-transparent transition-all bg-white text-gray-500 font-bold" value={editAdminLineId} onChange={e => setEditAdminLineId(e.target.value)} readOnly />
+                       <button onClick={() => setEditAdminLineId(lineProfile.userId)} className="bg-blue-500 text-white px-3 rounded-2xl text-[10px] font-bold shadow-sm active:scale-95 whitespace-nowrap hover:bg-blue-600 transition-colors">ดึง LINE ID ของฉัน</button>
+                    </div>
+                  </div>
+
+                  <button onClick={async () => {
+                    if (editNotifyAdmin && !editAdminLineId) return showAlert('กรุณากดดึง LINE ID ก่อนบันทึกครับ');
+                    try { await setDoc(doc(db, 'settings', 'store'), { notifyAdmin: editNotifyAdmin, adminLineId: editAdminLineId, shopLineUrl: editShopLineUrl }, { merge: true }); showAlert('อัปเดตการแจ้งเตือนและลิงก์ร้านสำเร็จ! 🎉'); } catch(e) { showAlert("Error: " + e.message); }
+                  }} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all shadow-md mt-4 hover:opacity-90">
+                    บันทึกการแจ้งเตือน
+                  </button>
+                </div>
+
+                {/* 6. ตั้งค่าเชื่อมต่อ Google Sheets Web App */}
                 <div className="bg-emerald-50 p-6 rounded-[2.5rem] border-2 border-dashed border-emerald-200 space-y-4 shadow-inner relative">
                   <h3 className="font-bold text-sm text-emerald-800 uppercase tracking-widest text-center flex items-center justify-center gap-2">
                     <Database size={16}/> เชื่อมต่อ Google Sheets & Dashboard
@@ -2378,7 +2786,7 @@ export default function App() {
                       onChange={e => setEditGoogleSheetUrl(e.target.value)} 
                     />
                     <p className="text-[9px] text-emerald-600 font-bold mt-2 leading-relaxed">
-                      * ระบบจะทำการบันทึกทุกๆ ออร์เดอร์และอัปเดตสถานะ (กำลังปรุง/จัดส่งสำเร็จ) ส่งตรงเข้า Google Sheets แบบ Real-time ทันที
+                      * ระบบจะทำการบันทึกทุกๆ ออร์เดอร์และอัปเดตสถานะส่งตรงเข้า Google Sheets แบบ Real-time ทันที
                     </p>
                   </div>
 
@@ -2476,6 +2884,29 @@ export default function App() {
                          <button onClick={() => setTempOptions({...tempOptions, bean: 'คั่วเข้ม'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.bean === 'คั่วเข้ม' ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>คั่วเข้ม<br/><span className="text-[9px] font-normal">เข้มข้น ถึงใจ</span></button>
                        </div>
                      </div>
+
+                     <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.addShot ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.addShot ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                            {tempOptions.addShot && <CheckCircle size={14} />}
+                          </div>
+                          <span className={`text-sm font-bold ${tempOptions.addShot ? 'text-primary' : 'text-gray-500'}`}>เพิ่มช็อตกาแฟ</span>
+                        </div>
+                        <span className="text-sm font-bold text-accent">+฿20</span>
+                        <input type="checkbox" className="hidden" checked={tempOptions.addShot || false} onChange={(e) => setTempOptions({...tempOptions, addShot: e.target.checked})} />
+                     </label>
+                  </div>
+                )}
+
+                {optionModalItem.hasTeaType && (
+                  <div className="space-y-4">
+                     <div>
+                       <label className="text-[10px] font-bold block mb-4 text-[#4a5d23] uppercase tracking-widest flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
+                       <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-[#4a5d23] text-white border-[#4a5d23] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>มัทฉะ<br/><span className="text-[9px] font-normal">หอมเข้มข้น ดั้งเดิม</span></button>
+                         <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-4 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-[#8c522d] text-white border-[#8c522d] shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal">หอมคั่ว ละมุน</span></button>
+                       </div>
+                     </div>
                   </div>
                 )}
 
@@ -2512,6 +2943,63 @@ export default function App() {
                   </div>
                 )}
 
+                {optionModalItem.hasFreePearl && (
+                  <div>
+                     <label className="text-sm font-bold block mb-4 text-orange-400 uppercase tracking-widest text-[10px] flex items-center gap-1"><Star size={12} fill="currentColor"/> แถมมุกฟรี!</label>
+                     <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => setTempOptions({...tempOptions, addPearl: true})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${tempOptions.addPearl ? 'bg-orange-400 text-white border-orange-400 shadow-md' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>รับมุก (ฟรี)</button>
+                       <button onClick={() => setTempOptions({...tempOptions, addPearl: false})} className={`py-3.5 rounded-2xl text-[11px] font-bold border transition-all ${!tempOptions.addPearl ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}>ไม่รับมุกฟรี</button>
+                     </div>
+                  </div>
+                )}
+
+                {toppings.length > 0 && optionModalItem.allowTopping !== false && (
+                  <div>
+                    <label className="text-[10px] font-bold block mb-4 text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                      🍨 เลือกท็อปปิ้งเสริม (เลือกได้หลายอย่าง)
+                    </label>
+                    <div className="space-y-2">
+                      {toppings.map(t => {
+                        const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
+                        return (
+                          <label key={t.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-accent bg-[var(--theme-bg)]' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center ${isSelected ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                                {isSelected && <CheckCircle size={14} />}
+                              </div>
+                              <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-gray-500'}`}>{t.name}</span>
+                            </div>
+                            <span className="text-sm font-bold text-accent">+฿{t.price}</span>
+                            <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
+                              setTempOptions(prev => {
+                                const currentToppings = prev.selectedToppings || [];
+                                if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
+                                return { ...prev, selectedToppings: [...currentToppings, t] };
+                              });
+                            }} />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {!isItemBlendedInPreview && !isWhipOrCreamCheese && (
+                  <div className="space-y-3 animate-in fade-in">
+                     <label className="text-[10px] font-bold block mb-1 text-gray-400 uppercase tracking-widest">การเสิร์ฟ</label>
+                     <label className={`flex justify-between items-center p-4 rounded-2xl border-2 cursor-pointer transition-all ${tempOptions.separateIce ? 'border-accent bg-[var(--theme-bg)] shadow-inner' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center ${tempOptions.separateIce ? 'bg-accent text-white' : 'bg-white border-2 border-gray-200'}`}>
+                            {tempOptions.separateIce && <CheckCircle size={14} />}
+                          </div>
+                          <span className={`text-sm font-bold ${tempOptions.separateIce ? 'text-primary' : 'text-gray-500'}`}>แยกน้ำแข็ง (ใส่ถุงซิปล็อค)</span>
+                        </div>
+                        <span className="text-sm font-bold text-accent">+฿5</span>
+                        <input type="checkbox" className="hidden" checked={tempOptions.separateIce || false} onChange={(e) => setTempOptions({...tempOptions, separateIce: e.target.checked})} />
+                     </label>
+                  </div>
+                )}
+
                 {!isWhipOrCreamCheese && (
                   optionModalItem.isOnlyBlend ? (
                     <div className="grid grid-cols-1 gap-5">
@@ -2542,8 +3030,12 @@ export default function App() {
                   
                   const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
                   const saucesStr = (tempOptions.selectedSauces || []).map(s => typeof s === 'object' ? s.id : s).sort().join('-');
+                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
+                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
+                  const shotStr = tempOptions.addShot ? `-addShot` : '';
+                  const iceStr = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? `-separateIce` : '';
                   
-                  const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}`;
+                  const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
                   
                   setCart(prev => {
                     const ex = prev.find(i => i.cartId === cartId);
@@ -2707,9 +3199,31 @@ export default function App() {
               >
                 <Share2 size={18}/> แชร์สถานะผ่านแอป LINE
               </a>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(adminDeliverySuccessData.text);
+                  showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแช้ทลูกค้าได้เลยครับ");
+                }}
+                className="w-full bg-gray-100 text-primary py-3 rounded-full text-xs font-bold active:scale-95 hover:bg-gray-200"
+              >
+                คัดลอกข้อความ
+              </button>
               <button onClick={() => setAdminDeliverySuccessData(null)} className="w-full text-gray-400 py-2 text-xs font-bold mt-2">ปิดหน้าต่าง</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal ดาวน์โหลดรูปพรีวิว */}
+      {downloadPreview && (
+        <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
+          <p className="text-white font-bold mb-6 bg-green-500/80 backdrop-blur-sm px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl border border-green-400 text-sm text-center">
+            <Download size={18}/> กรุณากดค้างที่รูปภาพด้านล่าง<br/>แล้วเลือก "บันทึกรูปภาพ" (Save Image)
+          </p>
+          <img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-3xl shadow-2xl border-4 border-white/10 animate-in zoom-in pointer-events-auto" alt="preview to save" />
+          <button onClick={() => setDownloadPreview(null)} className="mt-8 bg-white text-primary px-8 py-4 rounded-2xl font-bold active:scale-95 shadow-md flex items-center gap-2">
+            <X size={18}/> ปิดหน้าต่าง
+          </button>
         </div>
       )}
 
