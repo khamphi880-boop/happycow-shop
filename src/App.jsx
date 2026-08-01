@@ -160,7 +160,7 @@ export default function App() {
   const [sheetOrdersData, setSheetOrdersData] = useState([]);
   const [isLoadingSheetDashboard, setIsLoadingSheetDashboard] = useState(false);
 
-  // [MODIFIED] State สำหรับการกรองประวัติการสั่งซื้อย้อนหลังถาวร (วัน/เดือน/ปี)
+  // State สำหรับการกรองประวัติการสั่งซื้อย้อนหลังถาวร (วัน/เดือน/ปี)
   const [sheetFilterDay, setSheetFilterDay] = useState('all');
   const [sheetFilterMonth, setSheetFilterMonth] = useState('all');
   const [sheetFilterYear, setSheetFilterYear] = useState('all');
@@ -502,7 +502,7 @@ export default function App() {
       }
     } catch (e) {
       showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
-    } finally {
+    } font-bold {
       setLoadingSlipId(null);
     }
   };
@@ -932,58 +932,104 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100%
+  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100% (แก้ไขปัญหาตามที่แจ้ง)
   const sheetStats = useMemo(() => {
-    const completedSheetOrders = (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => 
-      o?.status && String(o.status).includes("จัดส่งสำเร็จ")
-    );
+    const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
+    
+    // [MODIFIED] กรองเฉพาะออร์เดอร์ที่ไม่ถูกยกเลิก/ลบ (รองรับทั้ง completed, จัดส่งสำเร็จ, สำเร็จ, pending ฯลฯ)
+    const validSheetOrders = rawOrders.filter(o => {
+      if (!o) return false;
+      const st = String(o.status || '').toLowerCase().trim();
+      return !st.includes('cancel') && !st.includes('ยกเลิก') && !st.includes('deleted');
+    });
 
     const now = new Date();
-    const todayDay = now.getDate();
-    const todayMonth = now.getMonth() + 1;
-    const todayYear = now.getFullYear();
+
+    // [MODIFIED] Helper Function ตรวจสอบว่าเป็นออร์เดอร์ของวันนี้หรือไม่ (รองรับ Timestamp, ISO, พ.ศ., ค.ศ. และ Padded zeroes)
+    const isTodayDate = (dateVal, dateStrVal) => {
+      if (!dateVal && !dateStrVal) return false;
+
+      // 1. ตรวจสอบจาก Timestamp (ตัวเลข หรือ String ตัวเลข)
+      if (dateVal !== undefined && dateVal !== null && dateVal !== '') {
+        const rawTs = (typeof dateVal === 'string' && !isNaN(Number(dateVal))) ? Number(dateVal) : dateVal;
+        const d = new Date(rawTs);
+        if (!isNaN(d.getTime())) {
+          return d.getDate() === now.getDate() &&
+                 d.getMonth() === now.getMonth() &&
+                 d.getFullYear() === now.getFullYear();
+        }
+      }
+
+      // 2. ตรวจสอบจาก Date String
+      const targetStr = String(dateStrVal || dateVal || '').trim();
+      if (!targetStr) return false;
+
+      // แปลงด้วย Date parser
+      const parsed = new Date(targetStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.getDate() === now.getDate() &&
+               parsed.getMonth() === now.getMonth() &&
+               parsed.getFullYear() === now.getFullYear();
+      }
+
+      // ตรวจสอบจากรูปแบบวัน/เดือน/ปี ทั้ง ค.ศ. และ พ.ศ.
+      const day = now.getDate();
+      const month = now.getMonth() + 1;
+      const yearAD = now.getFullYear();
+      const yearBE = yearAD + 543;
+
+      const dayPadded = String(day).padStart(2, '0');
+      const monthPadded = String(month).padStart(2, '0');
+
+      const todayStrTh = now.toLocaleDateString('th-TH');
+      const todayStrEn = now.toLocaleDateString('en-CA');
+
+      return targetStr.includes(`${day}/${month}/${yearAD}`) ||
+             targetStr.includes(`${dayPadded}/${monthPadded}/${yearAD}`) ||
+             targetStr.includes(`${day}/${month}/${yearBE}`) ||
+             targetStr.includes(`${dayPadded}/${monthPadded}/${yearBE}`) ||
+             targetStr.includes(todayStrTh) ||
+             targetStr.includes(todayStrEn) ||
+             targetStr.includes(`${yearAD}-${monthPadded}-${dayPadded}`);
+    };
 
     let todayRevenue = 0;
     let totalRevenue = 0;
     let promptPaySum = 0;
     let cashSum = 0;
     let thaiSum = 0;
+    let completedCount = 0;
 
-    completedSheetOrders.forEach(o => {
+    validSheetOrders.forEach(o => {
       const amount = Number(o?.total) || 0;
-      const paymentMethod = String(o?.paymentMethod || '');
-      
-      // ตรวจสอบวัน/เวลา สำหรับยอดรวมวันนี้
-      let isToday = false;
-      if (o?.timestamp) {
-        const orderDate = new Date(o.timestamp);
-        if (orderDate.getDate() === todayDay && (orderDate.getMonth() + 1) === todayMonth && orderDate.getFullYear() === todayYear) {
-          isToday = true;
-        }
-      } else if (o?.timestampStr) {
-        const todayStrTh = now.toLocaleDateString('th-TH');
-        if (String(o.timestampStr).includes(todayStrTh)) {
-          isToday = true;
-        }
+      const paymentMethod = String(o?.paymentMethod || '').toLowerCase();
+      const st = String(o?.status || '').toLowerCase();
+
+      if (st.includes('completed') || st.includes('จัดส่งสำเร็จ') || st.includes('สำเร็จ') || st.includes('paid') || st.includes('เสร็จสิ้น')) {
+        completedCount++;
       }
 
-      if (isToday) todayRevenue += amount;
+      // [MODIFIED] คำนวณยอดขายวันนี้
+      if (isTodayDate(o?.timestamp, o?.timestampStr)) {
+        todayRevenue += amount;
+      }
 
       totalRevenue += amount;
 
-      if (paymentMethod.includes("โอนพร้อมเพย์") || paymentMethod.includes("promptpay")) {
+      // [MODIFIED] จำแนกช่องทางชำระเงินยืดหยุ่น
+      if (paymentMethod.includes("พร้อมเพย์") || paymentMethod.includes("promptpay") || paymentMethod.includes("โอน")) {
         promptPaySum += amount;
       } else if (paymentMethod.includes("เงินสด") || paymentMethod.includes("cash")) {
         cashSum += amount;
-      } else if (paymentMethod.includes("ไทยช่วยไทยพลัส") || paymentMethod.includes("thaichueithai")) {
+      } else if (paymentMethod.includes("ไทยช่วยไทย") || paymentMethod.includes("thaichueithai") || paymentMethod.includes("ไทย")) {
         thaiSum += amount;
       }
     });
 
     return {
       todayRevenue,
-      totalOrdersCount: sheetOrdersData.length,
-      completedCount: completedSheetOrders.length,
+      totalOrdersCount: validSheetOrders.length,
+      completedCount,
       totalRevenue,
       promptPaySum,
       cashSum,
@@ -992,19 +1038,24 @@ export default function App() {
     };
   }, [sheetOrdersData]);
 
-  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวร จาก Google Sheets ตามวัน/เดือน/ปี
+  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวร จาก Google Sheets ตามวัน/เดือน/ปี (รองรับ String Timestamp)
   const filteredSheetOrders = useMemo(() => {
     return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
       if (!o) return false;
       
       let orderDate = null;
-      if (o.timestamp) {
-        orderDate = new Date(o.timestamp);
-      } else if (o.timestampStr) {
-        orderDate = new Date(o.timestampStr);
+      if (o.timestamp !== undefined && o.timestamp !== null && o.timestamp !== '') {
+        const rawTs = (typeof o.timestamp === 'string' && !isNaN(Number(o.timestamp))) ? Number(o.timestamp) : o.timestamp;
+        const parsed = new Date(rawTs);
+        if (!isNaN(parsed.getTime())) orderDate = parsed;
+      } 
+      
+      if (!orderDate && o.timestampStr) {
+        const parsed = new Date(o.timestampStr);
+        if (!isNaN(parsed.getTime())) orderDate = parsed;
       }
 
-      if (!orderDate || isNaN(orderDate.getTime())) return true; // หากแปลงวันที่ไม่ได้ แสดงไว้ก่อน
+      if (!orderDate || isNaN(orderDate.getTime())) return true;
 
       const d = orderDate.getDate().toString();
       const m = (orderDate.getMonth() + 1).toString();
@@ -1599,8 +1650,8 @@ export default function App() {
              )}
           </div>
         )}
-        {/* --- Admin View --- */}
-        {view === 'admin' && (
+         {/* --- Admin View --- */}
+         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
             <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-gray-400 text-sm mb-6 hover:text-primary"><ChevronLeft size={20}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-6">
@@ -1657,7 +1708,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
+                {/* [MODIFIED] 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets - แสดงผลตรง 100%) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* การ์ดรายรับของวันนี้ */}
                   <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
@@ -1729,7 +1780,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
+                {/* 🌟 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-primary flex items-center gap-2">
@@ -2467,7 +2518,7 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* [MODIFIED] Inline Form สำหรับแก้ไขรายการเมนู */}
+                            {/* Inline Form สำหรับแก้ไขรายการเมนู */}
                             {editingMenu && editingMenu.id === item.id && (
                               <div className="bg-orange-50 p-5 rounded-3xl border border-orange-200 shadow-inner mt-2 mb-4 mx-1 animate-in slide-in-from-top-4 space-y-4">
                                 <div className="flex justify-between items-center mb-1 border-b border-orange-100 pb-2">
