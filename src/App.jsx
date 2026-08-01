@@ -4,10 +4,10 @@ import {
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
-  Sparkles, Database, Users, Filter, Calendar
+  Sparkles, Database, Users, Filter, Calendar, UserX
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment, query, orderBy, limit } from 'firebase/firestore';
 
 // --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
@@ -47,6 +47,59 @@ const THEMES = {
   newyear: { bg: '#f8fafc', primary: '#0f172a', accent: '#ca8a04', name: '🎆 ปีใหม่', icons: ['🎆', '✨', '🎉', '🥂'] },
   loykrathong: { bg: '#f5f3ff', primary: '#2e1065', accent: '#7c3aed', name: '🌕 ลอยกระทง', icons: ['🌕', '🕯️', '🌸', '✨'] },
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
+};
+
+// [MODIFIED] Helper Function สำหรับแปลงและแยกแยะวันที่จากหลากหลายรูปแบบอย่างแม่นยำ (รองรับ พ.ศ./ค.ศ. และ DD/MM/YYYY)
+const parseCustomDate = (dateVal, dateStrVal) => {
+  if (!dateVal && !dateStrVal) return null;
+
+  // 1. ตรวจสอบกรณีเป็น Timestamp (ตัวเลข หรือ String ตัวเลข)
+  if (dateVal !== undefined && dateVal !== null && dateVal !== '') {
+    const rawTs = (typeof dateVal === 'string' && !isNaN(Number(dateVal))) ? Number(dateVal) : dateVal;
+    if (typeof rawTs === 'number' && !isNaN(rawTs) && rawTs > 1000000000) {
+      const d = new Date(rawTs);
+      if (!isNaN(d.getTime())) {
+        return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(), dateObj: d };
+      }
+    }
+  }
+
+  // 2. ตรวจสอบกรณีเป็น Date String
+  const str = String(dateStrVal || dateVal || '').trim();
+  if (!str) return null;
+
+  // รูปแบบ ISO หรือ Standard JS parse ได้
+  const parsedStandard = new Date(str);
+  if (!isNaN(parsedStandard.getTime()) && parsedStandard.getFullYear() > 1900) {
+    let y = parsedStandard.getFullYear();
+    if (y > 2400) y -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+    return { day: parsedStandard.getDate(), month: parsedStandard.getMonth() + 1, year: y, dateObj: parsedStandard };
+  }
+
+  // แยกข้อความด้วย Regex เช่น DD/MM/YYYY หรือ YYYY-MM-DD
+  const match = str.match(/(\d{1,4})[\/\-\.\s](\d{1,2})[\/\-\.\s](\d{1,4})/);
+  if (match) {
+    let p1 = parseInt(match[1], 10);
+    let p2 = parseInt(match[2], 10);
+    let p3 = parseInt(match[3], 10);
+
+    let day, month, year;
+    if (p1 > 1000) {
+      // รูปแบบ YYYY-MM-DD
+      year = p1; month = p2; day = p3;
+    } else {
+      // รูปแบบ DD/MM/YYYY
+      day = p1; month = p2; year = p3;
+    }
+
+    if (year > 2400) year -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year > 1900) {
+      return { day, month, year, dateObj: new Date(year, month - 1, day) };
+    }
+  }
+
+  return null;
 };
 
 // --- 2. ฟังก์ชันบีบอัดรูปภาพ (Image Compression) ---
@@ -164,6 +217,9 @@ export default function App() {
   const [sheetFilterDay, setSheetFilterDay] = useState('all');
   const [sheetFilterMonth, setSheetFilterMonth] = useState('all');
   const [sheetFilterYear, setSheetFilterYear] = useState('all');
+
+  // [MODIFIED] State สำหรับเก็บประวัติการเข้าชมร้านค้าของผู้ใช้งาน (Visit Logs)
+  const [visitLogs, setVisitLogs] = useState([]);
 
   const [newMenu, setNewMenu] = useState({ 
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
@@ -320,10 +376,52 @@ export default function App() {
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
+    // [MODIFIED] บันทึก Session ประวัติการเข้าชมรายบุคคลว่าเข้ามาเมื่อไหร่ และสั่งสินค้าหรือไม่
+    const trackCustomerSessionVisit = async (uid, dName) => {
+      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
+      if (isAdmin) return;
+
+      let sessionId = sessionStorage.getItem('happycow_visit_session_id');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        sessionStorage.setItem('happycow_visit_session_id', sessionId);
+      }
+
+      try {
+        const sessionRef = doc(db, 'visit_logs', sessionId);
+        const sessionSnap = await getDoc(sessionRef);
+        
+        if (!sessionSnap.exists()) {
+          const nowMs = Date.now();
+          await setDoc(sessionRef, {
+            sessionId,
+            userId: uid,
+            displayName: dName || 'ลูกค้าทั่วไป',
+            visitedAt: nowMs,
+            visitedAtStr: new Date(nowMs).toLocaleString('th-TH'),
+            hasOrdered: false,
+            lastOrderId: null
+          });
+        } else {
+          await setDoc(sessionRef, {
+            displayName: dName || 'ลูกค้าทั่วไป',
+            lastActiveAt: Date.now()
+          }, { merge: true });
+        }
+      } catch (err) {
+        console.error("Error logging visit session:", err);
+      }
+    };
+
+    trackCustomerSessionVisit(cid, 'ลูกค้าทั่วไป');
+
     const initializeLiff = () => {
       window.liff.init({ liffId: LIFF_ID }).then(() => {
         if (window.liff.isLoggedIn()) {
-          window.liff.getProfile().then(p => setLineProfile({ displayName: p.displayName, pictureUrl: p.pictureUrl, userId: p.userId }));
+          window.liff.getProfile().then(p => {
+            setLineProfile({ displayName: p.displayName, pictureUrl: p.pictureUrl, userId: p.userId });
+            trackCustomerSessionVisit(p.userId, p.displayName);
+          });
         }
       }).catch(err => console.error("LIFF Error", err));
     };
@@ -397,7 +495,7 @@ export default function App() {
     return () => unsubOrders();
   }, [view]);
 
-  // --- 🌟 useEffect (Lazy Load Admin Stats) ---
+  // --- 🌟 useEffect (Lazy Load Admin Stats & Visit Logs) ---
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && !isAdmin) return;
@@ -409,6 +507,13 @@ export default function App() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(user => now - user.lastActive < threshold);
       setActiveUsers(activeList);
+    });
+
+    // [MODIFIED] โหลดประวัติการเข้าชมร้านค้าของผู้ใช้งานเรียลไทม์ (จำกัด 50 รายการล่าสุด)
+    const unsubVisitLogs = onSnapshot(collection(db, 'visit_logs'), snapshot => {
+      const logs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      logs.sort((a, b) => (b.visitedAt || 0) - (a.visitedAt || 0));
+      setVisitLogs(logs.slice(0, 50));
     });
 
     const pruneInterval = setInterval(() => {
@@ -432,7 +537,7 @@ export default function App() {
       }
     });
 
-    return () => { unsubActive(); clearInterval(pruneInterval); unsubSearchStats(); unsubVisits(); };
+    return () => { unsubActive(); unsubVisitLogs(); clearInterval(pruneInterval); unsubSearchStats(); unsubVisits(); };
   }, [view]);
 
   // ระบบ Presence (บอกสถานะออนไลน์ของลูกค้า)
@@ -502,7 +607,7 @@ export default function App() {
       }
     } catch (e) {
       showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
-    } font-bold {
+    } finally {
       setLoadingSlipId(null);
     }
   };
@@ -932,11 +1037,10 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100% (แก้ไขปัญหาตามที่แจ้ง)
+  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100% ปรับปรุงการตรวจสอบวันที่
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
-    // [MODIFIED] กรองเฉพาะออร์เดอร์ที่ไม่ถูกยกเลิก/ลบ (รองรับทั้ง completed, จัดส่งสำเร็จ, สำเร็จ, pending ฯลฯ)
     const validSheetOrders = rawOrders.filter(o => {
       if (!o) return false;
       const st = String(o.status || '').toLowerCase().trim();
@@ -944,54 +1048,9 @@ export default function App() {
     });
 
     const now = new Date();
-
-    // [MODIFIED] Helper Function ตรวจสอบว่าเป็นออร์เดอร์ของวันนี้หรือไม่ (รองรับ Timestamp, ISO, พ.ศ., ค.ศ. และ Padded zeroes)
-    const isTodayDate = (dateVal, dateStrVal) => {
-      if (!dateVal && !dateStrVal) return false;
-
-      // 1. ตรวจสอบจาก Timestamp (ตัวเลข หรือ String ตัวเลข)
-      if (dateVal !== undefined && dateVal !== null && dateVal !== '') {
-        const rawTs = (typeof dateVal === 'string' && !isNaN(Number(dateVal))) ? Number(dateVal) : dateVal;
-        const d = new Date(rawTs);
-        if (!isNaN(d.getTime())) {
-          return d.getDate() === now.getDate() &&
-                 d.getMonth() === now.getMonth() &&
-                 d.getFullYear() === now.getFullYear();
-        }
-      }
-
-      // 2. ตรวจสอบจาก Date String
-      const targetStr = String(dateStrVal || dateVal || '').trim();
-      if (!targetStr) return false;
-
-      // แปลงด้วย Date parser
-      const parsed = new Date(targetStr);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.getDate() === now.getDate() &&
-               parsed.getMonth() === now.getMonth() &&
-               parsed.getFullYear() === now.getFullYear();
-      }
-
-      // ตรวจสอบจากรูปแบบวัน/เดือน/ปี ทั้ง ค.ศ. และ พ.ศ.
-      const day = now.getDate();
-      const month = now.getMonth() + 1;
-      const yearAD = now.getFullYear();
-      const yearBE = yearAD + 543;
-
-      const dayPadded = String(day).padStart(2, '0');
-      const monthPadded = String(month).padStart(2, '0');
-
-      const todayStrTh = now.toLocaleDateString('th-TH');
-      const todayStrEn = now.toLocaleDateString('en-CA');
-
-      return targetStr.includes(`${day}/${month}/${yearAD}`) ||
-             targetStr.includes(`${dayPadded}/${monthPadded}/${yearAD}`) ||
-             targetStr.includes(`${day}/${month}/${yearBE}`) ||
-             targetStr.includes(`${dayPadded}/${monthPadded}/${yearBE}`) ||
-             targetStr.includes(todayStrTh) ||
-             targetStr.includes(todayStrEn) ||
-             targetStr.includes(`${yearAD}-${monthPadded}-${dayPadded}`);
-    };
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
 
     let todayRevenue = 0;
     let totalRevenue = 0;
@@ -1009,14 +1068,14 @@ export default function App() {
         completedCount++;
       }
 
-      // [MODIFIED] คำนวณยอดขายวันนี้
-      if (isTodayDate(o?.timestamp, o?.timestampStr)) {
+      // [MODIFIED] ตรวจสอบว่าเป็นออร์เดอร์ของวันนี้ด้วย parseCustomDate
+      const parsed = parseCustomDate(o?.timestamp, o?.timestampStr);
+      if (parsed && parsed.day === currentDay && parsed.month === currentMonth && parsed.year === currentYear) {
         todayRevenue += amount;
       }
 
       totalRevenue += amount;
 
-      // [MODIFIED] จำแนกช่องทางชำระเงินยืดหยุ่น
       if (paymentMethod.includes("พร้อมเพย์") || paymentMethod.includes("promptpay") || paymentMethod.includes("โอน")) {
         promptPaySum += amount;
       } else if (paymentMethod.includes("เงินสด") || paymentMethod.includes("cash")) {
@@ -1038,32 +1097,21 @@ export default function App() {
     };
   }, [sheetOrdersData]);
 
-  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวร จาก Google Sheets ตามวัน/เดือน/ปี (รองรับ String Timestamp)
+  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวรจาก Google Sheets ตาม วัน / เดือน / ปี โดยใช้ตัวแปลงวันที่ใหม่
   const filteredSheetOrders = useMemo(() => {
     return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
       if (!o) return false;
       
-      let orderDate = null;
-      if (o.timestamp !== undefined && o.timestamp !== null && o.timestamp !== '') {
-        const rawTs = (typeof o.timestamp === 'string' && !isNaN(Number(o.timestamp))) ? Number(o.timestamp) : o.timestamp;
-        const parsed = new Date(rawTs);
-        if (!isNaN(parsed.getTime())) orderDate = parsed;
-      } 
-      
-      if (!orderDate && o.timestampStr) {
-        const parsed = new Date(o.timestampStr);
-        if (!isNaN(parsed.getTime())) orderDate = parsed;
-      }
+      const parsed = parseCustomDate(o.timestamp, o.timestampStr);
+      if (!parsed) return true; // หากอ่านวันที่ไม่ได้ให้แสดงไว้ก่อนเพื่อป้องกันข้อมูลหาย
 
-      if (!orderDate || isNaN(orderDate.getTime())) return true;
+      const dStr = parsed.day.toString();
+      const mStr = parsed.month.toString();
+      const yStr = parsed.year.toString();
 
-      const d = orderDate.getDate().toString();
-      const m = (orderDate.getMonth() + 1).toString();
-      const y = orderDate.getFullYear().toString();
-
-      if (sheetFilterDay !== 'all' && d !== sheetFilterDay) return false;
-      if (sheetFilterMonth !== 'all' && m !== sheetFilterMonth) return false;
-      if (sheetFilterYear !== 'all' && y !== sheetFilterYear) return false;
+      if (sheetFilterDay !== 'all' && dStr !== sheetFilterDay) return false;
+      if (sheetFilterMonth !== 'all' && mStr !== sheetFilterMonth) return false;
+      if (sheetFilterYear !== 'all' && yStr !== sheetFilterYear) return false;
 
       return true;
     });
@@ -1073,9 +1121,9 @@ export default function App() {
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear().toString()]);
     (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).forEach(o => {
-      if (o.timestamp) {
-        const y = new Date(o.timestamp).getFullYear();
-        if (!isNaN(y)) years.add(y.toString());
+      const parsed = parseCustomDate(o.timestamp, o.timestampStr);
+      if (parsed && parsed.year) {
+        years.add(parsed.year.toString());
       }
     });
     return Array.from(years).sort((a, b) => b - a);
@@ -1507,6 +1555,22 @@ export default function App() {
                           isDeleted: false
                         });
 
+                        // [MODIFIED] อัปเดตประวัติการเข้าชม Session ของลูกค้ารายนี้ให้เป็น สั่งซื้อสำเร็จ (hasOrdered: true)
+                        const currentSessionId = sessionStorage.getItem('happycow_visit_session_id');
+                        if (currentSessionId) {
+                          try {
+                            await setDoc(doc(db, 'visit_logs', currentSessionId), {
+                              hasOrdered: true,
+                              lastOrderId: orderRef.id,
+                              orderedAt: orderTime,
+                              orderedAtStr: dateStr,
+                              totalAmount: total
+                            }, { merge: true });
+                          } catch (err) {
+                            console.error("Error updating visit order status:", err);
+                          }
+                        }
+
                         if (paymentMethod === 'promptpay' && slipImage) {
                           await setDoc(doc(db, 'slips', orderRef.id), {
                             slipImage: slipImage
@@ -1667,7 +1731,7 @@ export default function App() {
               ))}
             </div>
 
-            {/* TAB: แดชบอร์ด (รวมข้อมูล Google Sheets + สถิติ Firebase) */}
+            {/* TAB: แดชบอร์ด (รวมข้อมูล Google Sheets + สถิติ Firebase + บันทึกการเข้าชม) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
                 
@@ -1708,7 +1772,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets - แสดงผลตรง 100%) */}
+                {/* 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* การ์ดรายรับของวันนี้ */}
                   <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
@@ -1881,7 +1945,61 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 5. สถานะออร์เดอร์ Real-time (Order Status Cards - Firebase) */}
+                {/* [MODIFIED] 🌟 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-gray-50 pb-3">
+                    <h3 className="font-bold text-sm text-indigo-900 flex items-center gap-2">
+                      <Users size={16} className="text-indigo-600"/> ประวัติการเข้าชมร้านค้าและการสั่งซื้อ (50 รายการล่าสุด)
+                    </h3>
+                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
+                      รวม {visitLogs.length} Sessions
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-80 overflow-y-auto hide-scrollbar">
+                    {visitLogs.map((log) => {
+                      const isOrdered = log.hasOrdered === true;
+                      return (
+                        <div key={log.id} className={`p-3.5 rounded-2xl border flex justify-between items-center text-xs transition-all ${isOrdered ? 'bg-emerald-50/60 border-emerald-200' : 'bg-gray-50 border-gray-100'}`}>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-primary">{log.displayName || 'ลูกค้าทั่วไป'}</span>
+                              <span className="text-[9px] text-gray-400 font-mono">({String(log.userId || '').slice(0, 8)})</span>
+                            </div>
+                            <p className="text-[9.5px] text-gray-400 font-bold flex items-center gap-1">
+                              <Clock size={10}/> เข้าชมเมื่อ: {log.visitedAtStr || 'ไม่ระบุเวลา'}
+                            </p>
+                          </div>
+
+                          <div className="text-right flex flex-col items-end">
+                            {isOrdered ? (
+                              <>
+                                <span className="bg-emerald-500 text-white text-[9px] px-2.5 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm">
+                                  <ShoppingCart size={10}/> สั่งซื้อสินค้าแล้ว ✨
+                                </span>
+                                {log.totalAmount && (
+                                  <span className="text-[10px] font-bold text-emerald-700 mt-1">
+                                    ฿{log.totalAmount.toLocaleString()} (#{String(log.lastOrderId || '').slice(0, 5)})
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="bg-gray-200 text-gray-600 text-[9px] px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+                                <Eye size={10}/> เข้าชมร้านค้าอย่างเดียว
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {visitLogs.length === 0 && (
+                      <p className="text-center text-xs text-gray-400 py-8 font-bold">ยังไม่มีข้อมูลประวัติการเข้าชมร้านค้า</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 🌟 6. สถานะออร์เดอร์ Real-time (Order Status Cards - Firebase) */}
                 <div>
                   <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2">
                     <BellRing size={16} className="text-orange-500"/> สถานะคิวออร์เดอร์ปัจจุบัน (Firebase)
@@ -1916,7 +2034,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 6. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
+                {/* 🌟 7. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
@@ -1936,7 +2054,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 7. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
+                {/* 🌟 8. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <h3 className="font-bold text-sm text-primary flex items-center gap-2">
                     <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (Firebase)
@@ -1975,7 +2093,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 8. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers Leaderboard) */}
+                {/* 🌟 9. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers Leaderboard) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
@@ -2008,7 +2126,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 🌟 9. ช่วงเวลาขายดี (Peak Hours Analytics Bar Chart) */}
+                {/* 🌟 10. ช่วงเวลาขายดี (Peak Hours Analytics Bar Chart) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
@@ -2033,7 +2151,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 10. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
+                {/* 🌟 11. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm">
                    <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
                      <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
@@ -2056,7 +2174,7 @@ export default function App() {
                    )}
                 </div>
 
-                {/* 📊 11. สถิติผู้เข้าชม 7 วัน */}
+                {/* 📊 12. สถิติผู้เข้าชม 7 วัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
                    <div className="space-y-3.5">
@@ -2078,7 +2196,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 12. Storage Graph */}
+                {/* 🌟 13. Storage Graph */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <div className="flex justify-between items-center mb-2">
                      <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
@@ -2090,7 +2208,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 13. สรุปรายรับรายวัน */}
+                {/* 🌟 14. สรุปรายรับรายวัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
                    <div className="space-y-3">
@@ -2103,7 +2221,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 14. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
+                {/* 🌟 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
                 <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-3">
                    <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
                    <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
@@ -2129,7 +2247,7 @@ export default function App() {
                    </button>
                 </div>
 
-                {/* 🌟 15. ปุ่ม Export CSV */}
+                {/* 🌟 16. ปุ่ม Export CSV */}
                 <div className="flex gap-2">
                   <button onClick={exportToCSV} className="flex-1 bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
                     <Download size={16} /> Export รายรับ (CSV)
@@ -2716,7 +2834,8 @@ export default function App() {
                     <div className="pt-2">
                       <label className="text-[11px] text-gray-500 mb-2 block font-bold">เลือกวันที่จะให้ระบบคิวอัตโนมัติทำงาน</label>
                       <div className="flex flex-wrap gap-1.5">
-                        {THAI_DAYS.map((day, idx) => {
+                      // [MODIFIED] ต่อจากแถบเลือกวัน THAI_DAYS ในหน้าตั้งค่าแอดมิน
+                        map((day, idx) => {
                           const isSelected = editAutoCloseDays.includes(idx);
                           return (
                             <button
