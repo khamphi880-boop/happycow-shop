@@ -46,33 +46,34 @@ const PAYMENT_COLORS = {
   "thaichueithai": "#10b981"
 };
 
+// [MODIFIED] Updated all fallbackData datetime values to Gregorian AD year (ค.ศ. 2026)
 const fallbackData = [
-  { datetime: "1/8/2569 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
-  { datetime: "1/8/2569 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
-  { datetime: "1/8/2569 15:36:27", billId: "2nv9thLaHUIKYvUIWtH2", customer: "ตองเอง", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: ช็อคโกแลตชิป)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "P1 ห้อง 703", remark: "-" },
-  { datetime: "1/8/2569 15:27:12", billId: "V0VO8lLiKdmaXFEvDaUR", customer: "nxx", items: "1x โกโก้ (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C7107", remark: "-" },
-  { datetime: "1/8/2569 15:20:31", billId: "rYxvl8uHZ1mhXz5fjy1d", customer: "P 😊", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 120% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P1223", remark: "รับหลอด" },
-  { datetime: "1/8/2569 15:14:17", billId: "I8CnHpvKPr5UrV9RNyGv", customer: "PHRONPHIMAL", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 100% • พรีมุก)", total: 50, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M1 1112", remark: "-" },
-  { datetime: "1/8/2569 15:10:26", billId: "7BZEwZa2rZvrMPhnzm1i", customer: "NaMTaN", items: "1x โยเกิร์ต ออริจินอล (ปั่น • หวาน 50%)", total: 55, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "ตึก B5 ห้อง B550", remark: "-" },
-  { datetime: "1/8/2569 14:48:09", billId: "rWMs3QoLUYe4GvJ8XT6j", customer: "Sss", items: "1x นมสดปั่น (ปั่น • หวาน 75%)\n1x นมสดโอริโอ้ (ปั่น • หวาน 75% • พรีมุก)", total: 120, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5620", remark: "-" },
-  { datetime: "1/8/2569 14:27:24", billId: "ImUVGFgNZSnbSik1F8RZ", customer: "i d e a", items: "1x ชีสเค้ก บลูเบอร์รี (ปั่น • หวาน 100% • ท็อปปิ้ง: ไข่มุก)", total: 75, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A2", remark: "-" },
-  { datetime: "1/8/2569 14:25:41", billId: "MbjNuRhSRzs9Gjic7PgJ", customer: "ครูฟ้า ☔", items: "1x โกโก้ สตอเบอร์รี่ (เย็น • หวาน 0%)\n1x ชาเขียวมะนาว (เย็น • หวาน 50%)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B6105", remark: "-" },
-  { datetime: "1/8/2569 14:25:33", billId: "Ly5AcQjTQTm3rXvzxjm0", customer: "สินSinซินSin", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 25% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 80, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "m2513", remark: "หวาน25" },
-  { datetime: "1/8/2569 13:59:58", billId: "XclyziB25xCaqTwRiWVL", customer: "beam", items: "1x แคนตาลูป (เย็น • หวาน 50% • พรีมุก)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6 ห้อง 415", remark: "-" },
-  { datetime: "1/8/2569 13:39:13", billId: "xo28meNeN3N24JIqLG0c", customer: ".AD", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50%)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5513", remark: "-" },
-  { datetime: "1/8/2569 13:30:56", billId: "yoRUZrhSuMjWB6YvsYMG", customer: "Natthamon", items: "1x นมสด (ปั่น • หวาน 100% • พรีมุก)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6511", remark: "-" },
-  { datetime: "1/8/2569 13:30:03", billId: "mwwYHkWvkZ8BaTxBHLDz", customer: "ornnnn ♡", items: "1x ชีสเค้ก สตอเบอร์รี่ (ปั่น • หวาน 100% • ท็อปปิ้ง: วิปครีม)", total: 80, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "M1 702", remark: "-" },
-  { datetime: "1/8/2569 13:15:08", billId: "yWepK9IsiNwg84EYck06", customer: "Austin 🌴", items: "1x นมวนิลา (ปั่น • หวาน 120% • พรีมุก)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C1719", remark: "ไม่ต้องเคาะประตูนะคับ" },
-  { datetime: "1/8/2569 13:06:13", billId: "FfPDLpzwYI8TjIw0QyTW", customer: "Nnine", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6-207", remark: "-" },
-  { datetime: "1/8/2569 12:55:19", billId: "MGSLppE2j4okjABzKXJF", customer: "Nemo", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 50% • พรีมุก)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5 224", remark: "-" },
-  { datetime: "1/8/2569 12:54:42", billId: "EZmAuJotuWj9JNUkjUqA", customer: "KotchaTy", items: "1x นมน้ำผึ้ง (เย็น • หวาน 75%)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "A7 614", remark: "-" },
-  { datetime: "1/8/2569 12:45:36", billId: "fK0LY8maZMBgthJkHIOJ", customer: "Tan", items: "1x อเมริกาโน่ น้ำผึ้ง (เย็น • หวาน 50% • คั่วเข้ม)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A1", remark: "-" },
-  { datetime: "1/8/2569 12:24:40", billId: "EMPktehi2CGgwU01txbe", customer: ".bam-", items: "1x น้ำผึ้งมะนาว (เย็น • หวาน 25%)\n1x ชานมไต้หวัน (ปั่น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P2526", remark: "-" },
-  { datetime: "1/8/2569 17:51:19", billId: "YE1Tx6VAV6jinbI1rd4t", customer: "prrrim", items: "1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: ช็อกโกแลต)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B5 810", remark: "ไม่ใส่ไข่มุกค่ะ" },
-  { datetime: "1/8/2569 17:53:22", billId: "pwXGJgxFk1lHCVNdA8Gc", customer: "Rachma", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "m1826", remark: "-" },
-  { datetime: "1/8/2569 17:54:34", billId: "yBlY0AVsy5cBcNdEF9jd", customer: "praew", items: "1x เพียวมัทฉะ (เย็น • หวาน 0% • มัทฉะ)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "จัดส่งที่ตึก A3610", remark: "-" },
-  { datetime: "1/8/2569 18:33:39", billId: "2KsLxtVUQdulkpSNL8wJ", customer: "Boss", items: "1x อเมริกาโน่ (เย็น • หวาน 25% • คั่วเข้ม)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "กอล์ฟวิว m2 620", remark: "เอาไข่มุกกับบุกบราวน์ชูก้า" },
-  { datetime: "1/8/2569 18:45:00", billId: "CANCELLED001", customer: "ลูกค้าทดสอบ (ยกเลิก)", items: "1x นมสด (เย็น)", total: 40, payment: "เงินสด", status: "ยกเลิก 🔴", deliveryPoint: "รับเองที่ร้าน", address: "-", remark: "ลูกค้าเปลี่ยนใจ" }
+  { datetime: "1/8/2026 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
+  { datetime: "1/8/2026 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
+  { datetime: "1/8/2026 15:36:27", billId: "2nv9thLaHUIKYvUIWtH2", customer: "ตองเอง", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: ช็อคโกแลตชิป)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "P1 ห้อง 703", remark: "-" },
+  { datetime: "1/8/2026 15:27:12", billId: "V0VO8lLiKdmaXFEvDaUR", customer: "nxx", items: "1x โกโก้ (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C7107", remark: "-" },
+  { datetime: "1/8/2026 15:20:31", billId: "rYxvl8uHZ1mhXz5fjy1d", customer: "P 😊", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 120% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P1223", remark: "รับหลอด" },
+  { datetime: "1/8/2026 15:14:17", billId: "I8CnHpvKPr5UrV9RNyGv", customer: "PHRONPHIMAL", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 100% • พรีมุก)", total: 50, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M1 1112", remark: "-" },
+  { datetime: "1/8/2026 15:10:26", billId: "7BZEwZa2rZvrMPhnzm1i", customer: "NaMTaN", items: "1x โยเกิร์ต ออริจินอล (ปั่น • หวาน 50%)", total: 55, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "ตึก B5 ห้อง B550", remark: "-" },
+  { datetime: "1/8/2026 14:48:09", billId: "rWMs3QoLUYe4GvJ8XT6j", customer: "Sss", items: "1x นมสดปั่น (ปั่น • หวาน 75%)\n1x นมสดโอริโอ้ (ปั่น • หวาน 75% • พรีมุก)", total: 120, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5620", remark: "-" },
+  { datetime: "1/8/2026 14:27:24", billId: "ImUVGFgNZSnbSik1F8RZ", customer: "i d e a", items: "1x ชีสเค้ก บลูเบอร์รี (ปั่น • หวาน 100% • ท็อปปิ้ง: ไข่มุก)", total: 75, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A2", remark: "-" },
+  { datetime: "1/8/2026 14:25:41", billId: "MbjNuRhSRzs9Gjic7PgJ", customer: "ครูฟ้า ☔", items: "1x โกโก้ สตอเบอร์รี่ (เย็น • หวาน 0%)\n1x ชาเขียวมะนาว (เย็น • หวาน 50%)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B6105", remark: "-" },
+  { datetime: "1/8/2026 14:25:33", billId: "Ly5AcQjTQTm3rXvzxjm0", customer: "สินSinซินSin", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 25% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 80, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "m2513", remark: "หวาน25" },
+  { datetime: "1/8/2026 13:59:58", billId: "XclyziB25xCaqTwRiWVL", customer: "beam", items: "1x แคนตาลูป (เย็น • หวาน 50% • พรีมุก)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6 ห้อง 415", remark: "-" },
+  { datetime: "1/8/2026 13:39:13", billId: "xo28meNeN3N24JIqLG0c", customer: ".AD", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50%)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5513", remark: "-" },
+  { datetime: "1/8/2026 13:30:56", billId: "yoRUZrhSuMjWB6YvsYMG", customer: "Natthamon", items: "1x นมสด (ปั่น • หวาน 100% • พรีมุก)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6511", remark: "-" },
+  { datetime: "1/8/2026 13:30:03", billId: "mwwYHkWvkZ8BaTxBHLDz", customer: "ornnnn ♡", items: "1x ชีสเค้ก สตอเบอร์รี่ (ปั่น • หวาน 100% • ท็อปปิ้ง: วิปครีม)", total: 80, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "M1 702", remark: "-" },
+  { datetime: "1/8/2026 13:15:08", billId: "yWepK9IsiNwg84EYck06", customer: "Austin 🌴", items: "1x นมวนิลา (ปั่น • หวาน 120% • พรีมุก)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C1719", remark: "ไม่ต้องเคาะประตูนะคับ" },
+  { datetime: "1/8/2026 13:06:13", billId: "FfPDLpzwYI8TjIw0QyTW", customer: "Nnine", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6-207", remark: "-" },
+  { datetime: "1/8/2026 12:55:19", billId: "MGSLppE2j4okjABzKXJF", customer: "Nemo", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 50% • พรีมุก)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5 224", remark: "-" },
+  { datetime: "1/8/2026 12:54:42", billId: "EZmAuJotuWj9JNUkjUqA", customer: "KotchaTy", items: "1x นมน้ำผึ้ง (เย็น • หวาน 75%)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "A7 614", remark: "-" },
+  { datetime: "1/8/2026 12:45:36", billId: "fK0LY8maZMBgthJkHIOJ", customer: "Tan", items: "1x อเมริกาโน่ น้ำผึ้ง (เย็น • หวาน 50% • คั่วเข้ม)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A1", remark: "-" },
+  { datetime: "1/8/2026 12:24:40", billId: "EMPktehi2CGgwU01txbe", customer: ".bam-", items: "1x น้ำผึ้งมะนาว (เย็น • หวาน 25%)\n1x ชานมไต้หวัน (ปั่น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P2526", remark: "-" },
+  { datetime: "1/8/2026 17:51:19", billId: "YE1Tx6VAV6jinbI1rd4t", customer: "prrrim", items: "1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: ช็อกโกแลต)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B5 810", remark: "ไม่ใส่ไข่มุกค่ะ" },
+  { datetime: "1/8/2026 17:53:22", billId: "pwXGJgxFk1lHCVNdA8Gc", customer: "Rachma", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "m1826", remark: "-" },
+  { datetime: "1/8/2026 17:54:34", billId: "yBlY0AVsy5cBcNdEF9jd", customer: "praew", items: "1x เพียวมัทฉะ (เย็น • หวาน 0% • มัทฉะ)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "จัดส่งที่ตึก A3610", remark: "-" },
+  { datetime: "1/8/2026 18:33:39", billId: "2KsLxtVUQdulkpSNL8wJ", customer: "Boss", items: "1x อเมริกาโน่ (เย็น • หวาน 25% • คั่วเข้ม)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "กอล์ฟวิว m2 620", remark: "เอาไข่มุกกับบุกบราวน์ชูก้า" },
+  { datetime: "1/8/2026 18:45:00", billId: "CANCELLED001", customer: "ลูกค้าทดสอบ (ยกเลิก)", items: "1x นมสด (เย็น)", total: 40, payment: "เงินสด", status: "ยกเลิก 🔴", deliveryPoint: "รับเองที่ร้าน", address: "-", remark: "ลูกค้าเปลี่ยนใจ" }
 ];
 
 const DEFAULT_SAUCES = [
@@ -97,6 +98,7 @@ const THEMES = {
 
 // --- 2. Helper Functions ---
 
+// [MODIFIED] Corrected formatDateForComparison to convert Buddhist Era ( พ.ศ.) to A.D. (ค.ศ.)
 const formatDateForComparison = (datetimeString) => {
   if (!datetimeString) return "";
   try {
@@ -125,7 +127,7 @@ const formatDateForComparison = (datetimeString) => {
     if (isNaN(day) || isNaN(month) || isNaN(year)) return "";
 
     if (year > 2400) {
-      year -= 543;
+      year -= 543; // [MODIFIED] Convert B.E. to ค.ศ.
     }
 
     const paddedMonth = String(month).padStart(2, '0');
@@ -137,7 +139,7 @@ const formatDateForComparison = (datetimeString) => {
   }
 };
 
-// [MODIFIED] Enhanced parseCustomDate to accept fallback options and inspect datetime field correctly
+// [MODIFIED] Enhanced parseCustomDate to ensure returned year is strictly A.D. (ค.ศ.)
 const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const val = dateVal || dateStrVal || fallbackVal;
   if (!val) return null;
@@ -155,7 +157,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const parsedStandard = new Date(str);
   if (!isNaN(parsedStandard.getTime()) && parsedStandard.getFullYear() > 1900) {
     let y = parsedStandard.getFullYear();
-    if (y > 2400) y -= 543; 
+    if (y > 2400) y -= 543; // [MODIFIED] Force ค.ศ.
     return { day: parsedStandard.getDate(), month: parsedStandard.getMonth() + 1, year: y, dateObj: parsedStandard };
   }
 
@@ -172,7 +174,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
       day = p1; month = p2; year = p3;
     }
 
-    if (year > 2400) year -= 543; 
+    if (year > 2400) year -= 543; // [MODIFIED] Force ค.ศ.
 
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year > 1900) {
       return { day, month, year, dateObj: new Date(year, month - 1, day) };
@@ -224,6 +226,7 @@ function KpiCard({ title, value, icon, trend, trendUp }) {
     </div>
   );
 }
+
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
@@ -376,9 +379,10 @@ export default function App() {
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
+  // [MODIFIED] Ensured order summary date uses Gregorian AD year (ค.ศ.) with th-TH-u-ca-gregory
   const generateOrderSummaryText = (order) => {
     if (!order) return '';
-    const dateStr = new Date(order.timestamp).toLocaleString('th-TH');
+    const dateStr = new Date(order.timestamp).toLocaleString('th-TH-u-ca-gregory');
     const paymentText = order.paymentMethod === 'cash' ? 'ชำระเงินสด' : (order.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์');
     const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}`;
 
@@ -557,6 +561,7 @@ export default function App() {
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
+    // [MODIFIED] Ensured visit log date uses Gregorian AD year (ค.ศ.)
     const trackCustomerSessionVisit = async (uid, dName) => {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) return;
@@ -578,7 +583,7 @@ export default function App() {
             userId: uid,
             displayName: dName || 'ลูกค้าทั่วไป',
             visitedAt: nowMs,
-            visitedAtStr: new Date(nowMs).toLocaleString('th-TH'),
+            visitedAtStr: new Date(nowMs).toLocaleString('th-TH-u-ca-gregory'), // [MODIFIED] Forced AD ค.ศ.
             hasOrdered: false,
             lastOrderId: null
           });
@@ -660,7 +665,6 @@ export default function App() {
 
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
-
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
@@ -763,6 +767,7 @@ export default function App() {
       }
     }
   }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays]);
+
   const viewImage = async (orderId, type) => {
     setLoadingSlipId(orderId);
     try {
@@ -1005,14 +1010,14 @@ export default function App() {
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
-
   const getRecentVisits = () => {
     const list = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA'); 
-      const thaiDateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+      // [MODIFIED] Force Gregorian AD (ค.ศ.) date string
+      const thaiDateStr = d.toLocaleDateString('th-TH-u-ca-gregory', { day: 'numeric', month: 'short' });
       const count = visitStats[dateStr] || 0;
       list.push({ dateStr, thaiDateStr, count });
     }
@@ -1022,6 +1027,7 @@ export default function App() {
   const recentVisits = getRecentVisits();
   const maxVisitCount = Math.max(...recentVisits.map(v => v.count), 1);
 
+  // [MODIFIED] Corrected daily history keys to Gregorian AD (ค.ศ.)
   const calculateRevenue = () => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1032,14 +1038,16 @@ export default function App() {
     const last7DaysMap = {};
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        last7DaysMap[d.toLocaleDateString('th-TH')] = 0;
+        // [MODIFIED] Force ค.ศ. date string
+        last7DaysMap[d.toLocaleDateString('th-TH-u-ca-gregory')] = 0;
     }
 
     orders.filter(o => o.status === 'completed' && !o.isDeleted).forEach(o => {
       if (o.timestamp >= startOfDay) daily += o.total;
       if (o.timestamp >= startOfMonth) monthly += o.total;
       if (o.timestamp >= startOfYear) yearly += o.total;
-      const oDate = new Date(o.timestamp).toLocaleDateString('th-TH');
+      // [MODIFIED] Force ค.ศ. date string
+      const oDate = new Date(o.timestamp).toLocaleDateString('th-TH-u-ca-gregory');
       if(last7DaysMap[oDate] !== undefined) last7DaysMap[oDate] += o.total;
     });
     
@@ -1059,12 +1067,14 @@ export default function App() {
      return { usageMB, storagePercent };
   };
 
+  // [MODIFIED] Updated CSV Export date format to ค.ศ. (Gregorian AD)
   const exportToCSV = () => {
     const completedOrders = orders.filter(o => o.status === 'completed' && !o.isDeleted);
     if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
     let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
     completedOrders.forEach(o => {
-      const date = new Date(o.timestamp).toLocaleString('th-TH');
+      // [MODIFIED] Forced th-TH-u-ca-gregory for ค.ศ.
+      const date = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
       const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
       const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
       csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
@@ -1179,9 +1189,10 @@ export default function App() {
   const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
   const grandTotal = calculateRevenue().yearly || 1;
 
+  // [MODIFIED] Forced datetime formatting in Analytics to use Gregorian AD (ค.ศ.)
   const analyticsData = React.useMemo(() => {
     const sourceData = orders.length > 0 ? orders.map(o => ({
-      datetime: new Date(o.timestamp).toLocaleString('th-TH'),
+      datetime: new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory'), // [MODIFIED] Force ค.ศ.
       billId: o.id,
       customer: o.lineName || "ลูกค้าทั่วไป",
       items: (o.items || []).map(i => `${i.qty}x ${i.name}`).join('\n'),
@@ -1654,7 +1665,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
@@ -1790,7 +1800,8 @@ export default function App() {
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
-                      const dateStr = new Date(orderTime).toLocaleString('th-TH');
+                      // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
+                      const dateStr = new Date(orderTime).toLocaleString('th-TH-u-ca-gregory');
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
@@ -1908,7 +1919,8 @@ export default function App() {
              ) : (
                  <div className="space-y-6">
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
-                     const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
+                     // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
+                     const dateStr = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
                      return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
@@ -2219,8 +2231,9 @@ export default function App() {
                       <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-100">
                         <Sparkles size={16} className="text-yellow-300"/> รายรับวันนี้ (Google Sheets)
                       </span>
+                      {/* [MODIFIED] Force ค.ศ. format for date display */}
                       <span className="text-[9px] bg-yellow-400 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
-                        {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        {new Date().toLocaleDateString('th-TH-u-ca-gregory', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
                     <h1 className="text-4xl font-serif font-bold relative z-10 my-2 text-white">
@@ -2333,7 +2346,7 @@ export default function App() {
                       </div>
 
                       <div>
-                        <label className="text-[9px] font-bold text-gray-400 block mb-1">ปี</label>
+                        <label className="text-[9px] font-bold text-gray-400 block mb-1">ปี (ค.ศ.)</label>
                         <select 
                           value={sheetFilterYear} 
                           onChange={e => setSheetFilterYear(e.target.value)}
@@ -2471,7 +2484,8 @@ export default function App() {
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
                     <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้ (Firebase)</span>
-                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{new Date().toLocaleDateString('th-TH')}</span>
+                    {/* [MODIFIED] Force ค.ศ. format for date display */}
+                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{new Date().toLocaleDateString('th-TH-u-ca-gregory')}</span>
                   </div>
                   <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{revData.daily.toLocaleString()}</h1>
                   <div className="flex gap-4 mt-4 pt-4 border-t border-white/10 text-xs relative z-10">
@@ -2691,7 +2705,6 @@ export default function App() {
 
               </div>
             )}
-
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
@@ -2702,7 +2715,8 @@ export default function App() {
                 </div>
 
                 {filteredOrders.map((o, idx) => {
-                    const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
+                    // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
+                    const dateStr = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
                     return (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
