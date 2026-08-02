@@ -46,7 +46,44 @@ const PAYMENT_COLORS = {
   "thaichueithai": "#10b981"
 };
 
-// [MODIFIED] Updated all fallbackData datetime values to Gregorian AD year (ค.ศ. 2026)
+// [MODIFIED] Bulletproof AD (ค.ศ.) Helper functions that bypass iOS/Browser B.E. regional defaults
+const formatThaiDateTimeAD = (dateVal) => {
+  if (!dateVal) return "";
+  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
+  if (isNaN(d.getTime())) return String(dateVal);
+  let year = d.getFullYear();
+  if (year > 2400) year -= 543; // [MODIFIED] Convert to AD ค.ศ.
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+};
+
+const formatThaiDateShortAD = (dateVal) => {
+  if (!dateVal) return "";
+  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
+  if (isNaN(d.getTime())) return String(dateVal);
+  let year = d.getFullYear();
+  if (year > 2400) year -= 543;
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  return `${day}/${month}/${year}`;
+};
+
+const formatThaiDateFullAD = (dateVal) => {
+  if (!dateVal) return "";
+  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
+  if (isNaN(d.getTime())) return String(dateVal);
+  let year = d.getFullYear();
+  if (year > 2400) year -= 543;
+  const day = d.getDate();
+  const monthName = THAI_MONTHS[d.getMonth()];
+  return `${day} ${monthName} ${year}`;
+};
+
+// [MODIFIED] Updated fallbackData datetime to ค.ศ.
 const fallbackData = [
   { datetime: "1/8/2026 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
   { datetime: "1/8/2026 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
@@ -98,7 +135,7 @@ const THEMES = {
 
 // --- 2. Helper Functions ---
 
-// [MODIFIED] Corrected formatDateForComparison to convert Buddhist Era ( พ.ศ.) to A.D. (ค.ศ.)
+// [MODIFIED] Corrected formatDateForComparison to convert Buddhist Era (พ.ศ.) to A.D. (ค.ศ.)
 const formatDateForComparison = (datetimeString) => {
   if (!datetimeString) return "";
   try {
@@ -127,7 +164,7 @@ const formatDateForComparison = (datetimeString) => {
     if (isNaN(day) || isNaN(month) || isNaN(year)) return "";
 
     if (year > 2400) {
-      year -= 543; // [MODIFIED] Convert B.E. to ค.ศ.
+      year -= 543; // [MODIFIED] Force ค.ศ.
     }
 
     const paddedMonth = String(month).padStart(2, '0');
@@ -147,7 +184,9 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   if (typeof val === 'number' && val > 1000000000) {
     const d = new Date(val);
     if (!isNaN(d.getTime())) {
-      return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(), dateObj: d };
+      let y = d.getFullYear();
+      if (y > 2400) y -= 543;
+      return { day: d.getDate(), month: d.getMonth() + 1, year: y, dateObj: d };
     }
   }
 
@@ -379,10 +418,10 @@ export default function App() {
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
-  // [MODIFIED] Ensured order summary date uses Gregorian AD year (ค.ศ.) with th-TH-u-ca-gregory
+  // [MODIFIED] Ensured order summary date uses formatThaiDateTimeAD for ค.ศ.
   const generateOrderSummaryText = (order) => {
     if (!order) return '';
-    const dateStr = new Date(order.timestamp).toLocaleString('th-TH-u-ca-gregory');
+    const dateStr = formatThaiDateTimeAD(order.timestamp);
     const paymentText = order.paymentMethod === 'cash' ? 'ชำระเงินสด' : (order.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์');
     const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}`;
 
@@ -561,7 +600,7 @@ export default function App() {
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
-    // [MODIFIED] Ensured visit log date uses Gregorian AD year (ค.ศ.)
+    // [MODIFIED] Ensured visit log date uses formatThaiDateTimeAD for ค.ศ.
     const trackCustomerSessionVisit = async (uid, dName) => {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) return;
@@ -583,7 +622,7 @@ export default function App() {
             userId: uid,
             displayName: dName || 'ลูกค้าทั่วไป',
             visitedAt: nowMs,
-            visitedAtStr: new Date(nowMs).toLocaleString('th-TH-u-ca-gregory'), // [MODIFIED] Forced AD ค.ศ.
+            visitedAtStr: formatThaiDateTimeAD(nowMs), // [MODIFIED] Forced AD ค.ศ.
             hasOrdered: false,
             lastOrderId: null
           });
@@ -1016,8 +1055,8 @@ export default function App() {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA'); 
-      // [MODIFIED] Force Gregorian AD (ค.ศ.) date string
-      const thaiDateStr = d.toLocaleDateString('th-TH-u-ca-gregory', { day: 'numeric', month: 'short' });
+      // [MODIFIED] Force Gregorian AD (ค.ศ.) date string via custom helper
+      const thaiDateStr = `${d.getDate()} ${THAI_MONTHS[d.getMonth()].slice(0,3)}`;
       const count = visitStats[dateStr] || 0;
       list.push({ dateStr, thaiDateStr, count });
     }
@@ -1027,7 +1066,7 @@ export default function App() {
   const recentVisits = getRecentVisits();
   const maxVisitCount = Math.max(...recentVisits.map(v => v.count), 1);
 
-  // [MODIFIED] Corrected daily history keys to Gregorian AD (ค.ศ.)
+  // [MODIFIED] Corrected daily history keys to Gregorian AD (ค.ศ.) using formatThaiDateShortAD
   const calculateRevenue = () => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1039,7 +1078,7 @@ export default function App() {
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
         // [MODIFIED] Force ค.ศ. date string
-        last7DaysMap[d.toLocaleDateString('th-TH-u-ca-gregory')] = 0;
+        last7DaysMap[formatThaiDateShortAD(d)] = 0;
     }
 
     orders.filter(o => o.status === 'completed' && !o.isDeleted).forEach(o => {
@@ -1047,7 +1086,7 @@ export default function App() {
       if (o.timestamp >= startOfMonth) monthly += o.total;
       if (o.timestamp >= startOfYear) yearly += o.total;
       // [MODIFIED] Force ค.ศ. date string
-      const oDate = new Date(o.timestamp).toLocaleDateString('th-TH-u-ca-gregory');
+      const oDate = formatThaiDateShortAD(o.timestamp);
       if(last7DaysMap[oDate] !== undefined) last7DaysMap[oDate] += o.total;
     });
     
@@ -1067,14 +1106,14 @@ export default function App() {
      return { usageMB, storagePercent };
   };
 
-  // [MODIFIED] Updated CSV Export date format to ค.ศ. (Gregorian AD)
+  // [MODIFIED] Updated CSV Export date format to ค.ศ. (Gregorian AD) using formatThaiDateTimeAD
   const exportToCSV = () => {
     const completedOrders = orders.filter(o => o.status === 'completed' && !o.isDeleted);
     if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
     let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
     completedOrders.forEach(o => {
-      // [MODIFIED] Forced th-TH-u-ca-gregory for ค.ศ.
-      const date = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
+      // [MODIFIED] Forced formatThaiDateTimeAD for ค.ศ.
+      const date = formatThaiDateTimeAD(o.timestamp);
       const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
       const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
       csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
@@ -1189,10 +1228,10 @@ export default function App() {
   const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
   const grandTotal = calculateRevenue().yearly || 1;
 
-  // [MODIFIED] Forced datetime formatting in Analytics to use Gregorian AD (ค.ศ.)
+  // [MODIFIED] Forced datetime formatting in Analytics to use formatThaiDateTimeAD
   const analyticsData = React.useMemo(() => {
     const sourceData = orders.length > 0 ? orders.map(o => ({
-      datetime: new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory'), // [MODIFIED] Force ค.ศ.
+      datetime: formatThaiDateTimeAD(o.timestamp), // [MODIFIED] Force ค.ศ.
       billId: o.id,
       customer: o.lineName || "ลูกค้าทั่วไป",
       items: (o.items || []).map(i => `${i.qty}x ${i.name}`).join('\n'),
@@ -1800,8 +1839,8 @@ export default function App() {
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
-                      // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
-                      const dateStr = new Date(orderTime).toLocaleString('th-TH-u-ca-gregory');
+                      // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
+                      const dateStr = formatThaiDateTimeAD(orderTime);
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
@@ -1919,8 +1958,8 @@ export default function App() {
              ) : (
                  <div className="space-y-6">
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
-                     // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
-                     const dateStr = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
+                     // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
+                     const dateStr = formatThaiDateTimeAD(o.timestamp);
                      return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
@@ -2231,9 +2270,9 @@ export default function App() {
                       <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-100">
                         <Sparkles size={16} className="text-yellow-300"/> รายรับวันนี้ (Google Sheets)
                       </span>
-                      {/* [MODIFIED] Force ค.ศ. format for date display */}
+                      {/* [MODIFIED] Force ค.ศ. format for date display via custom helper */}
                       <span className="text-[9px] bg-yellow-400 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
-                        {new Date().toLocaleDateString('th-TH-u-ca-gregory', { day: 'numeric', month: 'short' })}
+                        {formatThaiDateFullAD(new Date())}
                       </span>
                     </div>
                     <h1 className="text-4xl font-serif font-bold relative z-10 my-2 text-white">
@@ -2484,8 +2523,8 @@ export default function App() {
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
                     <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้ (Firebase)</span>
-                    {/* [MODIFIED] Force ค.ศ. format for date display */}
-                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{new Date().toLocaleDateString('th-TH-u-ca-gregory')}</span>
+                    {/* [MODIFIED] Force ค.ศ. format for date display via custom helper */}
+                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{formatThaiDateShortAD(new Date())}</span>
                   </div>
                   <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{revData.daily.toLocaleString()}</h1>
                   <div className="flex gap-4 mt-4 pt-4 border-t border-white/10 text-xs relative z-10">
@@ -2715,8 +2754,8 @@ export default function App() {
                 </div>
 
                 {filteredOrders.map((o, idx) => {
-                    // [MODIFIED] Forced th-TH-u-ca-gregory for Gregorian AD year (ค.ศ.)
-                    const dateStr = new Date(o.timestamp).toLocaleString('th-TH-u-ca-gregory');
+                    // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
+                    const dateStr = formatThaiDateTimeAD(o.timestamp);
                     return (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
