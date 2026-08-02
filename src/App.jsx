@@ -7,7 +7,7 @@ import {
   Sparkles, Database, Users, Filter, Calendar, UserX
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment, query, orderBy, limit } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, updateDoc, increment, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 // --- 1. Firebase Configuration (ตั้งค่าการเชื่อมต่อฐานข้อมูล) ---
 const firebaseConfig = {
@@ -49,7 +49,7 @@ const THEMES = {
   custom: { bg: '#F5EEDC', primary: '#3D2C1E', accent: '#A67C52', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
-// [MODIFIED] Helper Function สำหรับแปลงและแยกแยะวันที่จากหลากหลายรูปแบบอย่างแม่นยำ (รองรับ พ.ศ./ค.ศ. และ DD/MM/YYYY)
+// Helper Function สำหรับแปลงและแยกแยะวันที่จากหลากหลายรูปแบบอย่างแม่นยำ (รองรับ พ.ศ./ค.ศ. และ DD/MM/YYYY)
 const parseCustomDate = (dateVal, dateStrVal) => {
   if (!dateVal && !dateStrVal) return null;
 
@@ -218,7 +218,7 @@ export default function App() {
   const [sheetFilterMonth, setSheetFilterMonth] = useState('all');
   const [sheetFilterYear, setSheetFilterYear] = useState('all');
 
-  // [MODIFIED] State สำหรับเก็บประวัติการเข้าชมร้านค้าของผู้ใช้งาน (Visit Logs)
+  // State สำหรับเก็บประวัติการเข้าชมร้านค้าของผู้ใช้งาน (Visit Logs)
   const [visitLogs, setVisitLogs] = useState([]);
 
   const [newMenu, setNewMenu] = useState({ 
@@ -275,6 +275,51 @@ export default function App() {
   const getAddedBlendPrice = (item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
+  };
+
+  // [ADDED] ฟังก์ชันสร้างข้อความสรุปบิลจากวัตถุออร์เดอร์สำหรับการแชร์ซ้ำ
+  const generateOrderSummaryText = (order) => {
+    if (!order) return '';
+    const dateStr = new Date(order.timestamp).toLocaleString('th-TH');
+    const paymentText = order.paymentMethod === 'cash' ? 'ชำระเงินสด' : (order.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์');
+    const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}`;
+
+    const itemsListText = (order.items || []).map(i => {
+      const blendText = getBlendText(i);
+      const beanText = i.bean ? ` • เมล็ด: ${i.bean}` : '';
+      const teaText = i.teaType ? ` • รสชา: ${i.teaType}` : '';
+      const shotText = i.addShot ? ` • เพิ่มช็อตกาแฟ` : '';
+      const iceText = i.separateIce ? ` • แยกน้ำแข็ง (+฿5)` : '';
+      const saucesText = i.selectedSauces?.length > 0 ? ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}` : '';
+      const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
+      const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
+      const sweetText = isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`;
+      return `- ${i.qty}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
+    }).join('\n');
+
+    return `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${order.id.slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${order.lineName || "ลูกค้าทั่วไป"}\n${itemsListText}\n\nยอดรวม: ฿${order.total}\nที่อยู่: ${order.address || '-'}\nช่องทางชำระเงิน: ${paymentText}\nหมายเหตุ: ${order.note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
+  };
+
+  // [ADDED] ฟังก์ชันกดแชร์บิลซ้ำได้ไม่จำกัดจำนวนครั้ง (ใช้ได้ทั้งฝั่งลูกค้าและแอดมิน)
+  const handleShareOrderBill = async (order) => {
+    const text = generateOrderSummaryText(order);
+    if (!text) return;
+
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) { console.error("Clipboard copy error:", e); }
+    }
+
+    if (window.liff && window.liff.isLoggedIn() && window.liff.isApiAvailable('shareTargetPicker')) {
+      try {
+        await window.liff.shareTargetPicker([{ type: "text", text }]);
+      } catch (err) {
+        window.open(`https://line.me/R/share?text=${encodeURIComponent(text)}`, '_blank');
+      }
+    } else {
+      window.open(`https://line.me/R/share?text=${encodeURIComponent(text)}`, '_blank');
+    }
   };
 
   // ฟังก์ชันส่งข้อมูลออร์เดอร์ไปยัง Google Sheets (Background Fetch)
@@ -339,6 +384,51 @@ export default function App() {
     }
   };
 
+  // ระบบลบออร์เดอร์อัตโนมัติทุกวัน ณ เวลา 02:00 น.
+  useEffect(() => {
+    const autoDeleteOrdersAtTwoAM = async () => {
+      try {
+        const now = new Date();
+        const targetTwoAM = new Date(now);
+        targetTwoAM.setHours(2, 0, 0, 0);
+
+        if (now.getTime() < targetTwoAM.getTime()) {
+          targetTwoAM.setDate(targetTwoAM.getDate() - 1);
+        }
+
+        const cutoffTime = targetTwoAM.getTime();
+        const lastCleanup = Number(localStorage.getItem('happycow_last_2am_cleanup') || 0);
+
+        if (lastCleanup < cutoffTime) {
+          const ordersRef = collection(db, 'orders');
+          const snapshot = await getDocs(ordersRef);
+
+          const deletePromises = [];
+          snapshot.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.timestamp && data.timestamp < cutoffTime) {
+              deletePromises.push(deleteDoc(doc(db, 'orders', docSnap.id)));
+            }
+          });
+
+          if (deletePromises.length > 0) {
+            await Promise.all(deletePromises);
+            console.log(`[Auto Delete 02:00 AM] ลบออร์เดอร์เก่าเรียบร้อยแล้วจำนวน ${deletePromises.length} รายการ`);
+          }
+
+          localStorage.setItem('happycow_last_2am_cleanup', Date.now().toString());
+        }
+      } catch (err) {
+        console.error("เกิดข้อผิดพลาดในระบบลบออร์เดอร์อัตโนมัติ 02:00 น.:", err);
+      }
+    };
+
+    autoDeleteOrdersAtTwoAM();
+    const intervalId = setInterval(autoDeleteOrdersAtTwoAM, 60000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
   useEffect(() => { localStorage.setItem('happycow_address', address); }, [address]);
@@ -346,7 +436,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
 
-  // เรียกดึงข้อมูลจาก Google Sheets ทันทีที่แอดมินเปิดหน้า Dashboard
   useEffect(() => {
     if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
       fetchDashboardDataFromGoogleSheets();
@@ -376,7 +465,6 @@ export default function App() {
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
-    // [MODIFIED] บันทึก Session ประวัติการเข้าชมรายบุคคลว่าเข้ามาเมื่อไหร่ และสั่งสินค้าหรือไม่
     const trackCustomerSessionVisit = async (uid, dName) => {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) return;
@@ -509,7 +597,6 @@ export default function App() {
       setActiveUsers(activeList);
     });
 
-    // [MODIFIED] โหลดประวัติการเข้าชมร้านค้าของผู้ใช้งานเรียลไทม์ (จำกัด 50 รายการล่าสุด)
     const unsubVisitLogs = onSnapshot(collection(db, 'visit_logs'), snapshot => {
       const logs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       logs.sort((a, b) => (b.visitedAt || 0) - (a.visitedAt || 0));
@@ -1037,7 +1124,7 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100% ปรับปรุงการตรวจสอบวันที่
+  // คำนวณสรุปสถิติต่างๆ รวมไปถึงรายรับวันนี้จาก Google Sheets 100%
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
@@ -1068,7 +1155,6 @@ export default function App() {
         completedCount++;
       }
 
-      // [MODIFIED] ตรวจสอบว่าเป็นออร์เดอร์ของวันนี้ด้วย parseCustomDate
       const parsed = parseCustomDate(o?.timestamp, o?.timestampStr);
       if (parsed && parsed.day === currentDay && parsed.month === currentMonth && parsed.year === currentYear) {
         todayRevenue += amount;
@@ -1097,13 +1183,13 @@ export default function App() {
     };
   }, [sheetOrdersData]);
 
-  // [MODIFIED] กรองประวัติการสั่งซื้อย้อนหลังถาวรจาก Google Sheets ตาม วัน / เดือน / ปี โดยใช้ตัวแปลงวันที่ใหม่
+  // กรองประวัติการสั่งซื้อย้อนหลังถาวรจาก Google Sheets ตาม วัน / เดือน / ปี
   const filteredSheetOrders = useMemo(() => {
     return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
       if (!o) return false;
       
       const parsed = parseCustomDate(o.timestamp, o.timestampStr);
-      if (!parsed) return true; // หากอ่านวันที่ไม่ได้ให้แสดงไว้ก่อนเพื่อป้องกันข้อมูลหาย
+      if (!parsed) return true;
 
       const dStr = parsed.day.toString();
       const mStr = parsed.month.toString();
@@ -1555,7 +1641,6 @@ export default function App() {
                           isDeleted: false
                         });
 
-                        // [MODIFIED] อัปเดตประวัติการเข้าชม Session ของลูกค้ารายนี้ให้เป็น สั่งซื้อสำเร็จ (hasOrdered: true)
                         const currentSessionId = sessionStorage.getItem('happycow_visit_session_id');
                         if (currentSessionId) {
                           try {
@@ -1577,7 +1662,6 @@ export default function App() {
                           }, { merge: true });
                         }
 
-                        // ซิงค์ออร์เดอร์ใหม่ลง Google Sheets ทันที
                         sendOrderToGoogleSheets({
                           orderId: orderRef.id,
                           timestamp: orderTime,
@@ -1683,28 +1767,38 @@ export default function App() {
                               </p>
                           ))}</div>
 
-                          {o.status === 'completed' && (
-                            <div className="mt-4 pt-4 border-t border-gray-100">
-                              {o.deliveryMessage && (
-                                <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-3">
-                                  <p className="text-[10px] font-bold text-accent mb-1 flex items-center gap-1"><MessageSquare size={12}/> ข้อความจากทางร้าน:</p>
-                                  <p className="text-[11px] text-gray-600 font-bold">{o.deliveryMessage}</p>
-                                </div>
-                              )}
-                              {o.hasDeliveryImage && (
-                                <button 
-                                  onClick={() => viewImage(o.id, 'delivery')} 
-                                  disabled={loadingSlipId === o.id}
-                                  className="w-full bg-primary text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
-                                >
-                                   {loadingSlipId === o.id ? (
-                                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                   ) : <Camera size={16}/>}
-                                   ดูรูปถ่ายตอนจัดส่งสินค้า
-                                </button>
-                              )}
-                            </div>
-                          )}
+                          {/* [MODIFIED] เพิ่มปุ่มแชร์บิลสั่งซื้อซ้ำได้ไม่จำกัดจำนวนครั้ง */}
+                          <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+                            <button 
+                              onClick={() => handleShareOrderBill(o)}
+                              className="w-full bg-[#06C755] hover:bg-green-600 text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
+                            >
+                              <Share2 size={16}/> แชร์บิลไปที่ LINE 💬
+                            </button>
+
+                            {o.status === 'completed' && (
+                              <div className="space-y-2">
+                                {o.deliveryMessage && (
+                                  <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                                    <p className="text-[10px] font-bold text-accent mb-1 flex items-center gap-1"><MessageSquare size={12}/> ข้อความจากทางร้าน:</p>
+                                    <p className="text-[11px] text-gray-600 font-bold">{o.deliveryMessage}</p>
+                                  </div>
+                                )}
+                                {o.hasDeliveryImage && (
+                                  <button 
+                                    onClick={() => viewImage(o.id, 'delivery')} 
+                                    disabled={loadingSlipId === o.id}
+                                    className="w-full bg-primary text-white py-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                                  >
+                                     {loadingSlipId === o.id ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                     ) : <Camera size={16}/>}
+                                     ดูรูปถ่ายตอนจัดส่งสินค้า
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                        </div>
                    )})}
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).length === 0 && (
@@ -1945,7 +2039,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] 🌟 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
+                {/* 🌟 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm space-y-4">
                   <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-indigo-900 flex items-center gap-2">
@@ -2332,9 +2426,20 @@ export default function App() {
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-2 mb-2 mt-4">
-                        {o.hasSlip && <button onClick={() => viewImage(o.id, 'slip')} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>}
+                      <div className="grid grid-cols-3 gap-2 mb-2 mt-4">
+                        {o.hasSlip ? (
+                          <button onClick={() => viewImage(o.id, 'slip')} className="bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all border border-blue-100"><Eye size={14}/> ตรวจสลิป</button>
+                        ) : <div className="hidden sm:block"></div>}
                         
+                        {/* [MODIFIED] เพิ่มปุ่มแชร์บิลออร์เดอร์สำหรับแอดมิน */}
+                        <button 
+                          onClick={() => handleShareOrderBill(o)}
+                          className="bg-green-50 text-green-600 py-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all border border-green-200 hover:bg-green-100"
+                          title="แชร์บิลออร์เดอร์ไปที่ LINE"
+                        >
+                          <Share2 size={14}/> แชร์บิล
+                        </button>
+
                         <button 
                           type="button" 
                           onClick={() => {
@@ -2834,8 +2939,7 @@ export default function App() {
                     <div className="pt-2">
                       <label className="text-[11px] text-gray-500 mb-2 block font-bold">เลือกวันที่จะให้ระบบคิวอัตโนมัติทำงาน</label>
                       <div className="flex flex-wrap gap-1.5">
-                      // [MODIFIED] ต่อจากแถบเลือกวัน THAI_DAYS ในหน้าตั้งค่าแอดมิน
-                        map((day, idx) => {
+                        {THAI_DAYS.map((day, idx) => {
                           const isSelected = editAutoCloseDays.includes(idx);
                           return (
                             <button
