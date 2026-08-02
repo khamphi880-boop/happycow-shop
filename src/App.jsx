@@ -36,7 +36,6 @@ const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
 const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-// [ADDED] Recharts Chart Colors & Fallback Mock Data from File 1
 const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const PAYMENT_COLORS = {
   "ไทยช่วยไทยพลัส": "#10b981", // Emerald 500
@@ -98,18 +97,15 @@ const THEMES = {
 
 // --- 2. Helper Functions ---
 
-// [ADDED] Robust date formatter for Dashboard comparisons
 const formatDateForComparison = (datetimeString) => {
   if (!datetimeString) return "";
   try {
     const str = String(datetimeString).trim();
 
-    // 1. Handle ISO / YYYY-MM-DD standard format directly
     if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
       return str.substring(0, 10);
     }
 
-    // 2. Extract date part before space or 'T'
     const datePart = str.split(/[ T]/)[0];
     const parts = datePart.split(/[\/\.-]/);
     if (parts.length < 3) return "";
@@ -141,20 +137,19 @@ const formatDateForComparison = (datetimeString) => {
   }
 };
 
-const parseCustomDate = (dateVal, dateStrVal) => {
-  if (!dateVal && !dateStrVal) return null;
+// [MODIFIED] Enhanced parseCustomDate to accept fallback options and inspect datetime field correctly
+const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
+  const val = dateVal || dateStrVal || fallbackVal;
+  if (!val) return null;
 
-  if (dateVal !== undefined && dateVal !== null && dateVal !== '') {
-    const rawTs = (typeof dateVal === 'string' && !isNaN(Number(dateVal))) ? Number(dateVal) : dateVal;
-    if (typeof rawTs === 'number' && !isNaN(rawTs) && rawTs > 1000000000) {
-      const d = new Date(rawTs);
-      if (!isNaN(d.getTime())) {
-        return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(), dateObj: d };
-      }
+  if (typeof val === 'number' && val > 1000000000) {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(), dateObj: d };
     }
   }
 
-  const str = String(dateStrVal || dateVal || '').trim();
+  const str = String(val).trim();
   if (!str) return null;
 
   const parsedStandard = new Date(str);
@@ -211,7 +206,6 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
   });
 };
 
-// [ADDED] KpiCard component from File 1
 function KpiCard({ title, value, icon, trend, trendUp }) {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-indigo-100 transition-colors">
@@ -230,7 +224,6 @@ function KpiCard({ title, value, icon, trend, trendUp }) {
     </div>
   );
 }
-
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
@@ -288,7 +281,7 @@ export default function App() {
   const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   
-  // [ADDED] Analytics Filters State from File 1
+  // Analytics Filters State
   const [analyticsSearchTerm, setAnalyticsSearchTerm] = useState('');
   const [analyticsSelectedDate, setAnalyticsSelectedDate] = useState('');
   const [analyticsHideCanceled, setAnalyticsHideCanceled] = useState(true);
@@ -770,7 +763,6 @@ export default function App() {
       }
     }
   }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays]);
-
   const viewImage = async (orderId, type) => {
     setLoadingSlipId(orderId);
     try {
@@ -1187,7 +1179,6 @@ export default function App() {
   const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
   const grandTotal = calculateRevenue().yearly || 1;
 
-  // [ADDED] Recharts Data Computations for File 1 Dashboard Integration
   const analyticsData = React.useMemo(() => {
     const sourceData = orders.length > 0 ? orders.map(o => ({
       datetime: new Date(o.timestamp).toLocaleString('th-TH'),
@@ -1296,6 +1287,7 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
+  // [MODIFIED] Enhanced sheetStats calculation with parseCustomDate fix
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
@@ -1319,14 +1311,15 @@ export default function App() {
 
     validSheetOrders.forEach(o => {
       const amount = Number(o?.total) || 0;
-      const paymentMethod = String(o?.paymentMethod || '').toLowerCase();
+      const paymentMethod = String(o?.paymentMethod || o?.payment || '').toLowerCase();
       const st = String(o?.status || '').toLowerCase();
 
       if (st.includes('completed') || st.includes('จัดส่งสำเร็จ') || st.includes('สำเร็จ') || st.includes('paid') || st.includes('เสร็จสิ้น')) {
         completedCount++;
       }
 
-      const parsed = parseCustomDate(o?.timestamp, o?.timestampStr);
+      // [MODIFIED] Correct date parsing passing o?.datetime and o?.date as fallback
+      const parsed = parseCustomDate(o?.timestamp, o?.timestampStr, o?.datetime || o?.date);
       if (parsed && parsed.day === currentDay && parsed.month === currentMonth && parsed.year === currentYear) {
         todayRevenue += amount;
       }
@@ -1358,7 +1351,7 @@ export default function App() {
     return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
       if (!o) return false;
       
-      const parsed = parseCustomDate(o.timestamp, o.timestampStr);
+      const parsed = parseCustomDate(o.timestamp, o.timestampStr, o.datetime || o.date);
       if (!parsed) return true;
 
       const dStr = parsed.day.toString();
@@ -1376,7 +1369,7 @@ export default function App() {
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear().toString()]);
     (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).forEach(o => {
-      const parsed = parseCustomDate(o.timestamp, o.timestampStr);
+      const parsed = parseCustomDate(o.timestamp, o.timestampStr, o.datetime || o.date);
       if (parsed && parsed.year) {
         years.add(parsed.year.toString());
       }
@@ -1407,9 +1400,6 @@ export default function App() {
     backgroundImage: storeSettings.theme === 'custom' && storeSettings.customBgImage ? `url(${storeSettings.customBgImage})` : 'none',
     backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed'
   };
-
-  /* 📌 [Part 1/2 Complete] Paused gracefully at a safe logical boundary. Type 'continue' to generate Part 2. */
-  // [MODIFIED] Continuing App component JSX Return
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500" style={mainContainerStyle}>
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
@@ -1995,12 +1985,11 @@ export default function App() {
                 </button>
               ))}
             </div>
-
-            {/* TAB: แดชบอร์ด (รวม Recharts Analytics จากไฟล์ที่ 1 + Google Sheets & Visit Logs จากไฟล์ที่ 2) */}
+            {/* TAB: แดชบอร์ด (รวม Recharts Analytics + Google Sheets & Visit Logs) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
 
-                {/* 🌟 [ADDED FROM FILE 1] Interactive Analytics Section with Recharts */}
+                {/* Interactive Analytics Section with Recharts */}
                 <div className="bg-slate-900 text-white p-5 rounded-[2.5rem] shadow-xl space-y-6 border border-slate-800">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
                     <div>
@@ -2011,7 +2000,6 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                      {/* Date Filter Input */}
                       <div className="relative w-full sm:w-auto">
                         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
                           <Calendar size={16} />
@@ -2032,7 +2020,6 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Toggle Hide Canceled */}
                       <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 shadow-sm w-full sm:w-auto justify-center">
                         <input 
                           type="checkbox" 
@@ -2045,7 +2032,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* KPI Cards (From File 1) */}
+                  {/* KPI Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <KpiCard 
                       title="ยอดขายรวม (Total Sales)" 
@@ -2069,7 +2056,7 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Hourly Sales Trend Line Chart (From File 1) */}
+                  {/* Hourly Sales Trend Line Chart */}
                   <div className="bg-white p-4 rounded-2xl shadow-sm text-slate-800">
                     <h4 className="text-xs font-bold mb-3 text-slate-800 flex items-center gap-1.5">
                       <TrendingUp size={16} className="text-blue-500"/> แนวโน้มยอดขายรายชั่วโมง (Hourly Sales Trend)
@@ -2090,7 +2077,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Payment Method Pie Chart (From File 1) */}
+                  {/* Payment Method Pie Chart */}
                   <div className="bg-white p-4 rounded-2xl shadow-sm text-slate-800">
                     <h4 className="text-xs font-bold mb-3 text-slate-800 flex items-center gap-1.5">
                       <CreditCard size={16} className="text-emerald-500" /> ช่องทางชำระเงิน (Payment Methods)
@@ -2120,7 +2107,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Filtered Orders Table (From File 1) */}
+                  {/* Filtered Orders Table */}
                   <div className="bg-white rounded-2xl shadow-sm text-slate-800 overflow-hidden">
                     <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-2">
                       <h4 className="text-xs font-bold text-slate-800">รายการออเดอร์วิเคราะห์ ({analyticsData.filtered.length} บิล)</h4>
@@ -2187,7 +2174,7 @@ export default function App() {
 
                 </div>
                 
-                {/* 🌟 1. Google Sheets Live Sync Control Bar */}
+                {/* 1. Google Sheets Live Sync Control Bar */}
                 <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-[2.5rem] shadow-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-emerald-700">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
@@ -2224,7 +2211,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
+                {/* 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
                     <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
@@ -2255,7 +2242,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
+                {/* 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <h3 className="font-bold text-sm text-primary flex items-center gap-2">
                     <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (ข้อมูลจาก Google Sheets)
@@ -2294,7 +2281,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
+                {/* 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-primary flex items-center gap-2">
@@ -2390,7 +2377,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
+                {/* 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm space-y-4">
                   <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-indigo-900 flex items-center gap-2">
@@ -2444,7 +2431,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 6. สถานะออร์เดอร์ Real-time (Order Status Cards - Firebase) */}
+                {/* 6. สถานะออร์เดอร์ Real-time (Firebase Order Queue) */}
                 <div>
                   <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2">
                     <BellRing size={16} className="text-orange-500"/> สถานะคิวออร์เดอร์ปัจจุบัน (Firebase)
@@ -2479,7 +2466,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 7. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
+                {/* 7. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
@@ -2499,7 +2486,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 8. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
+                {/* 8. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <h3 className="font-bold text-sm text-primary flex items-center gap-2">
                     <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (Firebase)
@@ -2538,7 +2525,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 9. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers Leaderboard) */}
+                {/* 9. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
@@ -2571,7 +2558,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 🌟 10. ช่วงเวลาขายดี (Peak Hours Analytics Bar Chart) */}
+                {/* 10. ช่วงเวลาขายดี (Peak Hours Analytics) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
@@ -2596,7 +2583,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 11. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
+                {/* 11. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm">
                    <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
                      <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
@@ -2619,7 +2606,7 @@ export default function App() {
                    )}
                 </div>
 
-                {/* 📊 12. สถิติผู้เข้าชม 7 วัน */}
+                {/* 12. สถิติผู้เข้าชม 7 วัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
                    <div className="space-y-3.5">
@@ -2641,7 +2628,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 13. Storage Graph */}
+                {/* 13. Storage Graph */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <div className="flex justify-between items-center mb-2">
                      <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
@@ -2653,7 +2640,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 14. สรุปรายรับรายวัน */}
+                {/* 14. สรุปรายรับรายวัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
                    <div className="space-y-3">
@@ -2666,7 +2653,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 🌟 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
+                {/* 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
                 <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-3">
                    <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
                    <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
@@ -2692,7 +2679,7 @@ export default function App() {
                    </button>
                 </div>
 
-                {/* 🌟 16. ปุ่ม Export CSV */}
+                {/* 16. ปุ่ม Export CSV */}
                 <div className="flex gap-2">
                   <button onClick={exportToCSV} className="flex-1 bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
                     <Download size={16} /> Export รายรับ (CSV)
