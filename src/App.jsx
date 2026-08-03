@@ -38,21 +38,21 @@ const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', '�
 
 const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const PAYMENT_COLORS = {
-  "ไทยช่วยไทยพลัส": "#10b981", // Emerald 500
-  "โอนพร้อมเพย์": "#3b82f6", // Blue 500
-  "เงินสด": "#f59e0b", // Amber 500
+  "ไทยช่วยไทยพลัส": "#10b981",
+  "โอนพร้อมเพย์": "#3b82f6",
+  "เงินสด": "#f59e0b",
   "promptpay": "#3b82f6",
   "cash": "#f59e0b",
   "thaichueithai": "#10b981"
 };
 
-// [MODIFIED] Bulletproof AD (ค.ศ.) Helper functions that bypass iOS/Browser B.E. regional defaults
+// Bulletproof AD (ค.ศ.) Helper functions that bypass iOS/Browser B.E. regional defaults
 const formatThaiDateTimeAD = (dateVal) => {
   if (!dateVal) return "";
   const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
   if (isNaN(d.getTime())) return String(dateVal);
   let year = d.getFullYear();
-  if (year > 2400) year -= 543; // [MODIFIED] Convert to AD ค.ศ.
+  if (year > 2400) year -= 543;
   const day = d.getDate();
   const month = d.getMonth() + 1;
   const hours = String(d.getHours()).padStart(2, '0');
@@ -83,7 +83,6 @@ const formatThaiDateFullAD = (dateVal) => {
   return `${day} ${monthName} ${year}`;
 };
 
-// [MODIFIED] Updated fallbackData datetime to ค.ศ.
 const fallbackData = [
   { datetime: "1/8/2026 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
   { datetime: "1/8/2026 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
@@ -135,7 +134,6 @@ const THEMES = {
 
 // --- 2. Helper Functions ---
 
-// [MODIFIED] Corrected formatDateForComparison to convert Buddhist Era (พ.ศ.) to A.D. (ค.ศ.)
 const formatDateForComparison = (datetimeString) => {
   if (!datetimeString) return "";
   try {
@@ -164,7 +162,7 @@ const formatDateForComparison = (datetimeString) => {
     if (isNaN(day) || isNaN(month) || isNaN(year)) return "";
 
     if (year > 2400) {
-      year -= 543; // [MODIFIED] Force ค.ศ.
+      year -= 543;
     }
 
     const paddedMonth = String(month).padStart(2, '0');
@@ -176,7 +174,6 @@ const formatDateForComparison = (datetimeString) => {
   }
 };
 
-// [MODIFIED] Enhanced parseCustomDate to ensure returned year is strictly A.D. (ค.ศ.)
 const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const val = dateVal || dateStrVal || fallbackVal;
   if (!val) return null;
@@ -196,7 +193,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const parsedStandard = new Date(str);
   if (!isNaN(parsedStandard.getTime()) && parsedStandard.getFullYear() > 1900) {
     let y = parsedStandard.getFullYear();
-    if (y > 2400) y -= 543; // [MODIFIED] Force ค.ศ.
+    if (y > 2400) y -= 543;
     return { day: parsedStandard.getDate(), month: parsedStandard.getMonth() + 1, year: y, dateObj: parsedStandard };
   }
 
@@ -213,7 +210,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
       day = p1; month = p2; year = p3;
     }
 
-    if (year > 2400) year -= 543; // [MODIFIED] Force ค.ศ.
+    if (year > 2400) year -= 543;
 
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year > 1900) {
       return { day, month, year, dateObj: new Date(year, month - 1, day) };
@@ -418,7 +415,6 @@ export default function App() {
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   };
 
-  // [MODIFIED] Ensured order summary date uses formatThaiDateTimeAD for ค.ศ.
   const generateOrderSummaryText = (order) => {
     if (!order) return '';
     const dateStr = formatThaiDateTimeAD(order.timestamp);
@@ -600,7 +596,6 @@ export default function App() {
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
 
-    // [MODIFIED] Ensured visit log date uses formatThaiDateTimeAD for ค.ศ.
     const trackCustomerSessionVisit = async (uid, dName) => {
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
       if (isAdmin) return;
@@ -622,7 +617,7 @@ export default function App() {
             userId: uid,
             displayName: dName || 'ลูกค้าทั่วไป',
             visitedAt: nowMs,
-            visitedAtStr: formatThaiDateTimeAD(nowMs), // [MODIFIED] Forced AD ค.ศ.
+            visitedAtStr: formatThaiDateTimeAD(nowMs),
             hasOrdered: false,
             lastOrderId: null
           });
@@ -1049,13 +1044,13 @@ export default function App() {
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
+
   const getRecentVisits = () => {
     const list = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA'); 
-      // [MODIFIED] Force Gregorian AD (ค.ศ.) date string via custom helper
       const thaiDateStr = `${d.getDate()} ${THAI_MONTHS[d.getMonth()].slice(0,3)}`;
       const count = visitStats[dateStr] || 0;
       list.push({ dateStr, thaiDateStr, count });
@@ -1066,7 +1061,6 @@ export default function App() {
   const recentVisits = getRecentVisits();
   const maxVisitCount = Math.max(...recentVisits.map(v => v.count), 1);
 
-  // [MODIFIED] Corrected daily history keys to Gregorian AD (ค.ศ.) using formatThaiDateShortAD
   const calculateRevenue = () => {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1077,7 +1071,6 @@ export default function App() {
     const last7DaysMap = {};
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        // [MODIFIED] Force ค.ศ. date string
         last7DaysMap[formatThaiDateShortAD(d)] = 0;
     }
 
@@ -1085,7 +1078,6 @@ export default function App() {
       if (o.timestamp >= startOfDay) daily += o.total;
       if (o.timestamp >= startOfMonth) monthly += o.total;
       if (o.timestamp >= startOfYear) yearly += o.total;
-      // [MODIFIED] Force ค.ศ. date string
       const oDate = formatThaiDateShortAD(o.timestamp);
       if(last7DaysMap[oDate] !== undefined) last7DaysMap[oDate] += o.total;
     });
@@ -1106,24 +1098,7 @@ export default function App() {
      return { usageMB, storagePercent };
   };
 
-  // [MODIFIED] Updated CSV Export date format to ค.ศ. (Gregorian AD) using formatThaiDateTimeAD
-  const exportToCSV = () => {
-    const completedOrders = orders.filter(o => o.status === 'completed' && !o.isDeleted);
-    if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
-    let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
-    completedOrders.forEach(o => {
-      // [MODIFIED] Forced formatThaiDateTimeAD for ค.ศ.
-      const date = formatThaiDateTimeAD(o.timestamp);
-      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
-      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
-      csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `สรุปรายรับ_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
+  // [MODIFIED] Removed exportToCSV as requested (kept exportMenuToCSV below)
 
   const exportMenuToCSV = () => {
     if (menuItems.length === 0) return showAlert('ยังไม่มีเมนูในระบบครับ');
@@ -1228,10 +1203,9 @@ export default function App() {
   const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
   const grandTotal = calculateRevenue().yearly || 1;
 
-  // [MODIFIED] Forced datetime formatting in Analytics to use formatThaiDateTimeAD
   const analyticsData = React.useMemo(() => {
     const sourceData = orders.length > 0 ? orders.map(o => ({
-      datetime: formatThaiDateTimeAD(o.timestamp), // [MODIFIED] Force ค.ศ.
+      datetime: formatThaiDateTimeAD(o.timestamp),
       billId: o.id,
       customer: o.lineName || "ลูกค้าทั่วไป",
       items: (o.items || []).map(i => `${i.qty}x ${i.name}`).join('\n'),
@@ -1307,19 +1281,7 @@ export default function App() {
     return { filtered, totalSales, totalOrders, avgOrderValue, totalItems, paymentData, hourlyData };
   }, [orders, analyticsSearchTerm, analyticsSelectedDate, analyticsHideCanceled]);
 
-  const peakHoursData = React.useMemo(() => {
-    const hoursMap = { '08:00-11:00': 0, '11:00-14:00': 0, '14:00-17:00': 0, '17:00-20:00': 0, '20:00+': 0 };
-    completedOrdersList.forEach(o => {
-      const h = new Date(o.timestamp).getHours();
-      if (h >= 8 && h < 11) hoursMap['08:00-11:00'] += 1;
-      else if (h >= 11 && h < 14) hoursMap['11:00-14:00'] += 1;
-      else if (h >= 14 && h < 17) hoursMap['14:00-17:00'] += 1;
-      else if (h >= 17 && h < 20) hoursMap['17:00-20:00'] += 1;
-      else hoursMap['20:00+'] += 1;
-    });
-    return hoursMap;
-  }, [completedOrdersList]);
-  const maxPeakCount = Math.max(...Object.values(peakHoursData), 1);
+  // [MODIFIED] Removed peakHoursData calculation as requested (Peak hours graph removed)
 
   const topProducts = React.useMemo(() => {
     const map = {};
@@ -1337,7 +1299,7 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] Enhanced sheetStats calculation with parseCustomDate fix
+  // [MODIFIED] Removed reading todayRevenue, totalRevenue, and payment channel sums from Google Sheets stats calculation
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
@@ -1347,53 +1309,18 @@ export default function App() {
       return !st.includes('cancel') && !st.includes('ยกเลิก') && !st.includes('deleted');
     });
 
-    const now = new Date();
-    const currentDay = now.getDate();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-
-    let todayRevenue = 0;
-    let totalRevenue = 0;
-    let promptPaySum = 0;
-    let cashSum = 0;
-    let thaiSum = 0;
     let completedCount = 0;
 
     validSheetOrders.forEach(o => {
-      const amount = Number(o?.total) || 0;
-      const paymentMethod = String(o?.paymentMethod || o?.payment || '').toLowerCase();
       const st = String(o?.status || '').toLowerCase();
-
       if (st.includes('completed') || st.includes('จัดส่งสำเร็จ') || st.includes('สำเร็จ') || st.includes('paid') || st.includes('เสร็จสิ้น')) {
         completedCount++;
-      }
-
-      // [MODIFIED] Correct date parsing passing o?.datetime and o?.date as fallback
-      const parsed = parseCustomDate(o?.timestamp, o?.timestampStr, o?.datetime || o?.date);
-      if (parsed && parsed.day === currentDay && parsed.month === currentMonth && parsed.year === currentYear) {
-        todayRevenue += amount;
-      }
-
-      totalRevenue += amount;
-
-      if (paymentMethod.includes("พร้อมเพย์") || paymentMethod.includes("promptpay") || paymentMethod.includes("โอน")) {
-        promptPaySum += amount;
-      } else if (paymentMethod.includes("เงินสด") || paymentMethod.includes("cash")) {
-        cashSum += amount;
-      } else if (paymentMethod.includes("ไทยช่วยไทย") || paymentMethod.includes("thaichueithai") || paymentMethod.includes("ไทย")) {
-        thaiSum += amount;
       }
     });
 
     return {
-      todayRevenue,
       totalOrdersCount: validSheetOrders.length,
-      completedCount,
-      totalRevenue,
-      promptPaySum,
-      cashSum,
-      thaiSum,
-      grandTotal: totalRevenue || 1
+      completedCount
     };
   }, [sheetOrdersData]);
 
@@ -1704,6 +1631,7 @@ export default function App() {
             </div>
           </div>
         )}
+
         {/* --- Cart View --- */}
         {view === 'cart' && (
           <div className="p-6 space-y-6 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20">
@@ -1839,7 +1767,6 @@ export default function App() {
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
-                      // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
                       const dateStr = formatThaiDateTimeAD(orderTime);
                       
                       try {
@@ -1958,7 +1885,6 @@ export default function App() {
              ) : (
                  <div className="space-y-6">
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
-                     // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
                      const dateStr = formatThaiDateTimeAD(o.timestamp);
                      return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
@@ -2019,7 +1945,6 @@ export default function App() {
              )}
           </div>
         )}
-
         {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
@@ -2036,6 +1961,7 @@ export default function App() {
                 </button>
               ))}
             </div>
+
             {/* TAB: แดชบอร์ด (รวม Recharts Analytics + Google Sheets & Visit Logs) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
@@ -2262,78 +2188,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
-                    <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
-                    <div className="flex justify-between items-center mb-2 relative z-10">
-                      <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-100">
-                        <Sparkles size={16} className="text-yellow-300"/> รายรับวันนี้ (Google Sheets)
-                      </span>
-                      {/* [MODIFIED] Force ค.ศ. format for date display via custom helper */}
-                      <span className="text-[9px] bg-yellow-400 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
-                        {formatThaiDateFullAD(new Date())}
-                      </span>
-                    </div>
-                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2 text-white">
-                      ฿{(sheetStats?.todayRevenue || 0).toLocaleString()}
-                    </h1>
-                    <p className="text-[10px] text-emerald-100/80 font-medium relative z-10">
-                      สรุปรายรับที่คำนวณสดจากตาราง Google Sheets ของวันนี้
-                    </p>
-                  </div>
+                {/* [MODIFIED] Removed "รายรับวันนี้ (Google Sheets)", "รายรับรวมสะสมทั้งหมด", "จำแนกช่องทางชำระเงิน", "ช่วงเวลาที่สั่งซื้อเยอะที่สุด (Peak Hours)", and "ล้างออร์เดอร์ที่ซ่อนไว้ถาวร" as requested */}
 
-                  <div className="bg-emerald-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-800">
-                    <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
-                    <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
-                      <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> รายรับรวมสะสมทั้งหมด</span>
-                      <span className="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full font-bold">ข้อมูลถาวร</span>
-                    </div>
-                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2">฿{(sheetStats?.totalRevenue || 0).toLocaleString()}</h1>
-                    <p className="text-[10px] opacity-70 relative z-10">* ยอดขายนี้ดึงตรงจาก Google Sheets แม้ลบออร์เดอร์ในแอป ยอดจะไม่หาย</p>
-                  </div>
-                </div>
-
-                {/* 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
-                  <h3 className="font-bold text-sm text-primary flex items-center gap-2">
-                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (ข้อมูลจาก Google Sheets)
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
-                        <span className="text-primary">฿{(sheetStats?.promptPaySum || 0).toLocaleString()} ({Math.round(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
-                        <span className="text-primary">฿{(sheetStats?.cashSum || 0).toLocaleString()} ({Math.round(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><Sparkles size={12} className="text-orange-500"/> ไทยช่วยไทยพลัส</span>
-                        <span className="text-primary">฿{(sheetStats?.thaiSum || 0).toLocaleString()} ({Math.round(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
+                {/* 2. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-primary flex items-center gap-2">
@@ -2429,7 +2286,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
+                {/* 3. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm space-y-4">
                   <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-indigo-900 flex items-center gap-2">
@@ -2483,7 +2340,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 6. สถานะออร์เดอร์ Real-time (Firebase Order Queue) */}
+                {/* 4. สถานะออร์เดอร์ Real-time (Firebase Order Queue) */}
                 <div>
                   <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2">
                     <BellRing size={16} className="text-orange-500"/> สถานะคิวออร์เดอร์ปัจจุบัน (Firebase)
@@ -2518,12 +2375,11 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 7. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
+                {/* 5. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
                     <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้ (Firebase)</span>
-                    {/* [MODIFIED] Force ค.ศ. format for date display via custom helper */}
                     <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{formatThaiDateShortAD(new Date())}</span>
                   </div>
                   <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{revData.daily.toLocaleString()}</h1>
@@ -2539,46 +2395,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 8. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
-                  <h3 className="font-bold text-sm text-primary flex items-center gap-2">
-                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (Firebase)
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
-                        <span className="text-primary">฿{promptPayTotal.toLocaleString()} ({Math.round((promptPayTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((promptPayTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
-                        <span className="text-primary">฿{cashTotal.toLocaleString()} ({Math.round((cashTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((cashTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 flex items-center gap-1"><Sparkles size={12} className="text-orange-500"/> ไทยช่วยไทยพลัส</span>
-                        <span className="text-primary">฿{thaiChueiThaiTotal.toLocaleString()} ({Math.round((thaiChueiThaiTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((thaiChueiThaiTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 9. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers) */}
+                {/* 6. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
@@ -2611,32 +2428,7 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 10. ช่วงเวลาขายดี (Peak Hours Analytics) */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                  <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
-                    <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
-                  </h3>
-                  
-                  <div className="flex items-end gap-2 h-32 pt-4 px-2">
-                    {Object.entries(peakHoursData).map(([slot, count]) => {
-                      const heightPercent = (count / maxPeakCount) * 100;
-                      return (
-                        <div key={slot} className="flex-1 flex flex-col items-center h-full justify-end gap-1 group">
-                          <span className="text-[9px] font-bold text-primary opacity-80">{count} บิล</span>
-                          <div className="w-full bg-indigo-50 rounded-t-xl overflow-hidden flex items-end h-20">
-                            <div 
-                              className="w-full bg-indigo-500 rounded-t-xl transition-all duration-700 group-hover:bg-indigo-600" 
-                              style={{ height: `${Math.max(heightPercent, 8)}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-[8px] font-bold text-gray-400 tracking-tighter truncate w-full text-center">{slot}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 11. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
+                {/* 7. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm">
                    <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
                      <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
@@ -2659,7 +2451,7 @@ export default function App() {
                    )}
                 </div>
 
-                {/* 12. สถิติผู้เข้าชม 7 วัน */}
+                {/* 8. สถิติผู้เข้าชม 7 วัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
                    <div className="space-y-3.5">
@@ -2681,7 +2473,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 13. Storage Graph */}
+                {/* 9. Storage Graph */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <div className="flex justify-between items-center mb-2">
                      <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
@@ -2693,7 +2485,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 14. สรุปรายรับรายวัน */}
+                {/* 10. สรุปรายรับรายวัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
                    <div className="space-y-3">
@@ -2706,39 +2498,10 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
-                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-3">
-                   <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
-                   <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
-                   <button 
-                      onClick={() => {
-                         showConfirm("คุณต้องการลบข้อมูลออเดอร์ที่ถูกซ่อนไว้ทั้งหมดออกจากคลาวด์ถาวรใช่หรือไม่?", async () => {
-                            setIsLoading(true);
-                            try {
-                               const hiddenOrders = orders.filter(o => o.isDeleted);
-                               const promises = hiddenOrders.map(o => deleteDoc(doc(db, 'orders', o.id)));
-                               await Promise.all(promises);
-                               showAlert("ทำความสะอาดระบบและลบออเดอร์ที่ซ่อนถาวรเรียบร้อยค่ะ! ✨🐮");
-                            } catch (e) {
-                               showAlert("เกิดข้อผิดพลาดในการลบ: " + e.message);
-                            } finally {
-                               setIsLoading(false);
-                            }
-                         });
-                      }}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                   >
-                      <Trash2 size={14}/> ล้างข้อมูลออเดอร์ที่ถูกซ่อนทั้งหมดถาวร
-                   </button>
-                </div>
-
-                {/* 16. ปุ่ม Export CSV */}
-                <div className="flex gap-2">
-                  <button onClick={exportToCSV} className="flex-1 bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                    <Download size={16} /> Export รายรับ (CSV)
-                  </button>
-                  <button onClick={exportMenuToCSV} className="flex-1 bg-blue-600 text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                    <Download size={16} /> Export เมนู (CSV)
+                {/* [MODIFIED] Export Menu CSV button (Export Revenue button removed as requested) */}
+                <div className="flex justify-center">
+                  <button onClick={exportMenuToCSV} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <Download size={16} /> Export รายการเมนู (CSV)
                   </button>
                 </div>
 
@@ -2754,7 +2517,6 @@ export default function App() {
                 </div>
 
                 {filteredOrders.map((o, idx) => {
-                    // [MODIFIED] Forced formatThaiDateTimeAD for Gregorian AD year (ค.ศ.)
                     const dateStr = formatThaiDateTimeAD(o.timestamp);
                     return (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
