@@ -46,7 +46,7 @@ const PAYMENT_COLORS = {
   "thaichueithai": "#10b981"
 };
 
-// Bulletproof AD (ค.ศ.) Helper functions that bypass iOS/Browser B.E. regional defaults
+// Bulletproof AD (ค.ศ.) Helper functions
 const formatThaiDateTimeAD = (dateVal) => {
   if (!dateVal) return "";
   const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
@@ -819,7 +819,7 @@ export default function App() {
       }
     } catch (e) {
       showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
-    } finally {
+    } fontally {
       setLoadingSlipId(null);
     }
   };
@@ -1098,7 +1098,7 @@ export default function App() {
      return { usageMB, storagePercent };
   };
 
-  // [MODIFIED] Removed exportToCSV as requested (kept exportMenuToCSV below)
+  // [MODIFIED] Removed exportToCSV completely as requested
 
   const exportMenuToCSV = () => {
     if (menuItems.length === 0) return showAlert('ยังไม่มีเมนูในระบบครับ');
@@ -1281,7 +1281,7 @@ export default function App() {
     return { filtered, totalSales, totalOrders, avgOrderValue, totalItems, paymentData, hourlyData };
   }, [orders, analyticsSearchTerm, analyticsSelectedDate, analyticsHideCanceled]);
 
-  // [MODIFIED] Removed peakHoursData calculation as requested (Peak hours graph removed)
+  // [MODIFIED] Removed peakHoursData calculation completely as requested
 
   const topProducts = React.useMemo(() => {
     const map = {};
@@ -1299,7 +1299,7 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] Removed reading todayRevenue, totalRevenue, and payment channel sums from Google Sheets stats calculation
+  // [MODIFIED] Removed todayRevenue, totalRevenue, and payment channel sums from Google Sheets stats
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
@@ -2188,7 +2188,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] Removed "รายรับวันนี้ (Google Sheets)", "รายรับรวมสะสมทั้งหมด", "จำแนกช่องทางชำระเงิน", "ช่วงเวลาที่สั่งซื้อเยอะที่สุด (Peak Hours)", and "ล้างออร์เดอร์ที่ซ่อนไว้ถาวร" as requested */}
+                {/* [MODIFIED] Removed "รายรับวันนี้ (Google Sheets)", "รายรับรวมสะสมทั้งหมด", "จำแนกช่องทางชำระเงิน", "ช่วงเวลาที่สั่งซื้อเยอะที่สุด (Peak Hours)", "สรุปรายรับรายวัน (7 วันล่าสุด)", and "ล้างข้อมูลยอดขายถาวร" per request */}
 
                 {/* 2. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
@@ -2482,19 +2482,6 @@ export default function App() {
                    <p className="text-xs font-bold text-gray-500 mb-3">ใช้ไปประมาณ <span className="text-accent">{storageData.usageMB} MB</span> / 5,000 MB</p>
                    <div className="w-full bg-gray-100 rounded-full h-3 mb-1 overflow-hidden shadow-inner">
                      <div className={`h-3 rounded-full transition-all duration-1000 ${storageData.storagePercent > 80 ? 'bg-red-500' : storageData.storagePercent > 50 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${Math.max(storageData.storagePercent, 1)}%` }}></div>
-                   </div>
-                </div>
-
-                {/* 10. สรุปรายรับรายวัน */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                   <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
-                   <div className="space-y-3">
-                      {revData.dailyHistory.map((d, idx) => (
-                         <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className={idx === 0 ? "font-bold text-accent" : "text-gray-500 font-bold"}>{idx === 0 ? `วันนี้ (${d.date})` : d.date}</span>
-                            <span className={`font-bold ${idx === 0 ? "text-accent" : "text-primary"}`}>฿{d.total.toLocaleString()}</span>
-                         </div>
-                      ))}
                    </div>
                 </div>
 
