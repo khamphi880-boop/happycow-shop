@@ -38,78 +38,41 @@ const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', '�
 
 const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const PAYMENT_COLORS = {
-  "ไทยช่วยไทยพลัส": "#10b981",
-  "โอนพร้อมเพย์": "#3b82f6",
-  "เงินสด": "#f59e0b",
+  "ไทยช่วยไทยพลัส": "#10b981", // Emerald 500
+  "โอนพร้อมเพย์": "#3b82f6", // Blue 500
+  "เงินสด": "#f59e0b", // Amber 500
   "promptpay": "#3b82f6",
   "cash": "#f59e0b",
   "thaichueithai": "#10b981"
 };
 
-// Bulletproof AD (ค.ศ.) Helper functions
-const formatThaiDateTimeAD = (dateVal) => {
-  if (!dateVal) return "";
-  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
-  if (isNaN(d.getTime())) return String(dateVal);
-  let year = d.getFullYear();
-  if (year > 2400) year -= 543;
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-};
-
-const formatThaiDateShortAD = (dateVal) => {
-  if (!dateVal) return "";
-  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
-  if (isNaN(d.getTime())) return String(dateVal);
-  let year = d.getFullYear();
-  if (year > 2400) year -= 543;
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  return `${day}/${month}/${year}`;
-};
-
-const formatThaiDateFullAD = (dateVal) => {
-  if (!dateVal) return "";
-  const d = typeof dateVal === 'number' ? new Date(dateVal) : (dateVal instanceof Date ? dateVal : new Date(dateVal));
-  if (isNaN(d.getTime())) return String(dateVal);
-  let year = d.getFullYear();
-  if (year > 2400) year -= 543;
-  const day = d.getDate();
-  const monthName = THAI_MONTHS[d.getMonth()];
-  return `${day} ${monthName} ${year}`;
-};
-
 const fallbackData = [
-  { datetime: "1/8/2026 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
-  { datetime: "1/8/2026 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
-  { datetime: "1/8/2026 15:36:27", billId: "2nv9thLaHUIKYvUIWtH2", customer: "ตองเอง", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: ช็อคโกแลตชิป)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "P1 ห้อง 703", remark: "-" },
-  { datetime: "1/8/2026 15:27:12", billId: "V0VO8lLiKdmaXFEvDaUR", customer: "nxx", items: "1x โกโก้ (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C7107", remark: "-" },
-  { datetime: "1/8/2026 15:20:31", billId: "rYxvl8uHZ1mhXz5fjy1d", customer: "P 😊", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 120% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P1223", remark: "รับหลอด" },
-  { datetime: "1/8/2026 15:14:17", billId: "I8CnHpvKPr5UrV9RNyGv", customer: "PHRONPHIMAL", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 100% • พรีมุก)", total: 50, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M1 1112", remark: "-" },
-  { datetime: "1/8/2026 15:10:26", billId: "7BZEwZa2rZvrMPhnzm1i", customer: "NaMTaN", items: "1x โยเกิร์ต ออริจินอล (ปั่น • หวาน 50%)", total: 55, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "ตึก B5 ห้อง B550", remark: "-" },
-  { datetime: "1/8/2026 14:48:09", billId: "rWMs3QoLUYe4GvJ8XT6j", customer: "Sss", items: "1x นมสดปั่น (ปั่น • หวาน 75%)\n1x นมสดโอริโอ้ (ปั่น • หวาน 75% • พรีมุก)", total: 120, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5620", remark: "-" },
-  { datetime: "1/8/2026 14:27:24", billId: "ImUVGFgNZSnbSik1F8RZ", customer: "i d e a", items: "1x ชีสเค้ก บลูเบอร์รี (ปั่น • หวาน 100% • ท็อปปิ้ง: ไข่มุก)", total: 75, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A2", remark: "-" },
-  { datetime: "1/8/2026 14:25:41", billId: "MbjNuRhSRzs9Gjic7PgJ", customer: "ครูฟ้า ☔", items: "1x โกโก้ สตอเบอร์รี่ (เย็น • หวาน 0%)\n1x ชาเขียวมะนาว (เย็น • หวาน 50%)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B6105", remark: "-" },
-  { datetime: "1/8/2026 14:25:33", billId: "Ly5AcQjTQTm3rXvzxjm0", customer: "สินSinซินSin", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 25% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 80, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "m2513", remark: "หวาน25" },
-  { datetime: "1/8/2026 13:59:58", billId: "XclyziB25xCaqTwRiWVL", customer: "beam", items: "1x แคนตาลูป (เย็น • หวาน 50% • พรีมุก)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6 ห้อง 415", remark: "-" },
-  { datetime: "1/8/2026 13:39:13", billId: "xo28meNeN3N24JIqLG0c", customer: ".AD", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50%)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5513", remark: "-" },
-  { datetime: "1/8/2026 13:30:56", billId: "yoRUZrhSuMjWB6YvsYMG", customer: "Natthamon", items: "1x นมสด (ปั่น • หวาน 100% • พรีมุก)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6511", remark: "-" },
-  { datetime: "1/8/2026 13:30:03", billId: "mwwYHkWvkZ8BaTxBHLDz", customer: "ornnnn ♡", items: "1x ชีสเค้ก สตอเบอร์รี่ (ปั่น • หวาน 100% • ท็อปปิ้ง: วิปครีม)", total: 80, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "M1 702", remark: "-" },
-  { datetime: "1/8/2026 13:15:08", billId: "yWepK9IsiNwg84EYck06", customer: "Austin 🌴", items: "1x นมวนิลา (ปั่น • หวาน 120% • พรีมุก)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C1719", remark: "ไม่ต้องเคาะประตูนะคับ" },
-  { datetime: "1/8/2026 13:06:13", billId: "FfPDLpzwYI8TjIw0QyTW", customer: "Nnine", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6-207", remark: "-" },
-  { datetime: "1/8/2026 12:55:19", billId: "MGSLppE2j4okjABzKXJF", customer: "Nemo", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 50% • พรีมุก)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5 224", remark: "-" },
-  { datetime: "1/8/2026 12:54:42", billId: "EZmAuJotuWj9JNUkjUqA", customer: "KotchaTy", items: "1x นมน้ำผึ้ง (เย็น • หวาน 75%)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "A7 614", remark: "-" },
-  { datetime: "1/8/2026 12:45:36", billId: "fK0LY8maZMBgthJkHIOJ", customer: "Tan", items: "1x อเมริกาโน่ น้ำผึ้ง (เย็น • หวาน 50% • คั่วเข้ม)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A1", remark: "-" },
-  { datetime: "1/8/2026 12:24:40", billId: "EMPktehi2CGgwU01txbe", customer: ".bam-", items: "1x น้ำผึ้งมะนาว (เย็น • หวาน 25%)\n1x ชานมไต้หวัน (ปั่น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P2526", remark: "-" },
-  { datetime: "1/8/2026 17:51:19", billId: "YE1Tx6VAV6jinbI1rd4t", customer: "prrrim", items: "1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: ช็อกโกแลต)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B5 810", remark: "ไม่ใส่ไข่มุกค่ะ" },
-  { datetime: "1/8/2026 17:53:22", billId: "pwXGJgxFk1lHCVNdA8Gc", customer: "Rachma", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "m1826", remark: "-" },
-  { datetime: "1/8/2026 17:54:34", billId: "yBlY0AVsy5cBcNdEF9jd", customer: "praew", items: "1x เพียวมัทฉะ (เย็น • หวาน 0% • มัทฉะ)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "จัดส่งที่ตึก A3610", remark: "-" },
-  { datetime: "1/8/2026 18:33:39", billId: "2KsLxtVUQdulkpSNL8wJ", customer: "Boss", items: "1x อเมริกาโน่ (เย็น • หวาน 25% • คั่วเข้ม)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "กอล์ฟวิว m2 620", remark: "เอาไข่มุกกับบุกบราวน์ชูก้า" },
-  { datetime: "1/8/2026 18:45:00", billId: "CANCELLED001", customer: "ลูกค้าทดสอบ (ยกเลิก)", items: "1x นมสด (เย็น)", total: 40, payment: "เงินสด", status: "ยกเลิก 🔴", deliveryPoint: "รับเองที่ร้าน", address: "-", remark: "ลูกค้าเปลี่ยนใจ" }
+  { datetime: "1/8/2569 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
+  { datetime: "1/8/2569 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
+  { datetime: "1/8/2569 15:36:27", billId: "2nv9thLaHUIKYvUIWtH2", customer: "ตองเอง", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: ช็อคโกแลตชิป)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "P1 ห้อง 703", remark: "-" },
+  { datetime: "1/8/2569 15:27:12", billId: "V0VO8lLiKdmaXFEvDaUR", customer: "nxx", items: "1x โกโก้ (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C7107", remark: "-" },
+  { datetime: "1/8/2569 15:20:31", billId: "rYxvl8uHZ1mhXz5fjy1d", customer: "P 😊", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 120% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P1223", remark: "รับหลอด" },
+  { datetime: "1/8/2569 15:14:17", billId: "I8CnHpvKPr5UrV9RNyGv", customer: "PHRONPHIMAL", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 100% • พรีมุก)", total: 50, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M1 1112", remark: "-" },
+  { datetime: "1/8/2569 15:10:26", billId: "7BZEwZa2rZvrMPhnzm1i", customer: "NaMTaN", items: "1x โยเกิร์ต ออริจินอล (ปั่น • หวาน 50%)", total: 55, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "ตึก B5 ห้อง B550", remark: "-" },
+  { datetime: "1/8/2569 14:48:09", billId: "rWMs3QoLUYe4GvJ8XT6j", customer: "Sss", items: "1x นมสดปั่น (ปั่น • หวาน 75%)\n1x นมสดโอริโอ้ (ปั่น • หวาน 75% • พรีมุก)", total: 120, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5620", remark: "-" },
+  { datetime: "1/8/2569 14:27:24", billId: "ImUVGFgNZSnbSik1F8RZ", customer: "i d e a", items: "1x ชีสเค้ก บลูเบอร์รี (ปั่น • หวาน 100% • ท็อปปิ้ง: ไข่มุก)", total: 75, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A2", remark: "-" },
+  { datetime: "1/8/2569 14:25:41", billId: "MbjNuRhSRzs9Gjic7PgJ", customer: "ครูฟ้า ☔", items: "1x โกโก้ สตอเบอร์รี่ (เย็น • หวาน 0%)\n1x ชาเขียวมะนาว (เย็น • หวาน 50%)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B6105", remark: "-" },
+  { datetime: "1/8/2569 14:25:33", billId: "Ly5AcQjTQTm3rXvzxjm0", customer: "สินSinซินSin", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 25% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 80, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "m2513", remark: "หวาน25" },
+  { datetime: "1/8/2569 13:59:58", billId: "XclyziB25xCaqTwRiWVL", customer: "beam", items: "1x แคนตาลูป (เย็น • หวาน 50% • พรีมุก)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6 ห้อง 415", remark: "-" },
+  { datetime: "1/8/2569 13:39:13", billId: "xo28meNeN3N24JIqLG0c", customer: ".AD", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50%)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5513", remark: "-" },
+  { datetime: "1/8/2569 13:30:56", billId: "yoRUZrhSuMjWB6YvsYMG", customer: "Natthamon", items: "1x นมสด (ปั่น • หวาน 100% • พรีมุก)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6511", remark: "-" },
+  { datetime: "1/8/2569 13:30:03", billId: "mwwYHkWvkZ8BaTxBHLDz", customer: "ornnnn ♡", items: "1x ชีสเค้ก สตอเบอร์รี่ (ปั่น • หวาน 100% • ท็อปปิ้ง: วิปครีม)", total: 80, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "M1 702", remark: "-" },
+  { datetime: "1/8/2569 13:15:08", billId: "yWepK9IsiNwg84EYck06", customer: "Austin 🌴", items: "1x นมวนิลา (ปั่น • หวาน 120% • พรีมุก)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C1719", remark: "ไม่ต้องเคาะประตูนะคับ" },
+  { datetime: "1/8/2569 13:06:13", billId: "FfPDLpzwYI8TjIw0QyTW", customer: "Nnine", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6-207", remark: "-" },
+  { datetime: "1/8/2569 12:55:19", billId: "MGSLppE2j4okjABzKXJF", customer: "Nemo", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 50% • พรีมุก)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5 224", remark: "-" },
+  { datetime: "1/8/2569 12:54:42", billId: "EZmAuJotuWj9JNUkjUqA", customer: "KotchaTy", items: "1x นมน้ำผึ้ง (เย็น • หวาน 75%)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "A7 614", remark: "-" },
+  { datetime: "1/8/2569 12:45:36", billId: "fK0LY8maZMBgthJkHIOJ", customer: "Tan", items: "1x อเมริกาโน่ น้ำผึ้ง (เย็น • หวาน 50% • คั่วเข้ม)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A1", remark: "-" },
+  { datetime: "1/8/2569 12:24:40", billId: "EMPktehi2CGgwU01txbe", customer: ".bam-", items: "1x น้ำผึ้งมะนาว (เย็น • หวาน 25%)\n1x ชานมไต้หวัน (ปั่น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P2526", remark: "-" },
+  { datetime: "1/8/2569 17:51:19", billId: "YE1Tx6VAV6jinbI1rd4t", customer: "prrrim", items: "1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: ช็อกโกแลต)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B5 810", remark: "ไม่ใส่ไข่มุกค่ะ" },
+  { datetime: "1/8/2569 17:53:22", billId: "pwXGJgxFk1lHCVNdA8Gc", customer: "Rachma", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "m1826", remark: "-" },
+  { datetime: "1/8/2569 17:54:34", billId: "yBlY0AVsy5cBcNdEF9jd", customer: "praew", items: "1x เพียวมัทฉะ (เย็น • หวาน 0% • มัทฉะ)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "จัดส่งที่ตึก A3610", remark: "-" },
+  { datetime: "1/8/2569 18:33:39", billId: "2KsLxtVUQdulkpSNL8wJ", customer: "Boss", items: "1x อเมริกาโน่ (เย็น • หวาน 25% • คั่วเข้ม)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "กอล์ฟวิว m2 620", remark: "เอาไข่มุกกับบุกบราวน์ชูก้า" },
+  { datetime: "1/8/2569 18:45:00", billId: "CANCELLED001", customer: "ลูกค้าทดสอบ (ยกเลิก)", items: "1x นมสด (เย็น)", total: 40, payment: "เงินสด", status: "ยกเลิก 🔴", deliveryPoint: "รับเองที่ร้าน", address: "-", remark: "ลูกค้าเปลี่ยนใจ" }
 ];
 
 const DEFAULT_SAUCES = [
@@ -174,6 +137,7 @@ const formatDateForComparison = (datetimeString) => {
   }
 };
 
+// [MODIFIED] Enhanced parseCustomDate to accept fallback options and inspect datetime field correctly
 const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const val = dateVal || dateStrVal || fallbackVal;
   if (!val) return null;
@@ -181,9 +145,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   if (typeof val === 'number' && val > 1000000000) {
     const d = new Date(val);
     if (!isNaN(d.getTime())) {
-      let y = d.getFullYear();
-      if (y > 2400) y -= 543;
-      return { day: d.getDate(), month: d.getMonth() + 1, year: y, dateObj: d };
+      return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear(), dateObj: d };
     }
   }
 
@@ -193,7 +155,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const parsedStandard = new Date(str);
   if (!isNaN(parsedStandard.getTime()) && parsedStandard.getFullYear() > 1900) {
     let y = parsedStandard.getFullYear();
-    if (y > 2400) y -= 543;
+    if (y > 2400) y -= 543; 
     return { day: parsedStandard.getDate(), month: parsedStandard.getMonth() + 1, year: y, dateObj: parsedStandard };
   }
 
@@ -210,7 +172,7 @@ const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
       day = p1; month = p2; year = p3;
     }
 
-    if (year > 2400) year -= 543;
+    if (year > 2400) year -= 543; 
 
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year > 1900) {
       return { day, month, year, dateObj: new Date(year, month - 1, day) };
@@ -262,7 +224,6 @@ function KpiCard({ title, value, icon, trend, trendUp }) {
     </div>
   );
 }
-
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
@@ -417,7 +378,7 @@ export default function App() {
 
   const generateOrderSummaryText = (order) => {
     if (!order) return '';
-    const dateStr = formatThaiDateTimeAD(order.timestamp);
+    const dateStr = new Date(order.timestamp).toLocaleString('th-TH');
     const paymentText = order.paymentMethod === 'cash' ? 'ชำระเงินสด' : (order.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์');
     const orderLink = `https://liff.line.me/${LIFF_ID}?action=viewOrders&orderId=${order.id}`;
 
@@ -617,7 +578,7 @@ export default function App() {
             userId: uid,
             displayName: dName || 'ลูกค้าทั่วไป',
             visitedAt: nowMs,
-            visitedAtStr: formatThaiDateTimeAD(nowMs),
+            visitedAtStr: new Date(nowMs).toLocaleString('th-TH'),
             hasOrdered: false,
             lastOrderId: null
           });
@@ -699,6 +660,7 @@ export default function App() {
 
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
+
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
@@ -801,7 +763,6 @@ export default function App() {
       }
     }
   }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays]);
-
   const viewImage = async (orderId, type) => {
     setLoadingSlipId(orderId);
     try {
@@ -819,7 +780,7 @@ export default function App() {
       }
     } catch (e) {
       showAlert("เกิดข้อผิดพลาดในการโหลดรูปภาพ: " + e.message);
-    } fontally {
+    } finally {
       setLoadingSlipId(null);
     }
   };
@@ -1051,7 +1012,7 @@ export default function App() {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA'); 
-      const thaiDateStr = `${d.getDate()} ${THAI_MONTHS[d.getMonth()].slice(0,3)}`;
+      const thaiDateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
       const count = visitStats[dateStr] || 0;
       list.push({ dateStr, thaiDateStr, count });
     }
@@ -1071,14 +1032,14 @@ export default function App() {
     const last7DaysMap = {};
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        last7DaysMap[formatThaiDateShortAD(d)] = 0;
+        last7DaysMap[d.toLocaleDateString('th-TH')] = 0;
     }
 
     orders.filter(o => o.status === 'completed' && !o.isDeleted).forEach(o => {
       if (o.timestamp >= startOfDay) daily += o.total;
       if (o.timestamp >= startOfMonth) monthly += o.total;
       if (o.timestamp >= startOfYear) yearly += o.total;
-      const oDate = formatThaiDateShortAD(o.timestamp);
+      const oDate = new Date(o.timestamp).toLocaleDateString('th-TH');
       if(last7DaysMap[oDate] !== undefined) last7DaysMap[oDate] += o.total;
     });
     
@@ -1098,7 +1059,22 @@ export default function App() {
      return { usageMB, storagePercent };
   };
 
-  // [MODIFIED] Removed exportToCSV completely as requested
+  const exportToCSV = () => {
+    const completedOrders = orders.filter(o => o.status === 'completed' && !o.isDeleted);
+    if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
+    let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
+    completedOrders.forEach(o => {
+      const date = new Date(o.timestamp).toLocaleString('th-TH');
+      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
+      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
+      csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `สรุปรายรับ_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
 
   const exportMenuToCSV = () => {
     if (menuItems.length === 0) return showAlert('ยังไม่มีเมนูในระบบครับ');
@@ -1205,7 +1181,7 @@ export default function App() {
 
   const analyticsData = React.useMemo(() => {
     const sourceData = orders.length > 0 ? orders.map(o => ({
-      datetime: formatThaiDateTimeAD(o.timestamp),
+      datetime: new Date(o.timestamp).toLocaleString('th-TH'),
       billId: o.id,
       customer: o.lineName || "ลูกค้าทั่วไป",
       items: (o.items || []).map(i => `${i.qty}x ${i.name}`).join('\n'),
@@ -1281,7 +1257,19 @@ export default function App() {
     return { filtered, totalSales, totalOrders, avgOrderValue, totalItems, paymentData, hourlyData };
   }, [orders, analyticsSearchTerm, analyticsSelectedDate, analyticsHideCanceled]);
 
-  // [MODIFIED] Removed peakHoursData calculation completely as requested
+  const peakHoursData = React.useMemo(() => {
+    const hoursMap = { '08:00-11:00': 0, '11:00-14:00': 0, '14:00-17:00': 0, '17:00-20:00': 0, '20:00+': 0 };
+    completedOrdersList.forEach(o => {
+      const h = new Date(o.timestamp).getHours();
+      if (h >= 8 && h < 11) hoursMap['08:00-11:00'] += 1;
+      else if (h >= 11 && h < 14) hoursMap['11:00-14:00'] += 1;
+      else if (h >= 14 && h < 17) hoursMap['14:00-17:00'] += 1;
+      else if (h >= 17 && h < 20) hoursMap['17:00-20:00'] += 1;
+      else hoursMap['20:00+'] += 1;
+    });
+    return hoursMap;
+  }, [completedOrdersList]);
+  const maxPeakCount = Math.max(...Object.values(peakHoursData), 1);
 
   const topProducts = React.useMemo(() => {
     const map = {};
@@ -1299,7 +1287,7 @@ export default function App() {
   }, [completedOrdersList]);
   const maxTopQty = topProducts[0]?.qty || 1;
 
-  // [MODIFIED] Removed todayRevenue, totalRevenue, and payment channel sums from Google Sheets stats
+  // [MODIFIED] Enhanced sheetStats calculation with parseCustomDate fix
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
     
@@ -1309,18 +1297,53 @@ export default function App() {
       return !st.includes('cancel') && !st.includes('ยกเลิก') && !st.includes('deleted');
     });
 
+    const now = new Date();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    let todayRevenue = 0;
+    let totalRevenue = 0;
+    let promptPaySum = 0;
+    let cashSum = 0;
+    let thaiSum = 0;
     let completedCount = 0;
 
     validSheetOrders.forEach(o => {
+      const amount = Number(o?.total) || 0;
+      const paymentMethod = String(o?.paymentMethod || o?.payment || '').toLowerCase();
       const st = String(o?.status || '').toLowerCase();
+
       if (st.includes('completed') || st.includes('จัดส่งสำเร็จ') || st.includes('สำเร็จ') || st.includes('paid') || st.includes('เสร็จสิ้น')) {
         completedCount++;
+      }
+
+      // [MODIFIED] Correct date parsing passing o?.datetime and o?.date as fallback
+      const parsed = parseCustomDate(o?.timestamp, o?.timestampStr, o?.datetime || o?.date);
+      if (parsed && parsed.day === currentDay && parsed.month === currentMonth && parsed.year === currentYear) {
+        todayRevenue += amount;
+      }
+
+      totalRevenue += amount;
+
+      if (paymentMethod.includes("พร้อมเพย์") || paymentMethod.includes("promptpay") || paymentMethod.includes("โอน")) {
+        promptPaySum += amount;
+      } else if (paymentMethod.includes("เงินสด") || paymentMethod.includes("cash")) {
+        cashSum += amount;
+      } else if (paymentMethod.includes("ไทยช่วยไทย") || paymentMethod.includes("thaichueithai") || paymentMethod.includes("ไทย")) {
+        thaiSum += amount;
       }
     });
 
     return {
+      todayRevenue,
       totalOrdersCount: validSheetOrders.length,
-      completedCount
+      completedCount,
+      totalRevenue,
+      promptPaySum,
+      cashSum,
+      thaiSum,
+      grandTotal: totalRevenue || 1
     };
   }, [sheetOrdersData]);
 
@@ -1767,7 +1790,7 @@ export default function App() {
                       setIsLoading(true);
                       const total = cartTotal;
                       const orderTime = Date.now();
-                      const dateStr = formatThaiDateTimeAD(orderTime);
+                      const dateStr = new Date(orderTime).toLocaleString('th-TH');
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
@@ -1885,7 +1908,7 @@ export default function App() {
              ) : (
                  <div className="space-y-6">
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
-                     const dateStr = formatThaiDateTimeAD(o.timestamp);
+                     const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
                      return (
                        <div key={o.id} className={`bg-white p-6 rounded-[2.5rem] shadow-sm border transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-gray-100'}`}>
                           <div className="flex justify-between items-start mb-4 border-b border-gray-50 pb-4">
@@ -1945,6 +1968,7 @@ export default function App() {
              )}
           </div>
         )}
+
         {/* --- Admin View --- */}
         {view === 'admin' && (
           <div className="p-6 bg-white min-h-screen animate-in fade-in relative z-20">
@@ -1961,7 +1985,6 @@ export default function App() {
                 </button>
               ))}
             </div>
-
             {/* TAB: แดชบอร์ด (รวม Recharts Analytics + Google Sheets & Visit Logs) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in">
@@ -2188,9 +2211,77 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [MODIFIED] Removed "รายรับวันนี้ (Google Sheets)", "รายรับรวมสะสมทั้งหมด", "จำแนกช่องทางชำระเงิน", "ช่วงเวลาที่สั่งซื้อเยอะที่สุด (Peak Hours)", "สรุปรายรับรายวัน (7 วันล่าสุด)", and "ล้างข้อมูลยอดขายถาวร" per request */}
+                {/* 2. การ์ดสรุปยอดขาย (รายรับวันนี้ + ยอดขายรวมสะสมถาวรจาก Google Sheets) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-500">
+                    <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
+                    <div className="flex justify-between items-center mb-2 relative z-10">
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-100">
+                        <Sparkles size={16} className="text-yellow-300"/> รายรับวันนี้ (Google Sheets)
+                      </span>
+                      <span className="text-[9px] bg-yellow-400 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
+                        {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2 text-white">
+                      ฿{(sheetStats?.todayRevenue || 0).toLocaleString()}
+                    </h1>
+                    <p className="text-[10px] text-emerald-100/80 font-medium relative z-10">
+                      สรุปรายรับที่คำนวณสดจากตาราง Google Sheets ของวันนี้
+                    </p>
+                  </div>
 
-                {/* 2. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
+                  <div className="bg-emerald-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-emerald-800">
+                    <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
+                    <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
+                      <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> รายรับรวมสะสมทั้งหมด</span>
+                      <span className="text-[10px] bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 px-2.5 py-1 rounded-full font-bold">ข้อมูลถาวร</span>
+                    </div>
+                    <h1 className="text-4xl font-serif font-bold relative z-10 my-2">฿{(sheetStats?.totalRevenue || 0).toLocaleString()}</h1>
+                    <p className="text-[10px] opacity-70 relative z-10">* ยอดขายนี้ดึงตรงจาก Google Sheets แม้ลบออร์เดอร์ในแอป ยอดจะไม่หาย</p>
+                  </div>
+                </div>
+
+                {/* 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
+                  <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (ข้อมูลจาก Google Sheets)
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
+                        <span className="text-primary">฿{(sheetStats?.promptPaySum || 0).toLocaleString()} ({Math.round(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.promptPaySum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
+                        <span className="text-primary">฿{(sheetStats?.cashSum || 0).toLocaleString()} ({Math.round(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.cashSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><Sparkles size={12} className="text-orange-500"/> ไทยช่วยไทยพลัส</span>
+                        <span className="text-primary">฿{(sheetStats?.thaiSum || 0).toLocaleString()} ({Math.round(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(((sheetStats?.thaiSum || 0) / (sheetStats?.grandTotal || 1)) * 100, 100)}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets พร้อมตัวกรอง วัน / เดือน / ปี */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-primary flex items-center gap-2">
@@ -2242,7 +2333,7 @@ export default function App() {
                       </div>
 
                       <div>
-                        <label className="text-[9px] font-bold text-gray-400 block mb-1">ปี (ค.ศ.)</label>
+                        <label className="text-[9px] font-bold text-gray-400 block mb-1">ปี</label>
                         <select 
                           value={sheetFilterYear} 
                           onChange={e => setSheetFilterYear(e.target.value)}
@@ -2286,7 +2377,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 3. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
+                {/* 5. การ์ดติดตามประวัติการเข้าชมร้านค้าและการสั่งซื้อของลูกค้า (Visit & Conversion Logs) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm space-y-4">
                   <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                     <h3 className="font-bold text-sm text-indigo-900 flex items-center gap-2">
@@ -2340,7 +2431,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 4. สถานะออร์เดอร์ Real-time (Firebase Order Queue) */}
+                {/* 6. สถานะออร์เดอร์ Real-time (Firebase Order Queue) */}
                 <div>
                   <h3 className="font-bold text-sm text-primary mb-3 flex items-center gap-2">
                     <BellRing size={16} className="text-orange-500"/> สถานะคิวออร์เดอร์ปัจจุบัน (Firebase)
@@ -2375,12 +2466,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 5. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
+                {/* 7. การ์ดสรุปยอดขายประจำวัน/เดือน/ปี (Firebase Sales Summary) */}
                 <div className="bg-primary text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
                   <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
                     <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้ (Firebase)</span>
-                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{formatThaiDateShortAD(new Date())}</span>
+                    <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-bold">{new Date().toLocaleDateString('th-TH')}</span>
                   </div>
                   <h1 className="text-5xl font-serif font-bold relative z-10 my-2">฿{revData.daily.toLocaleString()}</h1>
                   <div className="flex gap-4 mt-4 pt-4 border-t border-white/10 text-xs relative z-10">
@@ -2395,7 +2486,46 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 6. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers) */}
+                {/* 8. จำแนกช่องทางชำระเงินเดิม (Firebase Payment Breakdown) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
+                  <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (Firebase)
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
+                        <span className="text-primary">฿{promptPayTotal.toLocaleString()} ({Math.round((promptPayTotal/grandTotal)*100 || 0)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((promptPayTotal/grandTotal)*100, 100)}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
+                        <span className="text-primary">฿{cashTotal.toLocaleString()} ({Math.round((cashTotal/grandTotal)*100 || 0)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((cashTotal/grandTotal)*100, 100)}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold mb-1">
+                        <span className="text-gray-600 flex items-center gap-1"><Sparkles size={12} className="text-orange-500"/> ไทยช่วยไทยพลัส</span>
+                        <span className="text-primary">฿{thaiChueiThaiTotal.toLocaleString()} ({Math.round((thaiChueiThaiTotal/grandTotal)*100 || 0)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-orange-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((thaiChueiThaiTotal/grandTotal)*100, 100)}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 9. สินค้าขายดี 5 อันดับแรก (Top 5 Best Sellers) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                   <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
                     <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
@@ -2428,7 +2558,32 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 7. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
+                {/* 10. ช่วงเวลาขายดี (Peak Hours Analytics) */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                  <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2">
+                    <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
+                  </h3>
+                  
+                  <div className="flex items-end gap-2 h-32 pt-4 px-2">
+                    {Object.entries(peakHoursData).map(([slot, count]) => {
+                      const heightPercent = (count / maxPeakCount) * 100;
+                      return (
+                        <div key={slot} className="flex-1 flex flex-col items-center h-full justify-end gap-1 group">
+                          <span className="text-[9px] font-bold text-primary opacity-80">{count} บิล</span>
+                          <div className="w-full bg-indigo-50 rounded-t-xl overflow-hidden flex items-end h-20">
+                            <div 
+                              className="w-full bg-indigo-500 rounded-t-xl transition-all duration-700 group-hover:bg-indigo-600" 
+                              style={{ height: `${Math.max(heightPercent, 8)}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400 tracking-tighter truncate w-full text-center">{slot}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 11. ผู้ใช้ออนไลน์ (Real-time Active Users) */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-green-100 shadow-sm">
                    <div className="flex justify-between items-center mb-4 border-b border-gray-50 pb-3">
                      <h3 className="font-bold text-sm text-green-600 flex items-center gap-2">
@@ -2451,7 +2606,7 @@ export default function App() {
                    )}
                 </div>
 
-                {/* 8. สถิติผู้เข้าชม 7 วัน */}
+                {/* 12. สถิติผู้เข้าชม 7 วัน */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <h3 className="font-bold text-sm text-primary mb-4 flex items-center gap-2"><Users size={16}/> 📊 สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
                    <div className="space-y-3.5">
@@ -2473,7 +2628,7 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 9. Storage Graph */}
+                {/* 13. Storage Graph */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
                    <div className="flex justify-between items-center mb-2">
                      <h3 className="font-bold text-sm text-primary flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
@@ -2485,15 +2640,58 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* [MODIFIED] Export Menu CSV button (Export Revenue button removed as requested) */}
-                <div className="flex justify-center">
-                  <button onClick={exportMenuToCSV} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                    <Download size={16} /> Export รายการเมนู (CSV)
+                {/* 14. สรุปรายรับรายวัน */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                   <h3 className="font-bold text-sm text-primary mb-4 border-b border-gray-50 pb-3 flex items-center gap-2"><Clock size={16}/> สรุปรายรับรายวัน (7 วันล่าสุด)</h3>
+                   <div className="space-y-3">
+                      {revData.dailyHistory.map((d, idx) => (
+                         <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className={idx === 0 ? "font-bold text-accent" : "text-gray-500 font-bold"}>{idx === 0 ? `วันนี้ (${d.date})` : d.date}</span>
+                            <span className={`font-bold ${idx === 0 ? "text-accent" : "text-primary"}`}>฿{d.total.toLocaleString()}</span>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+
+                {/* 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
+                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-dashed border-red-200 space-y-3">
+                   <h3 className="font-bold text-sm text-red-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
+                   <p className="text-[10px] text-gray-500 leading-relaxed font-semibold">เมื่อแอดมินสั่งลบออเดอร์ในหน้ารายการ ระบบจะทำการ "ซ่อน" เอาไว้เพื่อไม่ให้กระทบยอดรวมของ Dashboard หากต้องการล้างประวัติออเดอร์ที่ถูกซ่อนไว้ทิ้งอย่างถาวร ให้กดปุ่มด้านล่างนี้ได้เลยค่ะ</p>
+                   <button 
+                      onClick={() => {
+                         showConfirm("คุณต้องการลบข้อมูลออเดอร์ที่ถูกซ่อนไว้ทั้งหมดออกจากคลาวด์ถาวรใช่หรือไม่?", async () => {
+                            setIsLoading(true);
+                            try {
+                               const hiddenOrders = orders.filter(o => o.isDeleted);
+                               const promises = hiddenOrders.map(o => deleteDoc(doc(db, 'orders', o.id)));
+                               await Promise.all(promises);
+                               showAlert("ทำความสะอาดระบบและลบออเดอร์ที่ซ่อนถาวรเรียบร้อยค่ะ! ✨🐮");
+                            } catch (e) {
+                               showAlert("เกิดข้อผิดพลาดในการลบ: " + e.message);
+                            } finally {
+                               setIsLoading(false);
+                            }
+                         });
+                      }}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                   >
+                      <Trash2 size={14}/> ล้างข้อมูลออเดอร์ที่ถูกซ่อนทั้งหมดถาวร
+                   </button>
+                </div>
+
+                {/* 16. ปุ่ม Export CSV */}
+                <div className="flex gap-2">
+                  <button onClick={exportToCSV} className="flex-1 bg-[#0F9D58] text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <Download size={16} /> Export รายรับ (CSV)
+                  </button>
+                  <button onClick={exportMenuToCSV} className="flex-1 bg-blue-600 text-white py-5 rounded-[2rem] font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <Download size={16} /> Export เมนู (CSV)
                   </button>
                 </div>
 
               </div>
             )}
+
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
@@ -2504,7 +2702,7 @@ export default function App() {
                 </div>
 
                 {filteredOrders.map((o, idx) => {
-                    const dateStr = formatThaiDateTimeAD(o.timestamp);
+                    const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
                     return (
                     <div key={o.id} className={`border p-5 rounded-3xl shadow-sm bg-white animate-in fade-in transition-all duration-500 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : o.status === 'pending' ? 'border-orange-300 bg-orange-50/30' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-3">
