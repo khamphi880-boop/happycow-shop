@@ -2598,7 +2598,7 @@ export default function App() {
                     <div 
                       onClick={() => setAdminTab('orders')}
                       className="bg-emerald-50/80 border border-emerald-200/80 p-4 rounded-3xl text-center cursor-pointer active:scale-95 transition-all shadow-xs hover:shadow-md"
-                    >สรุปรายรับราย
+                    >
                       <p className="text-[9px] font-extrabold text-emerald-700 uppercase mb-1">สำเร็จแล้ว 🟢</p>
                       <h2 className="text-2xl font-black text-emerald-700">{completedCount}</h2>
                       <p className="text-[8px] text-emerald-500 font-bold mt-1">จัดส่งเสร็จสิ้น</p>
@@ -2665,8 +2665,63 @@ export default function App() {
                   </div>
                 </div>
 
-               
+                {/* 9. สินค้าขายดี 5 อันดับแรก */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+                  <h3 className="font-bold text-xs text-slate-800 mb-4 flex items-center gap-2">
+                    <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
+                  </h3>
+                  
+                  {topProducts.length > 0 ? (
+                    <div className="space-y-3">
+                      {topProducts.map((p, idx) => (
+                        <div key={p.name} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-700 flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-slate-300 text-slate-700' : idx === 2 ? 'bg-amber-800 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                {idx + 1}
+                              </span>
+                              {p.name}
+                            </span>
+                            <span className="font-black text-slate-900">{p.qty} แก้ว <span className="text-slate-400 font-normal">(฿{p.revenue.toLocaleString()})</span></span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${idx === 0 ? 'bg-amber-500' : 'bg-amber-800'}`} 
+                              style={{ width: `${(p.qty / maxTopQty) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-xs text-slate-400 py-6 font-bold">ยังไม่มีข้อมูลยอดขายเมนู</p>
+                  )}
+                </div>
 
+                {/* 10. ช่วงเวลาขายดี */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+                  <h3 className="font-bold text-xs text-slate-800 mb-4 flex items-center gap-2">
+                    <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
+                  </h3>
+                  
+                  <div className="flex items-end gap-2 h-28 pt-3 px-1">
+                    {Object.entries(peakHoursData).map(([slot, count]) => {
+                      const heightPercent = (count / maxPeakCount) * 100;
+                      return (
+                        <div key={slot} className="flex-1 flex flex-col items-center h-full justify-end gap-1 group">
+                          <span className="text-[9px] font-bold text-slate-700 opacity-80">{count} บิล</span>
+                          <div className="w-full bg-indigo-50 rounded-t-xl overflow-hidden flex items-end h-16">
+                            <div 
+                              className="w-full bg-indigo-600 rounded-t-xl transition-all duration-700 group-hover:bg-indigo-700" 
+                              style={{ height: `${Math.max(heightPercent, 8)}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-[8px] font-bold text-slate-400 truncate w-full text-center">{slot}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {/* 11. ผู้ใช้ออนไลน์ */}
                 <div className="bg-white p-5 rounded-3xl border border-emerald-200/80 shadow-xs">
@@ -2724,6 +2779,7 @@ export default function App() {
                      <div className={`h-2.5 rounded-full transition-all duration-1000 ${storageData.storagePercent > 80 ? 'bg-rose-500' : storageData.storagePercent > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.max(storageData.storagePercent, 1)}%` }}></div>
                    </div>
                 </div>
+
 
 
 
