@@ -664,7 +664,6 @@ export default function App() {
       });
   };
 
-  // [MODIFIED] Fixed syntax error in try-catch-finally block
   const handleSeedDefaultSauces = async () => {
     try {
       setIsLoading(true);
@@ -795,16 +794,21 @@ export default function App() {
     }
   };
 
+  // [MODIFIED] Calculate best sellers strictly from Google Sheets data
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
-    if ((!orders || orders.length === 0) && (!sheetOrdersData || sheetOrdersData.length === 0)) return defaultSlice;
     if (menuItems.length === 0) return defaultSlice;
 
+    if (!sheetOrdersData || !Array.isArray(sheetOrdersData) || sheetOrdersData.length === 0) {
+      return defaultSlice;
+    }
+
     const salesCount = {};
-    const processedOrderIds = new Set();
 
     const countItemSales = (itemsList) => {
       if (!itemsList) return;
+
+      // Handle direct Array format
       if (Array.isArray(itemsList)) {
         itemsList.forEach(item => {
           if (item && item.name) {
@@ -815,6 +819,7 @@ export default function App() {
         return;
       }
 
+      // Handle JSON string or plain text summary format
       if (typeof itemsList === 'string') {
         let parsedJson = null;
         try {
@@ -833,10 +838,11 @@ export default function App() {
           return;
         }
 
+        // Parse formatted plain text lines (e.g. "- 1x ชาไทย" or "2x นมสดเย็น")
         const lines = itemsList.split('\n');
         lines.forEach(line => {
           if (!line.trim()) return;
-          const match = line.match(/^(\d+)x\s*(.+)/);
+          const match = line.match(/(?:-\s*)?(\d+)x\s*(.+)/i);
           const qty = match ? parseInt(match[1], 10) : 1;
           const itemDetail = match ? match[2] : line;
 
@@ -849,28 +855,24 @@ export default function App() {
       }
     };
 
-    if (Array.isArray(sheetOrdersData) && sheetOrdersData.length > 0) {
-      sheetOrdersData.forEach(sheetOrder => {
-        if (!sheetOrder) return;
-        const st = String(sheetOrder.status || '').toLowerCase();
-        if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) return;
-        
-        const id = sheetOrder.orderId || sheetOrder.billId || sheetOrder.id;
-        if (id) processedOrderIds.add(id);
-        
-        countItemSales(sheetOrder.items);
-      });
-    }
-
-    orders.filter(o => !o.isDeleted && o.status !== 'cancelled' && !processedOrderIds.has(o.id)).forEach(order => {
-      countItemSales(order.items);
+    // Calculate sales counts exclusively from Google Sheets order rows
+    sheetOrdersData.forEach(sheetOrder => {
+      if (!sheetOrder) return;
+      const st = String(sheetOrder.status || '').toLowerCase();
+      if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) return;
+      
+      countItemSales(sheetOrder.items);
     });
 
-    let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
+    let sortedMenus = menuItems.map(menu => ({
+      ...menu,
+      sales: salesCount[menu.name] || 0
+    }));
+
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
     
     return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
-  }, [orders, sheetOrdersData, menuItems]);
+  }, [sheetOrdersData, menuItems]);
 
   const displayedItems = React.useMemo(() => {
     if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1669,7 +1671,6 @@ export default function App() {
             </div>
 
             {/* TAB: แดชบอร์ด (Google Sheets Only) */}
-            {/* [MODIFIED] Completely removed all Firebase data sources from Dashboard tab. Driven strictly by Google Sheets. */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
