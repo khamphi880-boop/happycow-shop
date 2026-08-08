@@ -35,45 +35,6 @@ const SWEETNESS = ['0%', '25%', '50%', '75%', '100%', '120%'];
 const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-const PAYMENT_COLORS = {
-  "ไทยช่วยไทยพลัส": "#10b981", // Emerald 500
-  "โอนพร้อมเพย์": "#3b82f6", // Blue 500
-  "เงินสด": "#f59e0b", // Amber 500
-  "promptpay": "#3b82f6",
-  "cash": "#f59e0b",
-  "thaichueithai": "#10b981"
-};
-
-const fallbackData = [
-  { datetime: "1/8/2569 17:28:46", billId: "V9jzbyrkcbtAtVTi7zfP", customer: "pattt", items: "1x โกโก้ (เย็น • หวาน 75%)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "C5424", remark: "-" },
-  { datetime: "1/8/2569 17:24:42", billId: "dTkL2HE3I3url2BSn6vn", customer: "ลูกค้าทั่วไป", items: "1x ชาเขียว สตอ (เย็น • หวาน 75%)", total: 60, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M2 2222", remark: "-" },
-  { datetime: "1/8/2569 15:36:27", billId: "2nv9thLaHUIKYvUIWtH2", customer: "ตองเอง", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: บุกบราวชูก้า)\n1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: คาราเมล • ท็อปปิ้ง: ช็อคโกแลตชิป)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "P1 ห้อง 703", remark: "-" },
-  { datetime: "1/8/2569 15:27:12", billId: "V0VO8lLiKdmaXFEvDaUR", customer: "nxx", items: "1x โกโก้ (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C7107", remark: "-" },
-  { datetime: "1/8/2569 15:20:31", billId: "rYxvl8uHZ1mhXz5fjy1d", customer: "P 😊", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 120% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P1223", remark: "รับหลอด" },
-  { datetime: "1/8/2569 15:14:17", billId: "I8CnHpvKPr5UrV9RNyGv", customer: "PHRONPHIMAL", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 100% • พรีมุก)", total: 50, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "M1 1112", remark: "-" },
-  { datetime: "1/8/2569 15:10:26", billId: "7BZEwZa2rZvrMPhnzm1i", customer: "NaMTaN", items: "1x โยเกิร์ต ออริจินอล (ปั่น • หวาน 50%)", total: 55, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "ตึก B5 ห้อง B550", remark: "-" },
-  { datetime: "1/8/2569 14:48:09", billId: "rWMs3QoLUYe4GvJ8XT6j", customer: "Sss", items: "1x นมสดปั่น (ปั่น • หวาน 75%)\n1x นมสดโอริโอ้ (ปั่น • หวาน 75% • พรีมุก)", total: 120, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5620", remark: "-" },
-  { datetime: "1/8/2569 14:27:24", billId: "ImUVGFgNZSnbSik1F8RZ", customer: "i d e a", items: "1x ชีสเค้ก บลูเบอร์รี (ปั่น • หวาน 100% • ท็อปปิ้ง: ไข่มุก)", total: 75, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A2", remark: "-" },
-  { datetime: "1/8/2569 14:25:41", billId: "MbjNuRhSRzs9Gjic7PgJ", customer: "ครูฟ้า ☔", items: "1x โกโก้ สตอเบอร์รี่ (เย็น • หวาน 0%)\n1x ชาเขียวมะนาว (เย็น • หวาน 50%)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B6105", remark: "-" },
-  { datetime: "1/8/2569 14:25:33", billId: "Ly5AcQjTQTm3rXvzxjm0", customer: "สินSinซินSin", items: "1x นมสดโอริโอ้ (ปั่น • หวาน 25% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 80, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "m2513", remark: "หวาน25" },
-  { datetime: "1/8/2569 13:59:58", billId: "XclyziB25xCaqTwRiWVL", customer: "beam", items: "1x แคนตาลูป (เย็น • หวาน 50% • พรีมุก)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6 ห้อง 415", remark: "-" },
-  { datetime: "1/8/2569 13:39:13", billId: "xo28meNeN3N24JIqLG0c", customer: ".AD", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50%)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5513", remark: "-" },
-  { datetime: "1/8/2569 13:30:56", billId: "yoRUZrhSuMjWB6YvsYMG", customer: "Natthamon", items: "1x นมสด (ปั่น • หวาน 100% • พรีมุก)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 100% • พรีมุก • ท็อปปิ้ง: ครีมชีส)", total: 105, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6511", remark: "-" },
-  { datetime: "1/8/2569 13:30:03", billId: "mwwYHkWvkZ8BaTxBHLDz", customer: "ornnnn ♡", items: "1x ชีสเค้ก สตอเบอร์รี่ (ปั่น • หวาน 100% • ท็อปปิ้ง: วิปครีม)", total: 80, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "M1 702", remark: "-" },
-  { datetime: "1/8/2569 13:15:08", billId: "yWepK9IsiNwg84EYck06", customer: "Austin 🌴", items: "1x นมวนิลา (ปั่น • หวาน 120% • พรีมุก)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C1719", remark: "ไม่ต้องเคาะประตูนะคับ" },
-  { datetime: "1/8/2569 13:06:13", billId: "FfPDLpzwYI8TjIw0QyTW", customer: "Nnine", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C6-207", remark: "-" },
-  { datetime: "1/8/2569 12:55:19", billId: "MGSLppE2j4okjABzKXJF", customer: "Nemo", items: "1x ชาไทย(ใบชาไต้) (ปั่น • หวาน 50% • พรีมุก)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "C5 224", remark: "-" },
-  { datetime: "1/8/2569 12:54:42", billId: "EZmAuJotuWj9JNUkjUqA", customer: "KotchaTy", items: "1x นมน้ำผึ้ง (เย็น • หวาน 75%)", total: 40, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "รับเองที่ร้าน", address: "A7 614", remark: "-" },
-  { datetime: "1/8/2569 12:45:36", billId: "fK0LY8maZMBgthJkHIOJ", customer: "Tan", items: "1x อเมริกาโน่ น้ำผึ้ง (เย็น • หวาน 50% • คั่วเข้ม)", total: 50, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าตึก", address: "A1", remark: "-" },
-  { datetime: "1/8/2569 12:24:40", billId: "EMPktehi2CGgwU01txbe", customer: ".bam-", items: "1x น้ำผึ้งมะนาว (เย็น • หวาน 25%)\n1x ชานมไต้หวัน (ปั่น • หวาน 25%)", total: 90, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "P2526", remark: "-" },
-  { datetime: "1/8/2569 17:51:19", billId: "YE1Tx6VAV6jinbI1rd4t", customer: "prrrim", items: "1x วิปครีม แก้ว 6 oz ฟรี ซอส 1 รส (เย็น • หวาน 100% • ซอส: ช็อกโกแลต)\n1x ชาไทย(ใบชาไต้) (เย็น • หวาน 75% • พรีมุก)", total: 65, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "B5 810", remark: "ไม่ใส่ไข่มุกค่ะ" },
-  { datetime: "1/8/2569 17:53:22", billId: "pwXGJgxFk1lHCVNdA8Gc", customer: "Rachma", items: "1x ชาไทย(ใบชาไต้) (เย็น • หวาน 50% • พรีมุก)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "m1826", remark: "-" },
-  { datetime: "1/8/2569 17:54:34", billId: "yBlY0AVsy5cBcNdEF9jd", customer: "praew", items: "1x เพียวมัทฉะ (เย็น • หวาน 0% • มัทฉะ)", total: 45, payment: "โอนพร้อมเพย์", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "จัดส่งที่ตึก A3610", remark: "-" },
-  { datetime: "1/8/2569 18:33:39", billId: "2KsLxtVUQdulkpSNL8wJ", customer: "Boss", items: "1x อเมริกาโน่ (เย็น • หวาน 25% • คั่วเข้ม)", total: 45, payment: "ไทยช่วยไทยพลัส", status: "จัดส่งสำเร็จ 🟢", deliveryPoint: "ส่งหน้าห้อง", address: "กอล์ฟวิว m2 620", remark: "เอาไข่มุกกับบุกบราวน์ชูก้า" },
-  { datetime: "1/8/2569 18:45:00", billId: "CANCELLED001", customer: "ลูกค้าทดสอบ (ยกเลิก)", items: "1x นมสด (เย็น)", total: 40, payment: "เงินสด", status: "ยกเลิก 🔴", deliveryPoint: "รับเองที่ร้าน", address: "-", remark: "ลูกค้าเปลี่ยนใจ" }
-];
-
 const DEFAULT_SAUCES = [
   { name: 'ซอสช็อกโกแลต', price: 0 },
   { name: 'ซอสคาราเมล', price: 0 },
@@ -95,47 +56,6 @@ const THEMES = {
 };
 
 // --- 2. Helper Functions ---
-
-const formatDateForComparison = (datetimeString) => {
-  if (!datetimeString) return "";
-  try {
-    const str = String(datetimeString).trim();
-
-    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-      return str.substring(0, 10);
-    }
-
-    const datePart = str.split(/[ T]/)[0];
-    const parts = datePart.split(/[\/\.-]/);
-    if (parts.length < 3) return "";
-
-    let day, month, year;
-
-    if (parts[0].length === 4) {
-      year = parseInt(parts[0], 10);
-      month = parseInt(parts[1], 10);
-      day = parseInt(parts[2], 10);
-    } else {
-      day = parseInt(parts[0], 10);
-      month = parseInt(parts[1], 10);
-      year = parseInt(parts[2], 10);
-    }
-
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return "";
-
-    if (year > 2400) {
-      year -= 543;
-    }
-
-    const paddedMonth = String(month).padStart(2, '0');
-    const paddedDay = String(day).padStart(2, '0');
-
-    return `${year}-${paddedMonth}-${paddedDay}`;
-  } catch (e) {
-    return "";
-  }
-};
-
 const parseCustomDate = (dateVal, dateStrVal, fallbackVal) => {
   const val = dateVal || dateStrVal || fallbackVal;
   if (!val) return null;
@@ -204,26 +124,6 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
   });
 };
 
-// [MODIFIED] High-End KPI Card Component with sleek visual contrast
-function KpiCard({ title, value, icon, trend, trendUp }) {
-  return (
-    <div className="bg-slate-800/90 backdrop-blur-md p-5 rounded-2xl border border-slate-700/60 shadow-lg flex items-center justify-between group hover:border-amber-500/40 transition-all duration-300">
-      <div>
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{title}</p>
-        <h3 className="text-2xl font-black text-white tracking-tight">{value}</h3>
-        {trend && (
-          <p className={`text-[10px] mt-1.5 flex items-center gap-1 font-bold ${trendUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {trendUp ? '↑' : '↓'} {trend}
-          </p>
-        )}
-      </div>
-      <div className="w-12 h-12 rounded-xl bg-slate-700/50 border border-slate-600/40 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
-        {icon}
-      </div>
-    </div>
-  );
-}
-
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
@@ -280,11 +180,6 @@ export default function App() {
   const [selectedSlip, setSelectedSlip] = useState(null); 
   const [downloadPreview, setDownloadPreview] = useState(null); 
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
-  
-  // Analytics Filters State
-  const [analyticsSearchTerm, setAnalyticsSearchTerm] = useState('');
-  const [analyticsSelectedDate, setAnalyticsSelectedDate] = useState('');
-  const [analyticsHideCanceled, setAnalyticsHideCanceled] = useState(true);
 
   const [selectedOrderId, setSelectedOrderId] = useState('');
 
@@ -319,8 +214,6 @@ export default function App() {
   const [sheetFilterMonth, setSheetFilterMonth] = useState('all');
   const [sheetFilterYear, setSheetFilterYear] = useState('all');
 
-  const [visitLogs, setVisitLogs] = useState([]);
-
   const [newMenu, setNewMenu] = useState({ 
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
     hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
@@ -352,10 +245,8 @@ export default function App() {
     catch(e) { return []; }
   });
   const [popularSearches, setPopularSearches] = useState([]);
-  const [visitStats, setVisitStats] = useState({});
   const [loadingSlipId, setLoadingSlipId] = useState(null);
 
-  const [activeUsers, setActiveUsers] = useState([]);
   const [showStoreClosedModal, setShowStoreClosedModal] = useState(false);
 
   const dragItem = useRef(null);
@@ -498,71 +389,15 @@ export default function App() {
   }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => {
-    const recordVisit = async () => {
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-      if (isAdmin) return;
-
-      const todayStr = new Date().toLocaleDateString('en-CA'); 
-      const isVisited = sessionStorage.getItem('happycow_visited_today');
-      if (!isVisited) {
-        sessionStorage.setItem('happycow_visited_today', 'true');
-        try {
-          await setDoc(doc(db, 'settings', 'visit_stats'), {
-            [todayStr]: increment(1)
-          }, { merge: true });
-        } catch (e) { console.error("Visit Stats Log Error:", e); }
-      }
-    };
-    recordVisit();
-
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
     setLineProfile(prev => ({ ...prev, userId: cid }));
-
-    const trackCustomerSessionVisit = async (uid, dName) => {
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-      if (isAdmin) return;
-
-      let sessionId = sessionStorage.getItem('happycow_visit_session_id');
-      if (!sessionId) {
-        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        sessionStorage.setItem('happycow_visit_session_id', sessionId);
-      }
-
-      try {
-        const sessionRef = doc(db, 'visit_logs', sessionId);
-        const sessionSnap = await getDoc(sessionRef);
-        
-        if (!sessionSnap.exists()) {
-          const nowMs = Date.now();
-          await setDoc(sessionRef, {
-            sessionId,
-            userId: uid,
-            displayName: dName || 'ลูกค้าทั่วไป',
-            visitedAt: nowMs,
-            visitedAtStr: new Date(nowMs).toLocaleString('th-TH'),
-            hasOrdered: false,
-            lastOrderId: null
-          });
-        } else {
-          await setDoc(sessionRef, {
-            displayName: dName || 'ลูกค้าทั่วไป',
-            lastActiveAt: Date.now()
-          }, { merge: true });
-        }
-      } catch (err) {
-        console.error("Error logging visit session:", err);
-      }
-    };
-
-    trackCustomerSessionVisit(cid, 'ลูกค้าทั่วไป');
 
     const initializeLiff = () => {
       window.liff.init({ liffId: LIFF_ID }).then(() => {
         if (window.liff.isLoggedIn()) {
           window.liff.getProfile().then(p => {
             setLineProfile({ displayName: p.displayName, pictureUrl: p.pictureUrl, userId: p.userId });
-            trackCustomerSessionVisit(p.userId, p.displayName);
           });
         }
       }).catch(err => console.error("LIFF Error", err));
@@ -638,72 +473,6 @@ export default function App() {
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-    if (view !== 'admin' && !isAdmin) return;
-
-    const unsubActive = onSnapshot(collection(db, 'active_users'), snapshot => {
-      const now = Date.now();
-      const threshold = 120000;
-      const activeList = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(user => now - user.lastActive < threshold);
-      setActiveUsers(activeList);
-    });
-
-    const unsubVisitLogs = onSnapshot(collection(db, 'visit_logs'), snapshot => {
-      const logs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      logs.sort((a, b) => (b.visitedAt || 0) - (a.visitedAt || 0));
-      setVisitLogs(logs.slice(0, 50));
-    });
-
-    const pruneInterval = setInterval(() => {
-      setActiveUsers(prev => {
-        const now = Date.now();
-        return prev.filter(user => now - user.lastActive < 120000);
-      });
-    }, 30000);
-
-    const unsubSearchStats = onSnapshot(doc(db, 'settings', 'search_stats'), docSnap => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const sorted = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(entry => entry[0]);
-        setPopularSearches(sorted);
-      } else setPopularSearches([]);
-    });
-
-    const unsubVisits = onSnapshot(doc(db, 'settings', 'visit_stats'), docSnap => {
-      if (docSnap.exists()) {
-        setVisitStats(docSnap.data());
-      }
-    });
-
-    return () => { unsubActive(); unsubVisitLogs(); clearInterval(pruneInterval); unsubSearchStats(); unsubVisits(); };
-  }, [view]);
-
-  useEffect(() => {
-    if (!lineProfile.userId) return;
-    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
-    if (isAdmin) return;
-
-    const docRef = doc(db, 'active_users', lineProfile.userId);
-    const sendPing = async () => {
-      try { await setDoc(docRef, { displayName: lineProfile.displayName || 'ลูกค้าทั่วไป', lastActive: Date.now() }, { merge: true }); } catch (e) { }
-    };
-
-    sendPing();
-    const pingInterval = setInterval(sendPing, 60000);
-
-    const handleBeforeUnload = () => { deleteDoc(docRef).catch(() => {}); };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      clearInterval(pingInterval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload(); 
-    };
-  }, [lineProfile.userId, lineProfile.displayName]);
-
-  useEffect(() => {
-    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (storeSettings.isStoreOpen === false && !isAdmin) {
       setShowStoreClosedModal(true);
     } else {
@@ -770,8 +539,6 @@ export default function App() {
     }
     previousOrderCount.current = orders.length;
   }, [orders, view]);
-
-  const handleLineLogin = () => { if (window.liff && !window.liff.isLoggedIn()) window.liff.login(); };
 
   const handleAddNewMenu = async () => {
     if (!newMenu.name || !newMenu.price || !newMenu.image) return showAlert('กรุณากรอกข้อมูลให้ครบครับ');
@@ -906,7 +673,7 @@ export default function App() {
       showAlert('นำเข้าซอสเริ่มต้นเข้าสู่ระบบเรียบร้อยแล้วค่ะ! ✨');
     } catch (e) {
       showAlert('เกิดข้อผิดพลาดในการนำเข้าซอส: ' + e.message);
-    } finally {
+    } font-medium {
       setIsLoading(false);
     }
   };
@@ -967,76 +734,6 @@ export default function App() {
       
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
-  };
-
-  const getRecentVisits = () => {
-    const list = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toLocaleDateString('en-CA'); 
-      const thaiDateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-      const count = visitStats[dateStr] || 0;
-      list.push({ dateStr, thaiDateStr, count });
-    }
-    return list;
-  };
-
-  const recentVisits = getRecentVisits();
-  const maxVisitCount = Math.max(...recentVisits.map(v => v.count), 1);
-
-  const calculateRevenue = () => {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
-    let daily = 0, monthly = 0, yearly = 0;
-    
-    const last7DaysMap = {};
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        last7DaysMap[d.toLocaleDateString('th-TH')] = 0;
-    }
-
-    orders.filter(o => o.status === 'completed' && !o.isDeleted).forEach(o => {
-      if (o.timestamp >= startOfDay) daily += o.total;
-      if (o.timestamp >= startOfMonth) monthly += o.total;
-      if (o.timestamp >= startOfYear) yearly += o.total;
-      const oDate = new Date(o.timestamp).toLocaleDateString('th-TH');
-      if(last7DaysMap[oDate] !== undefined) last7DaysMap[oDate] += o.total;
-    });
-    
-    const dailyHistory = Object.keys(last7DaysMap).map(date => ({ date, total: last7DaysMap[date] }));
-    return { daily, monthly, yearly, dailyHistory };
-  };
-
-  const getStorageEstimation = () => {
-     const orderImagesCount = orders.filter(o => o.hasSlip || o.hasDeliveryImage).length;
-     const menuImagesCount = menuItems.filter(m => m.image && m.image.length > 100).length;
-     
-     const estStorageUsageKB = (orderImagesCount * 100) + (menuImagesCount * 80);
-     const maxStorageKB = 5 * 1024 * 1024; 
-     const storagePercent = Math.min((estStorageUsageKB / maxStorageKB) * 100, 100);
-     const usageMB = (estStorageUsageKB / 1024).toFixed(2);
-     
-     return { usageMB, storagePercent };
-  };
-
-  const exportToCSV = () => {
-    const completedOrders = orders.filter(o => o.status === 'completed' && !o.isDeleted);
-    if (completedOrders.length === 0) return showAlert('ยังไม่มีข้อมูลคำสั่งซื้อที่เสร็จสมบูรณ์ครับ');
-    let csv = "\uFEFFวันที่และเวลา,ชื่อลูกค้า,ยอดรวม(บาท),ช่องทางชำระเงิน,จุดจัดส่ง,ที่อยู่\n"; 
-    completedOrders.forEach(o => {
-      const date = new Date(o.timestamp).toLocaleString('th-TH');
-      const payment = o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนเงิน');
-      const location = o.deliveryLocation === 'room' ? 'หน้าห้อง' : (o.deliveryLocation === 'building' ? 'หน้าตึก' : (o.deliveryLocation === 'pickup' ? 'รับเองที่ร้าน' : '-'));
-      csv += `"${date}","${(o.lineName||'').replace(/"/g, '""')}",${o.total},${payment},${location},"${(o.address||'').replace(/"/g, '""')}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `สรุปรายรับ_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const exportMenuToCSV = () => {
@@ -1105,11 +802,8 @@ export default function App() {
     const salesCount = {};
     const processedOrderIds = new Set();
 
-    // Helper function to extract item quantities from various formats (Array, JSON String, formatted Text)
     const countItemSales = (itemsList) => {
       if (!itemsList) return;
-      
-      // 1. Standard Array format
       if (Array.isArray(itemsList)) {
         itemsList.forEach(item => {
           if (item && item.name) {
@@ -1120,7 +814,6 @@ export default function App() {
         return;
       }
 
-      // 2. String format (JSON or Multiline Text)
       if (typeof itemsList === 'string') {
         let parsedJson = null;
         try {
@@ -1139,7 +832,6 @@ export default function App() {
           return;
         }
 
-        // Parse multiline string format e.g. "1x ชาไทย(ใบชาไต้) (เย็น...)\n2x นมสด"
         const lines = itemsList.split('\n');
         lines.forEach(line => {
           if (!line.trim()) return;
@@ -1156,7 +848,6 @@ export default function App() {
       }
     };
 
-    // Step A: Accumulate sales from Google Sheets permanent historical data
     if (Array.isArray(sheetOrdersData) && sheetOrdersData.length > 0) {
       sheetOrdersData.forEach(sheetOrder => {
         if (!sheetOrder) return;
@@ -1170,12 +861,10 @@ export default function App() {
       });
     }
 
-    // Step B: Accumulate sales from active Firestore orders (Real-time today) that are not yet in Google Sheets
     orders.filter(o => !o.isDeleted && o.status !== 'cancelled' && !processedOrderIds.has(o.id)).forEach(order => {
       countItemSales(order.items);
     });
 
-    // Map sales count back to menu items and sort descending
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
     
@@ -1205,124 +894,6 @@ export default function App() {
       (o.paymentMethod || '').toLowerCase().includes(q)
     );
   }, [orders, adminSearchQuery]);
-
-  const pendingCount = orders.filter(o => !o.isDeleted && o.status === 'pending').length;
-  const cookingCount = orders.filter(o => !o.isDeleted && o.status === 'cooking').length;
-  const completedCount = orders.filter(o => !o.isDeleted && o.status === 'completed').length;
-
-  const completedOrdersList = React.useMemo(() => orders.filter(o => o.status === 'completed' && !o.isDeleted), [orders]);
-  const promptPayTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'promptpay').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
-  const cashTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
-  const thaiChueiThaiTotal = React.useMemo(() => completedOrdersList.filter(o => o.paymentMethod === 'thaichueithai').reduce((sum, o) => sum + o.total, 0), [completedOrdersList]);
-  const grandTotal = calculateRevenue().yearly || 1;
-
-  const analyticsData = React.useMemo(() => {
-    const sourceData = orders.length > 0 ? orders.map(o => ({
-      datetime: new Date(o.timestamp).toLocaleString('th-TH'),
-      billId: o.id,
-      customer: o.lineName || "ลูกค้าทั่วไป",
-      items: (o.items || []).map(i => `${i.qty}x ${i.name}`).join('\n'),
-      total: o.total,
-      payment: o.paymentMethod === 'cash' ? 'เงินสด' : (o.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์'),
-      status: o.status === 'completed' ? 'จัดส่งสำเร็จ 🟢' : (o.isDeleted ? 'ยกเลิก 🔴' : 'กำลังดำเนินการ 🟡'),
-      deliveryPoint: o.deliveryLocation === 'room' ? 'ส่งหน้าห้อง' : (o.deliveryLocation === 'building' ? 'ส่งหน้าตึก' : 'รับเองที่ร้าน'),
-      address: o.address || '-',
-      remark: o.note || '-'
-    })) : fallbackData;
-
-    let filtered = sourceData;
-
-    if (analyticsSelectedDate) {
-      filtered = filtered.filter(item => formatDateForComparison(item.datetime) === analyticsSelectedDate);
-    }
-
-    if (analyticsSearchTerm) {
-      const lower = analyticsSearchTerm.toLowerCase();
-      filtered = filtered.filter(item => 
-        (item.customer?.toLowerCase() || '').includes(lower) ||
-        (item.billId?.toLowerCase() || '').includes(lower) ||
-        (item.address?.toLowerCase() || '').includes(lower)
-      );
-    }
-
-    if (analyticsHideCanceled) {
-      filtered = filtered.filter(item => {
-        const st = item.status || '';
-        return !st.includes('ยกเลิก') && !st.toLowerCase().includes('cancel');
-      });
-    }
-
-    const totalSales = filtered.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-    const totalOrders = filtered.length;
-    const avgOrderValue = totalOrders > 0 ? (totalSales / totalOrders) : 0;
-    
-    let totalItems = 0;
-    filtered.forEach(order => {
-        if(order.items) {
-           const lines = order.items.split('\n');
-           lines.forEach(line => {
-               const match = line.match(/^(\d+)x/);
-               if (match && match[1]) totalItems += parseInt(match[1], 10);
-               else totalItems += 1;
-           });
-        }
-    });
-
-    const paymentMap = {};
-    filtered.forEach(item => {
-      const pm = item.payment || 'Unknown';
-      paymentMap[pm] = (paymentMap[pm] || 0) + 1;
-    });
-    const paymentData = Object.keys(paymentMap).map(key => ({ name: key, value: paymentMap[key] }));
-
-    const hourlyMap = {};
-    filtered.forEach(item => {
-      if (item.datetime) {
-        let hourStr = null;
-        if (item.datetime.includes(' ')) {
-          const timePart = item.datetime.split(' ')[1];
-          if (timePart && timePart.includes(':')) hourStr = timePart.split(':')[0].padStart(2, '0') + ":00";
-        } else if (item.datetime.includes('T')) {
-          const timePart = item.datetime.split('T')[1];
-          if (timePart && timePart.includes(':')) hourStr = timePart.split(':')[0].padStart(2, '0') + ":00";
-        }
-        if (hourStr) hourlyMap[hourStr] = (hourlyMap[hourStr] || 0) + (parseFloat(item.total) || 0);
-      }
-    });
-    const hourlyData = Object.keys(hourlyMap).sort().map(key => ({ time: key, sales: hourlyMap[key] }));
-
-    return { filtered, totalSales, totalOrders, avgOrderValue, totalItems, paymentData, hourlyData };
-  }, [orders, analyticsSearchTerm, analyticsSelectedDate, analyticsHideCanceled]);
-
-  const peakHoursData = React.useMemo(() => {
-    const hoursMap = { '08:00-11:00': 0, '11:00-14:00': 0, '14:00-17:00': 0, '17:00-20:00': 0, '20:00+': 0 };
-    completedOrdersList.forEach(o => {
-      const h = new Date(o.timestamp).getHours();
-      if (h >= 8 && h < 11) hoursMap['08:00-11:00'] += 1;
-      else if (h >= 11 && h < 14) hoursMap['11:00-14:00'] += 1;
-      else if (h >= 14 && h < 17) hoursMap['14:00-17:00'] += 1;
-      else if (h >= 17 && h < 20) hoursMap['17:00-20:00'] += 1;
-      else hoursMap['20:00+'] += 1;
-    });
-    return hoursMap;
-  }, [completedOrdersList]);
-  const maxPeakCount = Math.max(...Object.values(peakHoursData), 1);
-
-  const topProducts = React.useMemo(() => {
-    const map = {};
-    completedOrdersList.forEach(o => {
-      (o.items || []).forEach(item => {
-        if (!map[item.name]) map[item.name] = { qty: 0, revenue: 0 };
-        map[item.name].qty += item.qty;
-        map[item.name].revenue += (item.price * item.qty);
-      });
-    });
-    return Object.entries(map)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 5);
-  }, [completedOrdersList]);
-  const maxTopQty = topProducts[0]?.qty || 1;
 
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
@@ -1425,8 +996,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, promotedItems.length, searchQuery]);
 
-  const revData = calculateRevenue();
-  const storageData = getStorageEstimation();
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
@@ -1440,7 +1009,6 @@ export default function App() {
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500 shadow-2xl bg-amber-50/20" style={mainContainerStyle}>
       <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
       
-      {/* [MODIFIED] Enhanced High-End Global CSS & Animation Styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Kanit:wght@300;400;500;600;700&display=swap');
         
@@ -1473,13 +1041,6 @@ export default function App() {
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.6);
           box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
-        }
-
-        .glass-card-dark {
-          background: rgba(15, 23, 42, 0.85);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .glow-border {
@@ -1525,7 +1086,7 @@ export default function App() {
         </div>
       )}
 
-      {/* [MODIFIED] High-End Header UI with Translucent Glassmorphism */}
+      {/* Header UI */}
       <header className="sticky top-0 z-[50] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-white/40 shadow-sm p-4 flex justify-between items-center transition-all">
         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }}>
            <div className="relative">
@@ -1579,8 +1140,6 @@ export default function App() {
         {/* --- Shop View --- */}
         {view === 'shop' && (
           <div className="animate-in fade-in duration-300">
-            
-            {/* [MODIFIED] Modern Search Input Bar */}
             <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: `${currentThemeData.bg}f0` }}>
               <div className="relative z-[50]">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1674,7 +1233,6 @@ export default function App() {
               </div>
             )}
 
-            {/* [MODIFIED] Category Navigation Tabs */}
             {!searchQuery && (
               <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 py-3 sticky top-[138px] z-[40] backdrop-blur-xl border-b border-slate-200/50" style={{ backgroundColor: `${currentThemeData.bg}e6` }}>
                 {CATEGORIES.map(c => (
@@ -1695,7 +1253,7 @@ export default function App() {
               </div>
             )}
 
-            {/* [MODIFIED] Enhanced Product Menu Cards Grid */}
+            {/* Product Menu Cards Grid */}
             <div className="px-5 pb-6 pt-3">
               {searchQuery && <p className="text-xs font-extrabold text-slate-700 mb-4 ml-1">ผลการค้นหา "{searchQuery}" ({displayedItems.length} รายการ)</p>}
               
@@ -1936,21 +1494,6 @@ export default function App() {
                           isDeleted: false
                         });
 
-                        const currentSessionId = sessionStorage.getItem('happycow_visit_session_id');
-                        if (currentSessionId) {
-                          try {
-                            await setDoc(doc(db, 'visit_logs', currentSessionId), {
-                              hasOrdered: true,
-                              lastOrderId: orderRef.id,
-                              orderedAt: orderTime,
-                              orderedAtStr: dateStr,
-                              totalAmount: total
-                            }, { merge: true });
-                          } catch (err) {
-                            console.error("Error updating visit order status:", err);
-                          }
-                        }
-
                         if (paymentMethod === 'promptpay' && slipImage) {
                           await setDoc(doc(db, 'slips', orderRef.id), {
                             slipImage: slipImage
@@ -2124,196 +1667,11 @@ export default function App() {
               ))}
             </div>
 
-            {/* TAB: แดชบอร์ด (Recharts Analytics + Google Sheets & Visit Logs) */}
-            {/* TAB: แดชบอร์ด (Recharts Analytics + Google Sheets & Visit Logs) */}
+            {/* TAB: แดชบอร์ด (Google Sheets Only) */}
+            {/* [MODIFIED] Completely removed all Firebase data sources from Dashboard tab. Driven strictly by Google Sheets. */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* Interactive Analytics Section with Recharts */}
-                <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-xl space-y-5 border border-slate-800">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
-                    <div>
-                      <h3 className="text-base font-black text-white flex items-center gap-2">
-                        <span>🥤</span> Beverage Analytics Dashboard
-                      </h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">วิเคราะห์ยอดขายและสถิติด้วย Recharts</p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                      <div className="relative w-full sm:w-auto">
-                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-                          <Calendar size={15} />
-                        </div>
-                        <input 
-                          type="date" 
-                          value={analyticsSelectedDate}
-                          onChange={(e) => setAnalyticsSelectedDate(e.target.value)}
-                          className="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl focus:ring-amber-500 focus:border-amber-500 block w-full pl-9 pr-7 py-2 shadow-sm transition-all cursor-pointer"
-                        />
-                        {analyticsSelectedDate && (
-                          <button 
-                            onClick={() => setAnalyticsSelectedDate('')}
-                            className="absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 hover:text-white"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-
-                      <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 shadow-sm w-full sm:w-auto justify-center font-bold">
-                        <input 
-                          type="checkbox" 
-                          checked={analyticsHideCanceled} 
-                          onChange={(e) => setAnalyticsHideCanceled(e.target.checked)}
-                          className="rounded border-slate-600 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5"
-                        />
-                        ซ่อนรายการยกเลิก
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* KPI Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <KpiCard 
-                      title="ยอดขายรวม (Total Sales)" 
-                      value={`฿${analyticsData.totalSales.toLocaleString(undefined, {minimumFractionDigits: 2})}`} 
-                      icon={<DollarSign size={20} className="text-emerald-400" />}
-                    />
-                    <KpiCard 
-                      title="ออเดอร์ทั้งหมด (Total Orders)" 
-                      value={analyticsData.totalOrders} 
-                      icon={<ShoppingCart size={20} className="text-blue-400" />}
-                    />
-                    <KpiCard 
-                      title="จำนวนสินค้า (Total Items)" 
-                      value={analyticsData.totalItems} 
-                      icon={<Package size={20} className="text-purple-400" />}
-                    />
-                    <KpiCard 
-                      title="ยอดเฉลี่ยต่อบิล (Avg. Order)" 
-                      value={`฿${analyticsData.avgOrderValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
-                      icon={<TrendingUp size={20} className="text-amber-400" />}
-                    />
-                  </div>
-
-                  {/* Hourly Sales Trend Line Chart */}
-                  <div className="bg-white p-4 rounded-2xl shadow-sm text-slate-800">
-                    <h4 className="text-xs font-black mb-3 text-slate-800 flex items-center gap-1.5">
-                      <TrendingUp size={16} className="text-blue-500"/> แนวโน้มยอดขายรายชั่วโมง (Hourly Sales Trend)
-                    </h4>
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={analyticsData.hourlyData} margin={{ top: 5, right: 15, left: 0, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} tickFormatter={(value) => `฿${value}`} />
-                          <RechartsTooltip 
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value) => [`฿${value}`, 'Sales']}
-                          />
-                          <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={3} dot={{r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: 'white'}} activeDot={{ r: 7 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* Payment Method Pie Chart */}
-                  <div className="bg-white p-4 rounded-2xl shadow-sm text-slate-800">
-                    <h4 className="text-xs font-black mb-3 text-slate-800 flex items-center gap-1.5">
-                      <CreditCard size={16} className="text-emerald-500" /> ช่องทางชำระเงิน (Payment Methods)
-                    </h4>
-                    <div className="h-[190px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={analyticsData.paymentData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={45}
-                            outerRadius={70}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {analyticsData.paymentData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={PAYMENT_COLORS[entry.name] || CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip 
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                          />
-                          <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* Filtered Orders Table */}
-                  <div className="bg-white rounded-2xl shadow-sm text-slate-800 overflow-hidden">
-                    <div className="p-3.5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-2">
-                      <h4 className="text-xs font-black text-slate-800">รายการออเดอร์วิเคราะห์ ({analyticsData.filtered.length} บิล)</h4>
-                      <div className="relative w-full sm:w-48">
-                        <input 
-                          type="text" 
-                          placeholder="ค้นชื่อ, รหัสบิล, ที่อยู่..." 
-                          className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
-                          value={analyticsSearchTerm}
-                          onChange={(e) => setAnalyticsSearchTerm(e.target.value)}
-                        />
-                        <Search size={14} className="text-slate-400 absolute left-2.5 top-2" />
-                      </div>
-                    </div>
-                    
-                    <div className="overflow-x-auto max-h-60">
-                      <table className="w-full text-xs text-left">
-                        <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 sticky top-0 font-extrabold">
-                          <tr>
-                            <th className="px-3 py-2 font-bold">เวลา</th>
-                            <th className="px-3 py-2 font-bold">ลูกค้า / ที่อยู่</th>
-                            <th className="px-3 py-2 font-bold text-right">ยอดรวม</th>
-                            <th className="px-3 py-2 font-bold text-center">สถานะ</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analyticsData.filtered.length > 0 ? (
-                            analyticsData.filtered.map((order, index) => (
-                              <tr key={order.billId || index} className="border-b border-slate-100 hover:bg-slate-50/80">
-                                <td className="px-3 py-2.5 whitespace-nowrap text-slate-500 font-mono text-[10px]">
-                                  {order.datetime?.includes(' ') ? order.datetime.split(' ')[1] : order.datetime}
-                                </td>
-                                <td className="px-3 py-2.5 font-bold text-slate-700">
-                                  {order.customer}
-                                  <div className="text-[9px] text-slate-400 flex items-center gap-0.5 font-medium">
-                                    <MapPin size={10} /> {order.address}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2.5 font-black text-slate-900 text-right">
-                                  ฿{order.total}
-                                </td>
-                                <td className="px-3 py-2.5 text-center">
-                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    (order.status || '').includes('ยกเลิก') || (order.status || '').toLowerCase().includes('cancel')
-                                      ? 'bg-rose-50 text-rose-600'
-                                      : 'bg-emerald-50 text-emerald-600'
-                                  }`}>
-                                    {(order.status || '').replace(/[🔴🟢]/g, '').trim() || 'สำเร็จ'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="4" className="px-4 py-8 text-center text-slate-400 text-xs font-bold">
-                                ไม่พบข้อมูลรายการคำสั่งซื้อ
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                </div>
-                
                 {/* 1. Google Sheets Live Sync Control Bar */}
                 <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-3xl shadow-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-emerald-700">
                   <div className="flex items-center gap-3">
@@ -2351,7 +1709,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2. การ์ดสรุปยอดขาย */}
+                {/* 2. การ์ดสรุปยอดขาย (Google Sheets Data Only) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 rounded-3xl shadow-xl relative overflow-hidden border border-emerald-500">
                     <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
@@ -2517,274 +1875,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 5. ประวัติการเข้าชมร้านค้า */}
-                <div className="bg-white p-5 rounded-3xl border border-indigo-100 shadow-xs space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h3 className="font-bold text-xs text-indigo-900 flex items-center gap-2">
-                      <Users size={16} className="text-indigo-600"/> ประวัติการเข้าชมร้านค้าและการสั่งซื้อ (50 รายการล่าสุด)
-                    </h3>
-                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
-                      รวม {visitLogs.length} Sessions
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 max-h-72 overflow-y-auto hide-scrollbar">
-                    {visitLogs.map((log) => {
-                      const isOrdered = log.hasOrdered === true;
-                      return (
-                        <div key={log.id} className={`p-3 rounded-2xl border flex justify-between items-center text-xs transition-all ${isOrdered ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-50 border-slate-200/60'}`}>
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-800">{log.displayName || 'ลูกค้าทั่วไป'}</span>
-                              <span className="text-[9px] text-slate-400 font-mono">({String(log.userId || '').slice(0, 8)})</span>
-                            </div>
-                            <p className="text-[9.5px] text-slate-400 font-bold flex items-center gap-1">
-                              <Clock size={10}/> เข้าชมเมื่อ: {log.visitedAtStr || 'ไม่ระบุเวลา'}
-                            </p>
-                          </div>
-
-                          <div className="text-right flex flex-col items-end">
-                            {isOrdered ? (
-                              <>
-                                <span className="bg-emerald-500 text-white text-[9px] px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1 shadow-2xs">
-                                  <ShoppingCart size={10}/> สั่งซื้อสินค้าแล้ว ✨
-                                </span>
-                                {log.totalAmount && (
-                                  <span className="text-[10px] font-bold text-emerald-800 mt-1">
-                                    ฿{log.totalAmount.toLocaleString()} (#{String(log.lastOrderId || '').slice(0, 5)})
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="bg-slate-200 text-slate-600 text-[9px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                                <Eye size={10}/> เข้าชมอย่างเดียว
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {visitLogs.length === 0 && (
-                      <p className="text-center text-xs text-slate-400 py-8 font-bold">ยังไม่มีข้อมูลประวัติการเข้าชมร้านค้า</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* 6. สถานะออร์เดอร์ Real-time */}
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800 mb-3 flex items-center gap-2">
-                    <BellRing size={16} className="text-amber-500"/> สถานะคิวออร์เดอร์ปัจจุบัน (Firebase)
-                  </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div 
-                      onClick={() => setAdminTab('orders')}
-                      className="bg-amber-50/80 border border-amber-200/80 p-4 rounded-3xl text-center cursor-pointer active:scale-95 transition-all shadow-xs hover:shadow-md"
-                    >
-                      <p className="text-[9px] font-extrabold text-amber-700 uppercase mb-1">รอยืนยัน 🟠</p>
-                      <h2 className="text-2xl font-black text-amber-700">{pendingCount}</h2>
-                      <p className="text-[8px] text-amber-500 font-bold mt-1">ออร์เดอร์ใหม่</p>
-                    </div>
-
-                    <div 
-                      onClick={() => setAdminTab('orders')}
-                      className="bg-blue-50/80 border border-blue-200/80 p-4 rounded-3xl text-center cursor-pointer active:scale-95 transition-all shadow-xs hover:shadow-md"
-                    >
-                      <p className="text-[9px] font-extrabold text-blue-700 uppercase mb-1">กำลังปรุง 👩‍🍳</p>
-                      <h2 className="text-2xl font-black text-blue-700">{cookingCount}</h2>
-                      <p className="text-[8px] text-blue-500 font-bold mt-1">กำลังทำเครื่องดื่ม</p>
-                    </div>
-
-                    <div 
-                      onClick={() => setAdminTab('orders')}
-                      className="bg-emerald-50/80 border border-emerald-200/80 p-4 rounded-3xl text-center cursor-pointer active:scale-95 transition-all shadow-xs hover:shadow-md"
-                    >
-                      <p className="text-[9px] font-extrabold text-emerald-700 uppercase mb-1">สำเร็จแล้ว 🟢</p>
-                      <h2 className="text-2xl font-black text-emerald-700">{completedCount}</h2>
-                      <p className="text-[8px] text-emerald-500 font-bold mt-1">จัดส่งเสร็จสิ้น</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 7. สรุปรายรับรายวัน/เดือน/ปี */}
-                <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 opacity-10"><TrendingUp size={120}/></div>
-                  <div className="flex justify-between items-center mb-2 opacity-80 relative z-10">
-                    <span className="font-bold text-xs flex items-center gap-1"><TrendingUp size={16}/> ยอดขายวันนี้ (Firebase)</span>
-                    <span className="text-[10px] bg-white/20 px-2.5 py-0.5 rounded-full font-bold">{new Date().toLocaleDateString('th-TH')}</span>
-                  </div>
-                  <h1 className="text-4xl font-serif font-black relative z-10 my-1">฿{revData.daily.toLocaleString()}</h1>
-                  <div className="flex gap-4 mt-3 pt-3 border-t border-white/10 text-xs relative z-10">
-                    <div>
-                      <span className="opacity-70 text-[10px] block">เดือนนี้</span>
-                      <span className="font-bold text-sm">฿{revData.monthly.toLocaleString()}</span>
-                    </div>
-                    <div className="border-l border-white/20 pl-4">
-                      <span className="opacity-70 text-[10px] block">ปีนี้</span>
-                      <span className="font-bold text-sm">฿{revData.yearly.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 8. จำแนกช่องทางชำระเงินเดิม */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-                  <h3 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                    <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (Firebase)
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-slate-600 flex items-center gap-1"><CreditCard size={12}/> โอนพร้อมเพย์</span>
-                        <span className="text-slate-900">฿{promptPayTotal.toLocaleString()} ({Math.round((promptPayTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((promptPayTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-slate-600 flex items-center gap-1"><Banknote size={12}/> เงินสด</span>
-                        <span className="text-slate-900">฿{cashTotal.toLocaleString()} ({Math.round((cashTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((cashTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-slate-600 flex items-center gap-1"><Sparkles size={12} className="text-amber-500"/> ไทยช่วยไทยพลัส</span>
-                        <span className="text-slate-900">฿{thaiChueiThaiTotal.toLocaleString()} ({Math.round((thaiChueiThaiTotal/grandTotal)*100 || 0)}%)</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-amber-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.min((thaiChueiThaiTotal/grandTotal)*100, 100)}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 9. สินค้าขายดี 5 อันดับแรก */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
-                  <h3 className="font-bold text-xs text-slate-800 mb-4 flex items-center gap-2">
-                    <Star size={16} className="text-amber-500" fill="currentColor"/> 5 อันดับเมนูขายดีที่สุด (Firebase)
-                  </h3>
-                  
-                  {topProducts.length > 0 ? (
-                    <div className="space-y-3">
-                      {topProducts.map((p, idx) => (
-                        <div key={p.name} className="space-y-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-700 flex items-center gap-2">
-                              <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-slate-300 text-slate-700' : idx === 2 ? 'bg-amber-800 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                {idx + 1}
-                              </span>
-                              {p.name}
-                            </span>
-                            <span className="font-black text-slate-900">{p.qty} แก้ว <span className="text-slate-400 font-normal">(฿{p.revenue.toLocaleString()})</span></span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-1000 ${idx === 0 ? 'bg-amber-500' : 'bg-amber-800'}`} 
-                              style={{ width: `${(p.qty / maxTopQty) * 100}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-xs text-slate-400 py-6 font-bold">ยังไม่มีข้อมูลยอดขายเมนู</p>
-                  )}
-                </div>
-
-                {/* 10. ช่วงเวลาขายดี */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
-                  <h3 className="font-bold text-xs text-slate-800 mb-4 flex items-center gap-2">
-                    <Clock size={16} className="text-indigo-500"/> ช่วงเวลาที่มีการสั่งซื้อเยอะที่สุด (Peak Hours)
-                  </h3>
-                  
-                  <div className="flex items-end gap-2 h-28 pt-3 px-1">
-                    {Object.entries(peakHoursData).map(([slot, count]) => {
-                      const heightPercent = (count / maxPeakCount) * 100;
-                      return (
-                        <div key={slot} className="flex-1 flex flex-col items-center h-full justify-end gap-1 group">
-                          <span className="text-[9px] font-bold text-slate-700 opacity-80">{count} บิล</span>
-                          <div className="w-full bg-indigo-50 rounded-t-xl overflow-hidden flex items-end h-16">
-                            <div 
-                              className="w-full bg-indigo-600 rounded-t-xl transition-all duration-700 group-hover:bg-indigo-700" 
-                              style={{ height: `${Math.max(heightPercent, 8)}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-[8px] font-bold text-slate-400 truncate w-full text-center">{slot}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 11. ผู้ใช้ออนไลน์ */}
-                <div className="bg-white p-5 rounded-3xl border border-emerald-200/80 shadow-xs">
-                   <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2.5">
-                     <h3 className="font-bold text-xs text-emerald-700 flex items-center gap-2">
-                       <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                       ผู้ใช้ออนไลน์ขณะนี้ (Real-time)
-                     </h3>
-                     <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full text-xs font-bold">{activeUsers.length} คน</span>
-                   </div>
-
-                   {activeUsers.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {activeUsers.map(u => (
-                           <div key={u.id} className="bg-emerald-50 text-emerald-800 text-[10px] font-bold px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                             <UserCheck size={12}/> {u.displayName}
-                           </div>
-                        ))}
-                      </div>
-                   ) : (
-                      <p className="text-center text-xs text-slate-400 font-bold py-3">ยังไม่มีลูกค้าออนไลน์ในขณะนี้</p>
-                   )}
-                </div>
-
-                {/* 12. สถิติผู้เข้าชม 7 วัน */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
-                   <h3 className="font-bold text-xs text-slate-800 mb-3 flex items-center gap-2"><Users size={16}/> สถิติผู้เข้าชมเว็บย้อนหลัง 7 วัน</h3>
-                   <div className="space-y-3">
-                      {recentVisits.map((v, index) => {
-                         const percent = (v.count / maxVisitCount) * 100;
-                         const isToday = index === 6;
-                         return (
-                            <div key={v.dateStr} className="space-y-1">
-                               <div className="flex justify-between items-center text-xs">
-                                  <span className={`font-bold ${isToday ? 'text-amber-800' : 'text-slate-500'}`}>{v.thaiDateStr} {isToday && '(วันนี้)'}</span>
-                                  <span className="font-black text-slate-900">{v.count} คน</span>
-                               </div>
-                               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all duration-1000 ${isToday ? 'bg-amber-600' : 'bg-slate-800'}`} style={{ width: `${percent}%` }}></div>
-                               </div>
-                            </div>
-                         );
-                      })}
-                   </div>
-                </div>
-
-                {/* 13. Storage Graph */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
-                   <div className="flex justify-between items-center mb-2">
-                     <h3 className="font-bold text-xs text-slate-800 flex items-center gap-2"><Database size={16}/> พื้นที่เก็บรูปภาพ (Storage)</h3>
-                     <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">ประมาณการ</span>
-                   </div>
-                   <p className="text-xs font-bold text-slate-500 mb-2">ใช้ไปประมาณ <span className="text-amber-800 font-black">{storageData.usageMB} MB</span> / 5,000 MB</p>
-                   <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden shadow-inner">
-                     <div className={`h-2.5 rounded-full transition-all duration-1000 ${storageData.storagePercent > 80 ? 'bg-rose-500' : storageData.storagePercent > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.max(storageData.storagePercent, 1)}%` }}></div>
-                   </div>
-                </div>
-
-
-
-
               </div>
             )}
+
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
@@ -2907,7 +2000,6 @@ export default function App() {
             {/* TAB: ระบบจัดการคลังเมนู */}
             {adminTab === 'menus' && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                
                 <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col items-center text-center">
                   <div className="bg-blue-50 p-3.5 rounded-2xl text-blue-600 mb-2.5 border border-blue-100">
                      <ClipboardList size={24} />
@@ -2942,7 +2034,6 @@ export default function App() {
                       
                       <div className="flex gap-2">
                         <input type="number" placeholder="ราคาปกติ" className="w-1/2 p-3.5 rounded-2xl text-xs outline-none shadow-2xs border border-slate-200 bg-white font-bold" value={newMenu.price} onChange={e => setNewMenu({...newMenu, price: e.target.value})} />
-                        
                         <select className="w-1/2 p-3.5 rounded-2xl text-xs outline-none shadow-2xs bg-white border border-slate-200 font-bold text-slate-700" value={newMenu.category} onChange={e => setNewMenu({...newMenu, category: e.target.value})}>
                           {CATEGORIES.filter(c => c !== '🔥 เมนูขายดี').map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -3283,7 +2374,6 @@ export default function App() {
             {/* TAB: ตั้งค่าร้าน */}
             {adminTab === 'settings' && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                
                 <div className="bg-slate-50 p-5 rounded-3xl border-2 border-dashed border-slate-200 space-y-3 shadow-inner relative">
                   <h3 className="font-bold text-xs text-indigo-700 uppercase tracking-wider text-center flex items-center justify-center gap-1.5"><Palette size={15}/> เลือกธีมร้านค้า</h3>
                   <div className="grid grid-cols-2 gap-2 pt-1">
@@ -3310,7 +2400,6 @@ export default function App() {
                                }
                              }} />
                            </label>
-                           // [MODIFIED] Continuation of Settings Tab & Modals with High-End UX/UI Refinements
 
                            {editCustomBgImage && <img src={editCustomBgImage} className="w-full h-28 object-cover rounded-xl shadow-xs border border-slate-200" alt="Bg Preview" />}
                            {editCustomBgImage && (
