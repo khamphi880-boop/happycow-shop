@@ -2793,7 +2793,6 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* [MODIFIED] Section 15 (ล้างข้อมูลออเดอร์ถาวร) และ Section 16 (Export CSV) ถูกนำออกเรียบร้อยตามคำขอ */}
 
               </div>
             )}
