@@ -479,48 +479,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    const autoDeleteOrdersAtTwoAM = async () => {
-      try {
-        const now = new Date();
-        const targetTwoAM = new Date(now);
-        targetTwoAM.setHours(2, 0, 0, 0);
-
-        if (now.getTime() < targetTwoAM.getTime()) {
-          targetTwoAM.setDate(targetTwoAM.getDate() - 1);
-        }
-
-        const cutoffTime = targetTwoAM.getTime();
-        const lastCleanup = Number(localStorage.getItem('happycow_last_2am_cleanup') || 0);
-
-        if (lastCleanup < cutoffTime) {
-          const ordersRef = collection(db, 'orders');
-          const snapshot = await getDocs(ordersRef);
-
-          const deletePromises = [];
-          snapshot.docs.forEach(docSnap => {
-            const data = docSnap.data();
-            if (data.timestamp && data.timestamp < cutoffTime) {
-              deletePromises.push(deleteDoc(doc(db, 'orders', docSnap.id)));
-            }
-          });
-
-          if (deletePromises.length > 0) {
-            await Promise.all(deletePromises);
-            console.log(`[Auto Delete 02:00 AM] ลบออร์เดอร์เก่าเรียบร้อยแล้วจำนวน ${deletePromises.length} รายการ`);
-          }
-
-          localStorage.setItem('happycow_last_2am_cleanup', Date.now().toString());
-        }
-      } catch (err) {
-        console.error("เกิดข้อผิดพลาดในระบบลบออร์เดอร์อัตโนมัติ 02:00 น.:", err);
-      }
-    };
-
-    autoDeleteOrdersAtTwoAM();
-    const intervalId = setInterval(autoDeleteOrdersAtTwoAM, 60000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+    if (storeSettings?.googleSheetUrl) {
+      fetchDashboardDataFromGoogleSheets();
+    }
+  }, [storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
@@ -1137,14 +1099,88 @@ export default function App() {
 
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
-    if (orders.length === 0 || menuItems.length === 0) return defaultSlice;
+    if ((!orders || orders.length === 0) && (!sheetOrdersData || sheetOrdersData.length === 0)) return defaultSlice;
+    if (menuItems.length === 0) return defaultSlice;
+
     const salesCount = {};
-    orders.forEach(order => { (order.items || []).forEach(item => { salesCount[item.name] = (salesCount[item.name] || 0) + item.qty; }); });
+    const processedOrderIds = new Set();
+
+    // Helper function to extract item quantities from various formats (Array, JSON String, formatted Text)
+    const countItemSales = (itemsList) => {
+      if (!itemsList) return;
+      
+      // 1. Standard Array format
+      if (Array.isArray(itemsList)) {
+        itemsList.forEach(item => {
+          if (item && item.name) {
+            const qty = Number(item.qty) || 1;
+            salesCount[item.name] = (salesCount[item.name] || 0) + qty;
+          }
+        });
+        return;
+      }
+
+      // 2. String format (JSON or Multiline Text)
+      if (typeof itemsList === 'string') {
+        let parsedJson = null;
+        try {
+          if (itemsList.trim().startsWith('[') || itemsList.trim().startsWith('{')) {
+            parsedJson = JSON.parse(itemsList);
+          }
+        } catch (e) {}
+
+        if (Array.isArray(parsedJson)) {
+          parsedJson.forEach(item => {
+            if (item && item.name) {
+              const qty = Number(item.qty) || 1;
+              salesCount[item.name] = (salesCount[item.name] || 0) + qty;
+            }
+          });
+          return;
+        }
+
+        // Parse multiline string format e.g. "1x ชาไทย(ใบชาไต้) (เย็น...)\n2x นมสด"
+        const lines = itemsList.split('\n');
+        lines.forEach(line => {
+          if (!line.trim()) return;
+          const match = line.match(/^(\d+)x\s*(.+)/);
+          const qty = match ? parseInt(match[1], 10) : 1;
+          const itemDetail = match ? match[2] : line;
+
+          menuItems.forEach(menu => {
+            if (itemDetail.includes(menu.name)) {
+              salesCount[menu.name] = (salesCount[menu.name] || 0) + qty;
+            }
+          });
+        });
+      }
+    };
+
+    // Step A: Accumulate sales from Google Sheets permanent historical data
+    if (Array.isArray(sheetOrdersData) && sheetOrdersData.length > 0) {
+      sheetOrdersData.forEach(sheetOrder => {
+        if (!sheetOrder) return;
+        const st = String(sheetOrder.status || '').toLowerCase();
+        if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) return;
+        
+        const id = sheetOrder.orderId || sheetOrder.billId || sheetOrder.id;
+        if (id) processedOrderIds.add(id);
+        
+        countItemSales(sheetOrder.items);
+      });
+    }
+
+    // Step B: Accumulate sales from active Firestore orders (Real-time today) that are not yet in Google Sheets
+    orders.filter(o => !o.isDeleted && o.status !== 'cancelled' && !processedOrderIds.has(o.id)).forEach(order => {
+      countItemSales(order.items);
+    });
+
+    // Map sales count back to menu items and sort descending
     let sortedMenus = menuItems.map(menu => ({ ...menu, sales: salesCount[menu.name] || 0 }));
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
     
     return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
-  }, [orders, menuItems]);
+  }, [orders, sheetOrdersData, menuItems]);
 
   const displayedItems = React.useMemo(() => {
     if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
