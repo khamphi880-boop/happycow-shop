@@ -664,6 +664,7 @@ export default function App() {
       });
   };
 
+  // [MODIFIED] Fixed syntax error in try-catch-finally block
   const handleSeedDefaultSauces = async () => {
     try {
       setIsLoading(true);
@@ -673,7 +674,7 @@ export default function App() {
       showAlert('นำเข้าซอสเริ่มต้นเข้าสู่ระบบเรียบร้อยแล้วค่ะ! ✨');
     } catch (e) {
       showAlert('เกิดข้อผิดพลาดในการนำเข้าซอส: ' + e.message);
-    } font-medium {
+    } finally {
       setIsLoading(false);
     }
   };
