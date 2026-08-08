@@ -2125,6 +2125,7 @@ export default function App() {
             </div>
 
             {/* TAB: แดชบอร์ด (Recharts Analytics + Google Sheets & Visit Logs) */}
+            {/* TAB: แดชบอร์ด (Recharts Analytics + Google Sheets & Visit Logs) */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
@@ -2792,45 +2793,10 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* 15. ปุ่มล้างออร์เดอร์ที่ซ่อนไว้ */}
-                <div className="bg-rose-50/80 p-5 rounded-3xl border-2 border-dashed border-rose-200 space-y-3">
-                   <h3 className="font-bold text-xs text-rose-700 flex items-center gap-2"><Trash2 size={16}/> ล้างข้อมูลยอดขายถาวร</h3>
-                   <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">เมื่อแอดมินลบออเดอร์ในหน้ารายการ ระบบจะทำการซ่อนออเดอร์ไว้ หากต้องการลบข้อมูลออกจากคลาวด์ถาวรให้กดปุ่มด้านล่างนี้</p>
-                   <button 
-                      onClick={() => {
-                         showConfirm("คุณต้องการลบข้อมูลออเดอร์ที่ถูกซ่อนไว้ทั้งหมดออกจากคลาวด์ถาวรใช่หรือไม่?", async () => {
-                            setIsLoading(true);
-                            try {
-                               const hiddenOrders = orders.filter(o => o.isDeleted);
-                               const promises = hiddenOrders.map(o => deleteDoc(doc(db, 'orders', o.id)));
-                               await Promise.all(promises);
-                               showAlert("ทำความสะอาดระบบและลบออเดอร์ที่ซ่อนถาวรเรียบร้อยค่ะ! ✨🐮");
-                            } catch (e) {
-                               showAlert("เกิดข้อผิดพลาดในการลบ: " + e.message);
-                            } finally {
-                               setIsLoading(false);
-                            }
-                         });
-                      }}
-                      className="w-full bg-rose-600 hover:bg-rose-700 text-white py-3.5 rounded-2xl text-xs font-bold shadow-md active:scale-97 transition-all flex items-center justify-center gap-2"
-                   >
-                      <Trash2 size={14}/> ล้างข้อมูลออเดอร์ที่ถูกซ่อนทั้งหมดถาวร
-                   </button>
-                </div>
-
-                {/* 16. ปุ่ม Export CSV */}
-                <div className="flex gap-2">
-                  <button onClick={exportToCSV} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-xs shadow-md active:scale-97 transition-all flex items-center justify-center gap-2">
-                    <Download size={16} /> Export รายรับ (CSV)
-                  </button>
-                  <button onClick={exportMenuToCSV} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold text-xs shadow-md active:scale-97 transition-all flex items-center justify-center gap-2">
-                    <Download size={16} /> Export เมนู (CSV)
-                  </button>
-                </div>
+                {/* [MODIFIED] Section 15 (ล้างข้อมูลออเดอร์ถาวร) และ Section 16 (Export CSV) ถูกนำออกเรียบร้อยตามคำขอ */}
 
               </div>
             )}
-
             {/* TAB: ตรวจสอบออร์เดอร์ของแอดมิน */}
             {adminTab === 'orders' && (
               <div className="space-y-4">
