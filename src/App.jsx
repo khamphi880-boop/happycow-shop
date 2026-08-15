@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
@@ -134,9 +133,11 @@ export default function App() {
   const [toppings, setToppings] = useState([]); 
   const [sauces, setSauces] = useState([]);
   
-  // [ADDED] Real-time Active Users State & Modal State
+  // Real-time Active Visitors Tracking
   const [activeUsers, setActiveUsers] = useState([]);
-  const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
+  
+  // [MODIFIED] State for tracking copied customer name visual feedback
+  const [copiedNameId, setCopiedNameId] = useState(null);
 
   const [cart, setCart] = useState(() => {
     try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
@@ -288,6 +289,18 @@ export default function App() {
     if (item.allowBlend === false) return 'เย็น/ปกติ';
     return item.isBlended ? 'ปั่น' : 'เย็น';
   }, [isWhipOrCreamCheeseItem]);
+
+  // [MODIFIED] Helper to copy customer name to clipboard with brief feedback
+  const handleCopyCustomerName = (e, name, id) => {
+    e.stopPropagation();
+    if (!name) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(name).then(() => {
+        setCopiedNameId(id);
+        setTimeout(() => setCopiedNameId(null), 1800);
+      }).catch(() => {});
+    }
+  };
 
   const generateOrderSummaryText = useCallback((order) => {
     if (!order) return '';
@@ -527,7 +540,7 @@ export default function App() {
     }
   }, [orders]);
 
-  // [ADDED] Heartbeat & Real-time Presence Tracking for Active Visitors
+  // Presence Heartbeat: Keeps tracking active user status for Admin view in background
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -601,7 +614,7 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // [ADDED] Real-time Active Visitor Presence Heartbeat & Sync Hook
+  // [MODIFIED] Background presence updater for real-time tracking (Read by Admins)
   useEffect(() => {
     if (!lineProfile.userId) return;
 
@@ -622,12 +635,11 @@ export default function App() {
     };
 
     updateMyPresence();
-    const heartbeatTimer = setInterval(updateMyPresence, 25000); // Heartbeat ทุกๆ 25 วินาที
+    const heartbeatTimer = setInterval(updateMyPresence, 25000);
 
-    // Realtime Listener ฟังสถานะผู้เข้าชมทั้งหมด
     const unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
       const now = Date.now();
-      const activeThreshold = 75000; // ตัดสถานะถ้าไม่มีสัญญาณเกิน 75 วินาที
+      const activeThreshold = 75000; 
       const currentActive = [];
 
       snapshot.forEach(d => {
@@ -1410,44 +1422,13 @@ export default function App() {
         </div>
       </header>
 
-      {/* [ADDED] Live Online Visitors Header Bar */}
-      {view === 'shop' && (
-        <div className="px-5 pt-2 flex items-center justify-between">
-          <button 
-            onClick={() => setShowActiveUsersModal(true)} 
-            className="flex items-center gap-1.5 bg-white/80 hover:bg-white backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200/80 shadow-2xs active:scale-95 transition-all"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <Users size={12} className="text-emerald-700" />
-            <span className="text-[10.5px] font-bold text-slate-700">
-              กำลังเลือกดูอยู่ <span className="text-emerald-600 font-black">{activeUsers.length || 1}</span> คน
-            </span>
-            {activeUsers.length > 0 && (
-              <div className="flex -space-x-1.5 ml-1">
-                {activeUsers.slice(0, 3).map((u, i) => (
-                  u.pictureUrl ? (
-                    <img key={u.id || i} src={u.pictureUrl} className="w-4 h-4 rounded-full border border-white object-cover" alt="visitor" />
-                  ) : (
-                    <div key={u.id || i} className="w-4 h-4 rounded-full bg-amber-200 text-amber-800 text-[8px] font-bold flex items-center justify-center border border-white">🐮</div>
-                  )
-                ))}
-              </div>
-            )}
-          </button>
-          
-          <span className="text-[10px] font-bold text-slate-400">
-            Realtime ⚡
-          </span>
-        </div>
-      )}
-
       {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/20 backdrop-blur-xs transition-opacity" onClick={() => setIsSearchFocused(false)}></div>}
 
       <main className="flex-1 pb-12 relative z-10">
         {/* --- Shop View --- */}
         {view === 'shop' && (
           <div className="animate-in fade-in duration-300">
-            <div className="px-5 pt-3 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: `${currentThemeData.bg}f0` }}>
+            <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: `${currentThemeData.bg}f0` }}>
               <div className="relative z-[50]">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
@@ -2030,7 +2011,16 @@ export default function App() {
             <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-slate-400 text-xs mb-5 hover:text-slate-800"><ChevronLeft size={18}/> กลับหน้าร้าน</button>
             <div className="flex justify-between items-center mb-5">
                <h2 className="text-xl font-serif font-black text-slate-900">แผงควบคุมแอดมิน</h2>
-               <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-700 font-extrabold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95 shadow-2xs border border-blue-200/60"><BellRing size={12}/> ทดสอบเสียงเตือน</button>
+               
+               {/* [MODIFIED] Active visitors badge shown exclusively in Admin Header */}
+               <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] bg-emerald-50 text-emerald-800 font-black px-2.5 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <Users size={12} className="text-emerald-700"/>
+                    <span>ดูอยู่ {activeUsers.length} คน</span>
+                  </span>
+                  <button onClick={playNotificationSound} className="text-[10px] bg-blue-50 text-blue-700 font-extrabold px-3 py-1.5 rounded-full flex items-center gap-1 active:scale-95 shadow-2xs border border-blue-200/60"><BellRing size={12}/> ทดสอบเตือน</button>
+               </div>
             </div>
             
             <div className="flex gap-1 bg-slate-100 p-1.5 rounded-2xl mb-6 shadow-inner border border-slate-200/50">
@@ -2045,7 +2035,7 @@ export default function App() {
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* [ADDED] Card แสดงผู้ใช้งานที่กำลังเข้าชมสดแบบ Real-time ใน Dashboard */}
+                {/* [MODIFIED] Real-time Active Visitors Card in Admin Dashboard */}
                 <div className="bg-gradient-to-r from-amber-900 to-amber-950 text-white p-5 rounded-3xl shadow-lg border border-amber-700/60">
                    <div className="flex justify-between items-center mb-3">
                       <h4 className="font-bold text-xs flex items-center gap-2 text-amber-200">
@@ -2299,7 +2289,24 @@ export default function App() {
                         <div className="flex items-center gap-2">
                            <span className="bg-slate-900 text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-black">#{filteredOrders.length - idx}</span>
                            <div>
-                              <span className="font-bold text-xs text-slate-800">{o.lineName}</span>
+                              {/* [MODIFIED] Added Copy Customer Name Button */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                 <span className="font-bold text-xs text-slate-800">{o.lineName}</span>
+                                 <button 
+                                   type="button"
+                                   onClick={(e) => handleCopyCustomerName(e, o.lineName, o.id)}
+                                   title="คัดลอกชื่อลูกค้า"
+                                   className="p-1 hover:bg-slate-100 rounded-md text-slate-400 hover:text-amber-800 transition-all active:scale-90 flex items-center gap-0.5"
+                                 >
+                                   {copiedNameId === o.id ? (
+                                     <span className="text-[9px] text-emerald-600 font-extrabold flex items-center gap-0.5 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                       <Check size={10} className="text-emerald-600" /> คัดลอกแล้ว
+                                     </span>
+                                   ) : (
+                                     <Copy size={12} />
+                                   )}
+                                 </button>
+                              </div>
                               <p className="text-[9px] text-slate-400 font-bold"><Clock size={10} className="inline mr-1"/>{dateStr}</p>
                            </div>
                         </div>
@@ -3292,59 +3299,6 @@ export default function App() {
         );
       })()}
 
-      {/* [ADDED] Modal แสดงรายชื่อลูกค้าที่กำลังดูสินค้าอยู่ */}
-      {showActiveUsersModal && (
-        <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 animate-in zoom-in-95 border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
-                 <h3 className="font-bold text-base text-slate-800">ผู้เข้าชมร้านตอนนี้ ({activeUsers.length} คน)</h3>
-              </div>
-              <button onClick={() => setShowActiveUsersModal(false)} className="text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors"><X size={18}/></button>
-            </div>
-
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-              ลูกค้าที่กำลังเปิดเลือกดูเครื่องดื่มในร้านวัวนมอารมณ์ดีแบบเรียลไทม์ 🐮✨
-            </p>
-
-            <div className="space-y-2.5 max-h-60 overflow-y-auto hide-scrollbar pt-1">
-              {activeUsers.map((user, idx) => (
-                <div key={user.id || idx} className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    {user.pictureUrl ? (
-                      <img src={user.pictureUrl} className="w-9 h-9 rounded-2xl object-cover border border-amber-300 shadow-xs" alt={user.displayName} />
-                    ) : (
-                      <div className="w-9 h-9 rounded-2xl bg-amber-800 text-white text-xs font-black flex items-center justify-center shadow-xs">🐮</div>
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 leading-tight">
-                        {user.displayName || 'ลูกค้าทั่วไป'} {user.id === lineProfile.userId && <span className="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded-md font-bold ml-1">คุณ</span>}
-                      </p>
-                      <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 
-                        {user.view === 'shop' ? 'กำลังดูหน้าร้าน' : user.view === 'cart' ? 'กำลังดูตะกร้า' : user.view === 'myOrders' ? 'กำลังดูประวัติสั่ง' : 'กำลังใช้งาน'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] text-slate-400 font-semibold">Active</span>
-                </div>
-              ))}
-              {activeUsers.length === 0 && (
-                <p className="text-center text-xs text-slate-400 py-6 font-bold">ยังไม่พบผู้ใช้งานอื่น</p>
-              )}
-            </div>
-
-            <button 
-              onClick={() => setShowActiveUsersModal(false)}
-              className="w-full py-3 bg-slate-900 text-white rounded-2xl font-bold text-xs active:scale-95 shadow-md transition-all"
-            >
-              ปิดหน้าต่าง
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Modal ถ่ายรูปยืนยันการส่งของ */}
       {deliveryModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
@@ -3427,7 +3381,7 @@ export default function App() {
               {successModalData.autoSent 
                 ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชต LINE ของคุณเรียบร้อยแล้วค่ะ สามารถกดแชร์บิลเพิ่มเติมได้เลยค่ะ" 
                 : "รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของร้านนะคะ 💖"
-            }
+              }
             </p>
 
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-dashed border-slate-300 text-left max-h-32 overflow-y-auto">
