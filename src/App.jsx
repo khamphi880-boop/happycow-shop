@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
@@ -438,12 +439,20 @@ export default function App() {
     }
   };
 
+  // [MODIFIED] Enhanced Google Sheets fetch with follow redirects and robust format parser
   const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
-    if (!storeSettings?.googleSheetUrl || !storeSettings.googleSheetUrl.startsWith('http')) return;
+    const endpoint = storeSettings?.googleSheetUrl;
+    if (!endpoint || !endpoint.startsWith('http')) return;
 
     setIsLoadingSheetDashboard(true);
     try {
-      const res = await fetch(storeSettings.googleSheetUrl);
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        redirect: 'follow'
+      });
+      
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const json = await res.json();
 
       if (json && json.status === 'success' && Array.isArray(json.data)) {
@@ -451,8 +460,13 @@ export default function App() {
         try {
           localStorage.setItem('happycow_sheet_orders_cache', JSON.stringify(json.data.slice(0, 300)));
         } catch(e) {}
+      } else if (Array.isArray(json)) {
+        setSheetOrdersData(json);
+        try {
+          localStorage.setItem('happycow_sheet_orders_cache', JSON.stringify(json.slice(0, 300)));
+        } catch(e) {}
       } else {
-        console.warn("Google Sheets API returned non-success status:", json);
+        console.warn("Google Sheets API returned non-success structure:", json);
       }
     } catch (err) {
       console.error("Error fetching Google Sheets best seller data:", err);
@@ -482,16 +496,19 @@ export default function App() {
     }
   };
 
+  // [MODIFIED] Auto-fetch Google Sheets data whenever the store URL or tab is triggered
   useEffect(() => {
     if (!storeSettings?.googleSheetUrl) return;
 
     if (view === 'admin' && adminTab === 'dashboard') {
       fetchDashboardDataFromGoogleSheets();
-    } else if (view === 'shop' && activeCategory === '🔥 เมนูขายดี' && !hasFetchedSheetRef.current) {
-      hasFetchedSheetRef.current = true;
-      fetchDashboardDataFromGoogleSheets();
+    } else if (view === 'shop' && activeCategory === '🔥 เมนูขายดี') {
+      if (!hasFetchedSheetRef.current || sheetOrdersData.length === 0) {
+        hasFetchedSheetRef.current = true;
+        fetchDashboardDataFromGoogleSheets();
+      }
     }
-  }, [view, adminTab, activeCategory, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
+  }, [view, adminTab, activeCategory, storeSettings?.googleSheetUrl, sheetOrdersData.length, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
@@ -928,29 +945,44 @@ export default function App() {
     }
   };
 
-  // [FIXED] Best Sellers logic: Exact Match, Longest-First, Zero Fallback
+  // [MODIFIED] Best Sellers logic: Merges Google Sheets + Firestore Orders, performs smart deduplication & fallback
   const bestSellers = useMemo(() => {
     if (!menuItems || menuItems.length === 0) return [];
-    if (!sheetOrdersData || !Array.isArray(sheetOrdersData) || sheetOrdersData.length === 0) {
-      return []; // ไม่ดึงเมนูสุ่มมาแสดงเด็ดขาดถ้ายังไม่มียอดขาย
-    }
 
     const salesCountMap = new Map();
-    
-    // เรียงชื่อเมนูจากยาวไปสั้น เพื่อให้ชื่อยาว (เช่น ชาไทยชีส) ถูกจับคู่ก่อนชื่อสั้น (เช่น ชาไทย)
+    const processedOrderIds = new Set();
+
+    // รวบรวม Order จากทั้ง 2 แหล่ง (Google Sheets + Live Firestore) เพื่อความแม่นยำสูงสุด
+    const combinedOrders = [];
+
+    if (Array.isArray(sheetOrdersData)) {
+      sheetOrdersData.forEach(o => { if (o) combinedOrders.push(o); });
+    }
+
+    if (Array.isArray(orders)) {
+      orders.forEach(o => { if (o && !o.isDeleted) combinedOrders.push(o); });
+    }
+
+    // เรียงชื่อเมนูจากยาวไปสั้น
     const sortedMenuNames = [...menuItems]
       .map(m => (m.name || '').trim())
       .filter(Boolean)
       .sort((a, b) => b.length - a.length);
 
-    for (let i = 0; i < sheetOrdersData.length; i++) {
-      const sheetOrder = sheetOrdersData[i];
-      if (!sheetOrder) continue;
+    for (let i = 0; i < combinedOrders.length; i++) {
+      const currentOrder = combinedOrders[i];
+      if (!currentOrder) continue;
+
+      const orderKey = currentOrder.id || currentOrder.orderId;
+      if (orderKey) {
+        if (processedOrderIds.has(orderKey)) continue;
+        processedOrderIds.add(orderKey);
+      }
       
-      const statusStr = String(sheetOrder.status || '').toLowerCase().trim();
+      const statusStr = String(currentOrder.status || '').toLowerCase().trim();
       if (statusStr.includes('cancel') || statusStr.includes('ยกเลิก') || statusStr.includes('deleted')) continue;
 
-      const itemsList = sheetOrder.items;
+      const itemsList = currentOrder.items;
       if (!itemsList) continue;
 
       // กรณี A: ข้อมูลส่งมาเป็น Array ของ Object
@@ -960,7 +992,14 @@ export default function App() {
           if (item && item.name) {
             const cleanName = String(item.name).trim();
             const qty = Number(item.qty) || 1;
-            salesCountMap.set(cleanName, (salesCountMap.get(cleanName) || 0) + qty);
+
+            // ค้นหาเมนูที่ตรงกัน
+            const matchedName = sortedMenuNames.find(m => 
+              cleanName.toLowerCase() === m.toLowerCase() || 
+              cleanName.toLowerCase().startsWith(m.toLowerCase())
+            ) || cleanName;
+
+            salesCountMap.set(matchedName, (salesCountMap.get(matchedName) || 0) + qty);
           }
         }
         continue;
@@ -980,7 +1019,11 @@ export default function App() {
             if (item && item.name) {
               const cleanName = String(item.name).trim();
               const qty = Number(item.qty) || 1;
-              salesCountMap.set(cleanName, (salesCountMap.get(cleanName) || 0) + qty);
+              const matchedName = sortedMenuNames.find(m => 
+                cleanName.toLowerCase() === m.toLowerCase() || 
+                cleanName.toLowerCase().startsWith(m.toLowerCase())
+              ) || cleanName;
+              salesCountMap.set(matchedName, (salesCountMap.get(matchedName) || 0) + qty);
             }
           }
         } else {
@@ -994,13 +1037,13 @@ export default function App() {
             const qty = match ? parseInt(match[1], 10) : 1;
             let rawItem = match ? match[2].trim() : line.replace(/^-\s*/, '').trim();
 
-            // ตัดข้อความในวงเล็บออปชันออก เช่น (เย็น • หวาน 100%) เพื่อไม่ให้ตัวเลือกหลุดมาเป็นชื่อเมนู
+            // ตัดข้อความในวงเล็บออปชันออก เช่น (เย็น • หวาน 100%)
             const parenIdx = rawItem.indexOf('(');
             let candidateName = parenIdx !== -1 ? rawItem.slice(0, parenIdx).trim() : rawItem;
 
             let matchedMenuName = null;
 
-            // 1. ตรวจสอบชื่อที่ตรงกันแบบ Exact Match
+            // ตรวจสอบชื่อที่ตรงกัน
             for (const mName of sortedMenuNames) {
               if (candidateName.toLowerCase() === mName.toLowerCase()) {
                 matchedMenuName = mName;
@@ -1008,10 +1051,9 @@ export default function App() {
               }
             }
 
-            // 2. ถ้าชื่อมีข้อความต่อท้าย ให้จับคู่กับเมนูที่ยาวที่สุดที่ขึ้นต้นตรงกัน
             if (!matchedMenuName) {
               for (const mName of sortedMenuNames) {
-                if (candidateName.toLowerCase().startsWith(mName.toLowerCase())) {
+                if (candidateName.toLowerCase().startsWith(mName.toLowerCase()) || candidateName.toLowerCase().includes(mName.toLowerCase())) {
                   matchedMenuName = mName;
                   break;
                 }
@@ -1026,7 +1068,7 @@ export default function App() {
       }
     }
 
-    // แมปเข้าเมนู Firestore และคัดเอาเฉพาะเมนูที่มียอดขาย > 0 เท่านั้น
+    // แมปเข้าเมนู Firestore และคัดเอาเฉพาะเมนูที่มียอดขาย > 0
     let rankedMenus = menuItems
       .map(menu => {
         const cleanMenuName = (menu.name || '').trim();
@@ -1038,8 +1080,17 @@ export default function App() {
       .filter(m => m.sales > 0)
       .sort((a, b) => b.sales - a.sales);
 
+    // [MODIFIED] Fallback ป้องกันหน้าเมนูว่างเปล่า: ถ้ายังไม่มียอดขายในระบบเลย ให้ดึงเมนูที่ตั้งแนะนำหรือพร้อมขายมาแสดง
+    if (rankedMenus.length === 0) {
+      const promoted = menuItems.filter(m => m.isPromoted && !m.isSoldOut);
+      if (promoted.length > 0) {
+        return promoted.slice(0, 8);
+      }
+      return menuItems.filter(m => !m.isSoldOut).slice(0, 8);
+    }
+
     return rankedMenus.slice(0, 9);
-  }, [sheetOrdersData, menuItems]);
+  }, [sheetOrdersData, orders, menuItems]);
 
   const displayedItems = useMemo(() => {
     if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1528,9 +1579,7 @@ export default function App() {
                       <p className="text-slate-500 text-xs font-bold">
                         {searchQuery 
                           ? `ไม่พบเมนูที่ตรงกับ "${searchQuery}"` 
-                          : activeCategory === '🔥 เมนูขายดี' 
-                            ? 'ยังไม่มีข้อมูลยอดขายในระบบ Google Sheets 🐮' 
-                            : `ยังไม่มีเมนูในหมวด "${activeCategory}"`
+                          : `ยังไม่มีเมนูในหมวด "${activeCategory}"`
                         }
                       </p>
                     </div>
@@ -2431,7 +2480,7 @@ export default function App() {
                      </button>
                   ) : (
                     <div className="space-y-3 text-center animate-in fade-in">
-                      <div className="flex justify-between items-center border-b border-amber-200 pb-2 mb-1">
+                      <div className="flex justify-between items-center border-amber-200 pb-2 mb-1">
                         <h3 className="font-bold text-xs text-amber-800 uppercase tracking-wider flex items-center gap-1.5"><Plus size={15}/> เพิ่มท็อปปิ้งเสริม</h3>
                         <button onClick={() => setShowAddToppingForm(false)} className="text-amber-400 p-1 hover:bg-amber-100 rounded-full transition-colors"><X size={15}/></button>
                       </div>
@@ -3337,7 +3386,7 @@ export default function App() {
       {msgBox.isOpen && (
         <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
           <div className="bg-white p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
-            {msgBox.type === 'confirm' ? (
+          {msgBox.type === 'confirm' ? (
               <AlertCircle size={42} className="text-amber-500 mx-auto mb-4" />
             ) : (
               <CheckCircle size={42} className="text-emerald-500 mx-auto mb-4" />
