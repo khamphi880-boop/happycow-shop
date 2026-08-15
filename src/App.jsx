@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-// [REMOVED] เอา import recharts ออกแล้ว เพื่อแก้ปัญหา Build Failed บน Vercel
+// [REMOVED] เอา recharts ออกเพื่อป้องกัน Build Failed บน Vercel
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
-  Sparkles, Database, Users, Filter, Calendar, UserX, DollarSign, Package, CheckCircle2, ChevronRight, ShieldCheck
+  Sparkles, Database, Users, Filter, Calendar, UserX, DollarSign, Package, CheckCircle2, ChevronRight, ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -124,7 +125,13 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
-  const [orders, setOrders] = useState([]);
+  // [MODIFIED] Persistent cache for instant loading of orders
+  const [orders, setOrders] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_orders_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch(e) { return []; }
+  });
   const [toppings, setToppings] = useState([]); 
   const [sauces, setSauces] = useState([]);
   
@@ -157,7 +164,7 @@ export default function App() {
   }); 
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(() => new URLSearchParams(window.location.search).get('action') === 'viewOrders');
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   
   const [address, setAddress] = useState(() => localStorage.getItem('happycow_address') || '');
   const [note, setNote] = useState(() => localStorage.getItem('happycow_note') || ''); 
@@ -185,7 +192,6 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
 
-  // [MODIFIED] Added minOrderAmount to storeSettings
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
@@ -203,7 +209,6 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState(''); 
-  // [ADDED] State for min order amount
   const [editMinOrderAmount, setEditMinOrderAmount] = useState(0);
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); 
@@ -311,6 +316,106 @@ export default function App() {
     }
   };
 
+  // [ADDED] ฟังก์ชันสั่งซื้อซ้ำทั้งบิล (Re-order Entire Bill)
+  const handleReorder = (order) => {
+    if (!order || !order.items || order.items.length === 0) return;
+
+    const unavailableItems = [];
+    const itemsToAdd = [];
+
+    order.items.forEach(pastItem => {
+      const currentMenu = menuItems.find(m => m.id === pastItem.id || m.name === pastItem.name);
+      
+      // Check if the menu is sold out or unavailable
+      if (currentMenu && currentMenu.isSoldOut) {
+        unavailableItems.push(pastItem.name);
+      } else if (pastItem.isOnlyBlend && storeSettings.isBlendOut) {
+        unavailableItems.push(`${pastItem.name} (งดปั่น)`);
+      } else {
+        const toppingsStr = (pastItem.selectedToppings || []).map(t => t.id || t.name).sort().join('-');
+        const saucesStr = (pastItem.selectedSauces || []).map(s => typeof s === 'object' ? s.id || s.name : s).sort().join('-');
+        const beanStr = pastItem.bean ? `-${pastItem.bean}` : '';
+        const teaStr = pastItem.teaType ? `-${pastItem.teaType}` : '';
+        const shotStr = pastItem.addShot ? `-addShot` : '';
+        const isWhipOrCream = isWhipOrCreamCheeseItem(pastItem);
+        const iceStr = (!pastItem.isBlended && !isWhipOrCream && pastItem.separateIce) ? `-separateIce` : '';
+        
+        const cartId = pastItem.cartId || `${pastItem.id || pastItem.name}-${isWhipOrCream ? 'nowhip' : pastItem.sweetness}-${pastItem.isBlended}-${pastItem.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
+
+        itemsToAdd.push({
+          ...pastItem,
+          cartId
+        });
+      }
+    });
+
+    if (itemsToAdd.length === 0) {
+      return showAlert("ขออภัยค่ะ รายการเครื่องดื่มในบิลนี้หมดชั่วคราวทั้งหมด ไม่สามารถสั่งซ้ำได้ในขณะนี้ค่ะ 🐮");
+    }
+
+    // Merge items into cart
+    setCart(prevCart => {
+      let newCart = [...prevCart];
+      itemsToAdd.forEach(newItem => {
+        const idx = newCart.findIndex(c => c.cartId === newItem.cartId);
+        if (idx > -1) {
+          newCart[idx] = { ...newCart[idx], qty: newCart[idx].qty + (newItem.qty || 1) };
+        } else {
+          newCart.push({ ...newItem, qty: newItem.qty || 1 });
+        }
+      });
+      return newCart;
+    });
+
+    // Auto-fill address if empty
+    if (order.address && !address) setAddress(order.address);
+
+    if (unavailableItems.length > 0) {
+      showAlert(`เพิ่มรายการลงตะกร้าแล้วค่ะ! 🛒\n(ยกเว้น: ${unavailableItems.join(', ')} เนื่องจากหมดชั่วคราว)`, () => {
+        setView('cart');
+      });
+    } else {
+      showAlert("เพิ่มรายการจากบิลนี้ลงตะกร้าเรียบร้อยแล้วค่ะ! 🐮🛒", () => {
+        setView('cart');
+      });
+    }
+  };
+
+  // [ADDED] ฟังก์ชันสั่งซื้อซ้ำเฉพาะแก้ว (Re-order Single Item)
+  const handleReorderSingleItem = (item) => {
+    if (!item) return;
+    const currentMenu = menuItems.find(m => m.id === item.id || m.name === item.name);
+    
+    if (currentMenu && currentMenu.isSoldOut) {
+      return showAlert(`ขออภัยค่ะ เมนู "${item.name}" หมดชั่วคราวค่ะ 🐮`);
+    }
+    if (item.isOnlyBlend && storeSettings.isBlendOut) {
+      return showAlert(`ขออภัยค่ะ วันนี้งดรับเมนูปั่นชั่วคราวค่ะ 🐮`);
+    }
+
+    const toppingsStr = (item.selectedToppings || []).map(t => t.id || t.name).sort().join('-');
+    const saucesStr = (item.selectedSauces || []).map(s => typeof s === 'object' ? s.id || s.name : s).sort().join('-');
+    const beanStr = item.bean ? `-${item.bean}` : '';
+    const teaStr = item.teaType ? `-${item.teaType}` : '';
+    const shotStr = item.addShot ? `-addShot` : '';
+    const isWhipOrCream = isWhipOrCreamCheeseItem(item);
+    const iceStr = (!item.isBlended && !isWhipOrCream && item.separateIce) ? `-separateIce` : '';
+    
+    const cartId = item.cartId || `${item.id || item.name}-${isWhipOrCream ? 'nowhip' : item.sweetness}-${item.isBlended}-${item.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
+
+    setCart(prev => {
+      const idx = prev.findIndex(c => c.cartId === cartId);
+      if (idx > -1) {
+        return prev.map((c, i) => i === idx ? { ...c, qty: c.qty + 1 } : c);
+      }
+      return [...prev, { ...item, cartId, qty: 1 }];
+    });
+
+    showAlert(`เพิ่ม "${item.name}" (หวาน ${item.sweetness || 'ปกติ'}) ลงตะกร้าแล้วค่ะ! 🐮🛒`, () => {
+      setView('cart');
+    });
+  };
+
   const sendOrderToGoogleSheets = async (orderData) => {
     const endpoint = storeSettings.googleSheetUrl;
     if (!endpoint || !endpoint.startsWith('http')) return;
@@ -382,6 +487,14 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_note', note); }, [note]);
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
+  // [ADDED] Cache recent orders for instant display without network lag
+  useEffect(() => {
+    if (orders.length > 0) {
+      try {
+        localStorage.setItem('happycow_orders_cache', JSON.stringify(orders.slice(0, 50)));
+      } catch (e) {}
+    }
+  }, [orders]);
 
   useEffect(() => {
     if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
@@ -426,7 +539,6 @@ export default function App() {
       setSauces(fetchedSauces); 
     });
 
-    // [MODIFIED] Pull minOrderAmount from Firestore
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -462,16 +574,35 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
+  // [MODIFIED] High-Performance Query with Limit & Background Sync
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
 
-    setIsLoadingOrders(true);
-    const unsubOrders = onSnapshot(collection(db, 'orders'), snapshot => { 
-       const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
+    if (orders.length === 0) {
+      setIsLoadingOrders(true);
+    }
+
+    const ordersQuery = query(
+      collection(db, 'orders'),
+      orderBy('timestamp', 'desc'),
+      limit(isAdmin ? 120 : 50)
+    );
+
+    const unsubOrders = onSnapshot(ordersQuery, snapshot => { 
+       const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
        setOrders(fetchedOrders); 
        setIsLoadingOrders(false);
+    }, err => {
+       console.warn("Optimized query fallback:", err);
+       const unsubFallback = onSnapshot(collection(db, 'orders'), snap => {
+          const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
+          setOrders(fetched);
+          setIsLoadingOrders(false);
+       });
+       return () => unsubFallback();
     });
+
     return () => unsubOrders();
   }, [view]);
 
@@ -1001,7 +1132,6 @@ export default function App() {
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
-  // [ADDED] Check minimum order requirement
   const isBelowMinOrder = storeSettings.minOrderAmount > 0 && cartTotal < storeSettings.minOrderAmount;
   const minOrderShortage = storeSettings.minOrderAmount > 0 ? Math.max(0, storeSettings.minOrderAmount - cartTotal) : 0;
 
@@ -1362,7 +1492,7 @@ export default function App() {
               <span className="text-xs font-bold text-slate-400">{cart.length} รายการ</span>
             </div>
 
-            {/* [ADDED] Minimum Order Warning Banner */}
+            {/* Minimum Order Warning Banner */}
             {cart.length > 0 && isBelowMinOrder && (
               <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl shadow-xs animate-in fade-in flex items-start gap-3">
                 <AlertCircle size={20} className="text-amber-700 flex-shrink-0 mt-0.5" />
@@ -1497,7 +1627,6 @@ export default function App() {
                     onClick={async (e) => {
                       e.preventDefault();
                       if (isProcessingOrder.current) return; 
-                      // [ADDED] Minimum Order Guard Check
                       if (isBelowMinOrder) {
                         return showAlert(`ขออภัยค่ะ ร้านกำหนดยอดสั่งซื้อขั้นต่ำ ฿${storeSettings.minOrderAmount} (ขณะนี้ยอดของคุณคือ ฿${cartTotal} ขาดอีก ฿${minOrderShortage}) รบกวนเลือกเครื่องดื่มเพิ่มนะคะ 🐮`);
                       }
@@ -1582,7 +1711,6 @@ export default function App() {
                         setIsLoading(false);
                       }
                     }}
-                    // [MODIFIED] Added isBelowMinOrder to disabled check
                     disabled={isLoading || !acceptedTerms || (paymentMethod === 'promptpay' && !slipImage) || isBelowMinOrder} 
                     className={`w-full py-4.5 rounded-2xl font-bold text-base transition-all shadow-lg active:scale-97 flex justify-center items-center gap-2 ${acceptedTerms && !isLoading && !(paymentMethod === 'promptpay' && !slipImage) && !isBelowMinOrder ? 'bg-gradient-to-r from-amber-700 to-amber-900 text-white hover:opacity-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
@@ -1603,17 +1731,20 @@ export default function App() {
           </div>
         )}
 
-        {/* --- My Orders View --- */}
+        {/* --- My Orders View (ประวัติการสั่งซื้อ + สั่งซ้ำได้ทันที) --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20 animate-in slide-in-from-bottom-6 duration-300">
              <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-slate-400 text-xs hover:text-slate-800"><ChevronLeft size={18}/> กลับหน้าร้าน</button>
              
              <div className="flex justify-between items-end border-b border-slate-100 pb-3">
-               <h2 className="text-2xl font-serif font-black text-slate-900">ประวัติการสั่งซื้อ</h2>
+               <div>
+                 <h2 className="text-2xl font-serif font-black text-slate-900">ประวัติการสั่งซื้อ</h2>
+                 <p className="text-[10px] text-slate-400 font-bold mt-0.5">กดสั่งซ้ำเมนูเดิมได้ทันที 🐮✨</p>
+               </div>
                <span className="text-xs font-extrabold text-amber-800">วัวนมอารมณ์ดี</span>
              </div>
              
-             {isLoadingOrders ? (
+             {isLoadingOrders && orders.length === 0 ? (
                 <div className="py-24 flex flex-col items-center justify-center gap-3 animate-in fade-in">
                    <div className="w-10 h-10 border-3 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
                    <p className="text-amber-900 font-bold text-xs text-center">กำลังดึงประวัติการสั่งซื้อของคุณ... 🐮</p>
@@ -1623,52 +1754,86 @@ export default function App() {
                    {orders.filter(o => o.userId === lineProfile.userId && !o.isDeleted).map(o => {
                      const dateStr = new Date(o.timestamp).toLocaleString('th-TH');
                      return (
-                       <div key={o.id} className={`bg-white p-5 rounded-3xl shadow-sm border transition-all duration-300 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-slate-200/80'}`}>
+                       <div key={o.id} className={`bg-white p-5 rounded-3xl shadow-xs border transition-all duration-300 ${selectedOrderId === o.id ? 'order-highlight bg-amber-50/20' : 'border-slate-200/80 hover:border-amber-300'}`}>
                           <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
                             <div>
                                <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">บิล #{o.id.slice(0,6)}</span>
-                               <p className="text-xs font-black text-amber-600 mt-0.5 uppercase">{o.status}</p>
-                               <p className="text-[10px] text-slate-400 mt-0.5 font-semibold"><Clock size={11} className="inline mr-1"/>{dateStr}</p>
+                               <div className="flex items-center gap-1.5 mt-0.5">
+                                 <span className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold ${o.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : o.status === 'cooking' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700'}`}>
+                                   {o.status === 'completed' ? 'จัดส่งสำเร็จ' : o.status === 'cooking' ? 'กำลังชงเครื่องดื่ม' : 'รอดำเนินการ'}
+                                 </span>
+                               </div>
+                               <p className="text-[10px] text-slate-400 mt-1 font-semibold"><Clock size={11} className="inline mr-1"/>{dateStr}</p>
                             </div>
                             <div className="text-xl font-serif font-black text-slate-900">฿{o.total}</div>
                           </div>
                           
-                          <div className="space-y-1">{(o.items || []).map((item, idx) => (
-                              <p key={idx} className="text-xs font-semibold text-slate-600 leading-snug">
-                                {item.qty}x {item.name} ({getBlendText(item)}{isWhipOrCreamCheeseItem(item) ? '' : ` • หวาน ${item.sweetness}`}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
-                                {item.selectedSauces?.length > 0 && ` + ราดซอส: ${item.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
-                                {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
-                              </p>
-                          ))}</div>
+                          {/* รายการเครื่องดื่มในบิล พร้อมปุ่มสั่งซ้ำเฉพาะแก้ว */}
+                          <div className="space-y-2 mb-3">
+                            {(o.items || []).map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50/80 border border-slate-100">
+                                <div className="flex-1 pr-2">
+                                  <p className="text-xs font-bold text-slate-800 leading-snug">
+                                    {item.qty}x {item.name}
+                                  </p>
+                                  <p className="text-[9.5px] text-slate-400 font-medium leading-relaxed mt-0.5">
+                                    ({getBlendText(item)}{isWhipOrCreamCheeseItem(item) ? '' : ` • หวาน ${item.sweetness}`}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
+                                    {item.selectedSauces?.length > 0 && ` + ราดซอส: ${item.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
+                                    {item.selectedToppings?.length > 0 && ` + ${item.selectedToppings.map(t=>t.name).join(', ')}`}
+                                  </p>
+                                </div>
+                                <button 
+                                  onClick={() => handleReorderSingleItem(item)}
+                                  className="text-[9px] bg-amber-100/80 hover:bg-amber-200 text-amber-900 font-extrabold px-2.5 py-1.5 rounded-xl flex items-center gap-1 active:scale-95 transition-all flex-shrink-0 shadow-2xs"
+                                >
+                                  <Plus size={11}/> สั่งแก้วนี้
+                                </button>
+                              </div>
+                            ))}
+                          </div>
 
-                          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                          {/* [ADDED] ปุ่มสั่งซ้ำทั้งบิล และ ปุ่มแชร์ */}
+                          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
                             <button 
-                              onClick={() => handleShareOrderBill(o)}
-                              className="w-full bg-[#06C755] hover:bg-emerald-600 text-white py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs active:scale-97 transition-all"
+                              onClick={() => handleReorder(o)}
+                              className="w-full bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 hover:opacity-95 text-white py-3.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md active:scale-97 transition-all"
                             >
-                              <Share2 size={15}/> แชร์บิลไปที่ LINE 💬
+                              <RotateCcw size={15} className="text-amber-300"/> สั่งซ้ำบิลนี้ (฿{o.total})
                             </button>
 
-                            {o.status === 'completed' && (
-                              <div className="space-y-2">
-                                {o.deliveryMessage && (
-                                  <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200/60">
-                                    <p className="text-[10px] font-bold text-amber-900 mb-0.5 flex items-center gap-1"><MessageSquare size={12}/> ข้อความจากร้าน:</p>
-                                    <p className="text-xs text-slate-700 font-semibold">{o.deliveryMessage}</p>
-                                  </div>
-                                )}
-                                {o.hasDeliveryImage && (
-                                  <button 
-                                    onClick={() => viewImage(o.id, 'delivery')} 
-                                    disabled={loadingSlipId === o.id}
-                                    className="w-full bg-slate-900 text-white py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm active:scale-97 transition-all"
-                                  >
-                                     {loadingSlipId === o.id ? (
-                                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                     ) : <Camera size={15}/>}
-                                     ดูรูปจัดส่งสินค้า
-                                  </button>
-                                )}
+                            <div className="grid grid-cols-2 gap-2">
+                              <button 
+                                onClick={() => handleShareOrderBill(o)}
+                                className="bg-[#06C755] hover:bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs active:scale-97 transition-all"
+                              >
+                                <Share2 size={14}/> แชร์บิลไป LINE
+                              </button>
+
+                              {o.hasDeliveryImage ? (
+                                <button 
+                                  onClick={() => viewImage(o.id, 'delivery')} 
+                                  disabled={loadingSlipId === o.id}
+                                  className="bg-slate-900 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs active:scale-97 transition-all"
+                                >
+                                   {loadingSlipId === o.id ? (
+                                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                   ) : <Camera size={14}/>}
+                                   ดูรูปจัดส่ง
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => showAlert(`สถานะบิล: ${o.status === 'completed' ? 'จัดส่งสำเร็จเรียบร้อยค่ะ 💖' : o.status === 'cooking' ? 'กำลังชงเครื่องดื่มให้อยู่นะคะ 👩‍🍳' : 'ทางร้านกำลังรับออร์เดอร์ค่ะ 🐮'}`)}
+                                  className="bg-slate-100 text-slate-600 py-2.5 rounded-xl text-xs font-bold active:scale-97 transition-all"
+                                >
+                                  เช็คสถานะ
+                                </button>
+                              )}
+                            </div>
+
+                            {o.deliveryMessage && (
+                              <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200/60 mt-2">
+                                <p className="text-[10px] font-bold text-amber-900 mb-0.5 flex items-center gap-1"><MessageSquare size={12}/> ข้อความจากร้าน:</p>
+                                <p className="text-xs text-slate-700 font-semibold">{o.deliveryMessage}</p>
                               </div>
                             )}
                           </div>
@@ -2468,7 +2633,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* [ADDED] Minimum Order Setting Card */}
+                {/* Minimum Order Setting Card */}
                 <div className="bg-amber-50/80 p-5 rounded-3xl border-2 border-dashed border-amber-300 space-y-3 shadow-inner relative">
                   <h3 className="font-bold text-xs text-amber-950 uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
                     <DollarSign size={16} className="text-amber-800" /> ตั้งค่ายอดสั่งซื้อขั้นต่ำ
