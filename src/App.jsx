@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
-} from 'recharts';
+// [REMOVED] เอา import recharts ออกแล้ว เพื่อแก้ปัญหา Build Failed บน Vercel
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
@@ -188,7 +185,7 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
 
-  // [MODIFIED] Added minOrderAmount to storeSettings default state
+  // [MODIFIED] Added minOrderAmount to storeSettings
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
@@ -206,7 +203,7 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState(''); 
-  // [ADDED] State for editing min order amount in admin settings
+  // [ADDED] State for min order amount
   const [editMinOrderAmount, setEditMinOrderAmount] = useState(0);
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); 
@@ -429,7 +426,7 @@ export default function App() {
       setSauces(fetchedSauces); 
     });
 
-    // [MODIFIED] Pull minOrderAmount from Firestore settings
+    // [MODIFIED] Pull minOrderAmount from Firestore
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -1004,7 +1001,7 @@ export default function App() {
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
 
-  // [ADDED] Check whether the cart amount fulfills the minimum order requirement
+  // [ADDED] Check minimum order requirement
   const isBelowMinOrder = storeSettings.minOrderAmount > 0 && cartTotal < storeSettings.minOrderAmount;
   const minOrderShortage = storeSettings.minOrderAmount > 0 ? Math.max(0, storeSettings.minOrderAmount - cartTotal) : 0;
 
@@ -1365,7 +1362,7 @@ export default function App() {
               <span className="text-xs font-bold text-slate-400">{cart.length} รายการ</span>
             </div>
 
-            {/* [ADDED] Minimum Order Warning Banner in Cart */}
+            {/* [ADDED] Minimum Order Warning Banner */}
             {cart.length > 0 && isBelowMinOrder && (
               <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl shadow-xs animate-in fade-in flex items-start gap-3">
                 <AlertCircle size={20} className="text-amber-700 flex-shrink-0 mt-0.5" />
@@ -1585,7 +1582,7 @@ export default function App() {
                         setIsLoading(false);
                       }
                     }}
-                    // [MODIFIED] Added isBelowMinOrder to disabled check and updated button text
+                    // [MODIFIED] Added isBelowMinOrder to disabled check
                     disabled={isLoading || !acceptedTerms || (paymentMethod === 'promptpay' && !slipImage) || isBelowMinOrder} 
                     className={`w-full py-4.5 rounded-2xl font-bold text-base transition-all shadow-lg active:scale-97 flex justify-center items-center gap-2 ${acceptedTerms && !isLoading && !(paymentMethod === 'promptpay' && !slipImage) && !isBelowMinOrder ? 'bg-gradient-to-r from-amber-700 to-amber-900 text-white hover:opacity-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
@@ -2683,7 +2680,7 @@ export default function App() {
                           showAlert('บันทึกการเชื่อมต่อ Google Sheets สำเร็จ! 📊'); 
                         } catch(e) { showAlert("Error: " + e.message); }
                       }} 
-                      className="w-2/3 bg-emerald-600 text-white py-3 rounded-2xl font-bold text-xs active:scale-97 transition-all shadow-md hover:bg-emerald-700"
+                      className="w-2/3 bg-emerald-600 text-white py-3.5 rounded-2xl font-bold text-xs active:scale-97 transition-all shadow-md hover:bg-emerald-700"
                     >
                       บันทึก URL Google Sheets
                     </button>
