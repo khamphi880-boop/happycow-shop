@@ -6,7 +6,7 @@ import {
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
   Sparkles, Database, Users, Filter, Calendar, UserX, DollarSign, Package, CheckCircle2, ChevronRight, ShieldCheck,
-  RotateCcw
+  RotateCcw, Activity
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -134,6 +134,10 @@ export default function App() {
   const [toppings, setToppings] = useState([]); 
   const [sauces, setSauces] = useState([]);
   
+  // [ADDED] Real-time Active Users State & Modal State
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
+
   const [cart, setCart] = useState(() => {
     try { const saved = localStorage.getItem('happycow_cart'); return saved ? JSON.parse(saved) : []; }
     catch(e) { return []; }
@@ -439,7 +443,6 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] Enhanced Google Sheets fetch with follow redirects and robust format parser
   const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
     const endpoint = storeSettings?.googleSheetUrl;
     if (!endpoint || !endpoint.startsWith('http')) return;
@@ -496,7 +499,6 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] Auto-fetch Google Sheets data whenever the store URL or tab is triggered
   useEffect(() => {
     if (!storeSettings?.googleSheetUrl) return;
 
@@ -525,6 +527,7 @@ export default function App() {
     }
   }, [orders]);
 
+  // [ADDED] Heartbeat & Real-time Presence Tracking for Active Visitors
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -597,6 +600,58 @@ export default function App() {
 
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
+
+  // [ADDED] Real-time Active Visitor Presence Heartbeat & Sync Hook
+  useEffect(() => {
+    if (!lineProfile.userId) return;
+
+    const userPresenceRef = doc(db, 'active_users', lineProfile.userId);
+
+    const updateMyPresence = async () => {
+      try {
+        await setDoc(userPresenceRef, {
+          userId: lineProfile.userId,
+          displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
+          pictureUrl: lineProfile.pictureUrl || '',
+          view: view,
+          lastActive: Date.now()
+        }, { merge: true });
+      } catch (err) {
+        console.warn("Presence update skipped:", err);
+      }
+    };
+
+    updateMyPresence();
+    const heartbeatTimer = setInterval(updateMyPresence, 25000); // Heartbeat ทุกๆ 25 วินาที
+
+    // Realtime Listener ฟังสถานะผู้เข้าชมทั้งหมด
+    const unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
+      const now = Date.now();
+      const activeThreshold = 75000; // ตัดสถานะถ้าไม่มีสัญญาณเกิน 75 วินาที
+      const currentActive = [];
+
+      snapshot.forEach(d => {
+        const data = d.data();
+        if (data.lastActive && (now - data.lastActive < activeThreshold)) {
+          currentActive.push({ id: d.id, ...data });
+        }
+      });
+
+      setActiveUsers(currentActive);
+    });
+
+    const handleBeforeUnload = () => {
+      deleteDoc(userPresenceRef).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(heartbeatTimer);
+      unsubPresence();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      deleteDoc(userPresenceRef).catch(() => {});
+    };
+  }, [lineProfile.userId, lineProfile.displayName, lineProfile.pictureUrl, view]);
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
@@ -741,7 +796,7 @@ export default function App() {
         allowBlend: editingMenu.isOnlyBlend ? true : (editingMenu.allowBlend !== false), 
         isPromoted: editingMenu.isPromoted || false, 
         isSoldOut: editingMenu.isSoldOut || false, 
-        hasTeaType: editingMenu.hasTeaType || false,
+        hasTeaType: editingMenu.hasTeaType || false, 
         allowedSweetness: editingMenu.allowedSweetness || SWEETNESS
       });
       showAlert('แก้ไขเมนูสำเร็จ! ✨'); 
@@ -945,14 +1000,11 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] Best Sellers logic: Merges Google Sheets + Firestore Orders, performs smart deduplication & fallback
   const bestSellers = useMemo(() => {
     if (!menuItems || menuItems.length === 0) return [];
 
     const salesCountMap = new Map();
     const processedOrderIds = new Set();
-
-    // รวบรวม Order จากทั้ง 2 แหล่ง (Google Sheets + Live Firestore) เพื่อความแม่นยำสูงสุด
     const combinedOrders = [];
 
     if (Array.isArray(sheetOrdersData)) {
@@ -963,7 +1015,6 @@ export default function App() {
       orders.forEach(o => { if (o && !o.isDeleted) combinedOrders.push(o); });
     }
 
-    // เรียงชื่อเมนูจากยาวไปสั้น
     const sortedMenuNames = [...menuItems]
       .map(m => (m.name || '').trim())
       .filter(Boolean)
@@ -985,15 +1036,12 @@ export default function App() {
       const itemsList = currentOrder.items;
       if (!itemsList) continue;
 
-      // กรณี A: ข้อมูลส่งมาเป็น Array ของ Object
       if (Array.isArray(itemsList)) {
         for (let j = 0; j < itemsList.length; j++) {
           const item = itemsList[j];
           if (item && item.name) {
             const cleanName = String(item.name).trim();
             const qty = Number(item.qty) || 1;
-
-            // ค้นหาเมนูที่ตรงกัน
             const matchedName = sortedMenuNames.find(m => 
               cleanName.toLowerCase() === m.toLowerCase() || 
               cleanName.toLowerCase().startsWith(m.toLowerCase())
@@ -1005,7 +1053,6 @@ export default function App() {
         continue;
       }
 
-      // กรณี B: ข้อมูลส่งมาเป็น String (JSON หรือข้อความหลายบรรทัด)
       if (typeof itemsList === 'string') {
         const trimmed = itemsList.trim();
         let parsedJson = null;
@@ -1027,7 +1074,6 @@ export default function App() {
             }
           }
         } else {
-          // แยกแต่ละบรรทัดในบิล เช่น "- 2x นมสด (หวาน 100%...)"
           const lines = trimmed.split('\n');
           for (let j = 0; j < lines.length; j++) {
             const line = lines[j].trim();
@@ -1037,13 +1083,10 @@ export default function App() {
             const qty = match ? parseInt(match[1], 10) : 1;
             let rawItem = match ? match[2].trim() : line.replace(/^-\s*/, '').trim();
 
-            // ตัดข้อความในวงเล็บออปชันออก เช่น (เย็น • หวาน 100%)
             const parenIdx = rawItem.indexOf('(');
             let candidateName = parenIdx !== -1 ? rawItem.slice(0, parenIdx).trim() : rawItem;
 
             let matchedMenuName = null;
-
-            // ตรวจสอบชื่อที่ตรงกัน
             for (const mName of sortedMenuNames) {
               if (candidateName.toLowerCase() === mName.toLowerCase()) {
                 matchedMenuName = mName;
@@ -1068,7 +1111,6 @@ export default function App() {
       }
     }
 
-    // แมปเข้าเมนู Firestore และคัดเอาเฉพาะเมนูที่มียอดขาย > 0
     let rankedMenus = menuItems
       .map(menu => {
         const cleanMenuName = (menu.name || '').trim();
@@ -1080,7 +1122,6 @@ export default function App() {
       .filter(m => m.sales > 0)
       .sort((a, b) => b.sales - a.sales);
 
-    // [MODIFIED] Fallback ป้องกันหน้าเมนูว่างเปล่า: ถ้ายังไม่มียอดขายในระบบเลย ให้ดึงเมนูที่ตั้งแนะนำหรือพร้อมขายมาแสดง
     if (rankedMenus.length === 0) {
       const promoted = menuItems.filter(m => m.isPromoted && !m.isSoldOut);
       if (promoted.length > 0) {
@@ -1369,13 +1410,44 @@ export default function App() {
         </div>
       </header>
 
+      {/* [ADDED] Live Online Visitors Header Bar */}
+      {view === 'shop' && (
+        <div className="px-5 pt-2 flex items-center justify-between">
+          <button 
+            onClick={() => setShowActiveUsersModal(true)} 
+            className="flex items-center gap-1.5 bg-white/80 hover:bg-white backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-200/80 shadow-2xs active:scale-95 transition-all"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <Users size={12} className="text-emerald-700" />
+            <span className="text-[10.5px] font-bold text-slate-700">
+              กำลังเลือกดูอยู่ <span className="text-emerald-600 font-black">{activeUsers.length || 1}</span> คน
+            </span>
+            {activeUsers.length > 0 && (
+              <div className="flex -space-x-1.5 ml-1">
+                {activeUsers.slice(0, 3).map((u, i) => (
+                  u.pictureUrl ? (
+                    <img key={u.id || i} src={u.pictureUrl} className="w-4 h-4 rounded-full border border-white object-cover" alt="visitor" />
+                  ) : (
+                    <div key={u.id || i} className="w-4 h-4 rounded-full bg-amber-200 text-amber-800 text-[8px] font-bold flex items-center justify-center border border-white">🐮</div>
+                  )
+                ))}
+              </div>
+            )}
+          </button>
+          
+          <span className="text-[10px] font-bold text-slate-400">
+            Realtime ⚡
+          </span>
+        </div>
+      )}
+
       {isSearchFocused && view === 'shop' && <div className="fixed inset-0 z-[40] bg-black/20 backdrop-blur-xs transition-opacity" onClick={() => setIsSearchFocused(false)}></div>}
 
       <main className="flex-1 pb-12 relative z-10">
         {/* --- Shop View --- */}
         {view === 'shop' && (
           <div className="animate-in fade-in duration-300">
-            <div className="px-5 pt-4 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: `${currentThemeData.bg}f0` }}>
+            <div className="px-5 pt-3 pb-2 sticky top-[73px] z-[45]" style={{ backgroundColor: `${currentThemeData.bg}f0` }}>
               <div className="relative z-[50]">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
@@ -1600,7 +1672,6 @@ export default function App() {
               <span className="text-xs font-bold text-slate-400">{cart.length} รายการ</span>
             </div>
 
-            {/* Minimum Order Warning Banner */}
             {cart.length > 0 && isBelowMinOrder && (
               <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl shadow-xs animate-in fade-in flex items-start gap-3">
                 <AlertCircle size={20} className="text-amber-700 flex-shrink-0 mt-0.5" />
@@ -1876,7 +1947,6 @@ export default function App() {
                             <div className="text-xl font-serif font-black text-slate-900">฿{o.total}</div>
                           </div>
                           
-                          {/* รายการเครื่องดื่มในบิล */}
                           <div className="space-y-2 mb-3">
                             {(o.items || []).map((item, idx) => (
                               <div key={idx} className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50/80 border border-slate-100">
@@ -1900,7 +1970,6 @@ export default function App() {
                             ))}
                           </div>
 
-                          {/* ปุ่มสั่งซ้ำทั้งบิล และ ปุ่มแชร์ */}
                           <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
                             <button 
                               onClick={() => handleReorder(o)}
@@ -1975,6 +2044,41 @@ export default function App() {
             {/* TAB: แดชบอร์ด */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
+
+                {/* [ADDED] Card แสดงผู้ใช้งานที่กำลังเข้าชมสดแบบ Real-time ใน Dashboard */}
+                <div className="bg-gradient-to-r from-amber-900 to-amber-950 text-white p-5 rounded-3xl shadow-lg border border-amber-700/60">
+                   <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-bold text-xs flex items-center gap-2 text-amber-200">
+                         <Activity size={16} className="text-emerald-400 animate-pulse" />
+                         กำลังเข้าชมร้านขณะนี้ ({activeUsers.length} คน)
+                      </h4>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full font-bold">
+                        สด ณ ปัจจุบัน 🟢
+                      </span>
+                   </div>
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto hide-scrollbar">
+                      {activeUsers.map(u => (
+                         <div key={u.id} className="bg-white/10 backdrop-blur-md p-2.5 rounded-2xl flex items-center gap-3 border border-white/10">
+                            {u.pictureUrl ? (
+                               <img src={u.pictureUrl} className="w-8 h-8 rounded-full border border-amber-300/40 object-cover" alt="visitor"/>
+                            ) : (
+                               <div className="w-8 h-8 rounded-full bg-amber-700 flex items-center justify-center text-xs font-bold">🐮</div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                               <p className="text-xs font-bold truncate text-white">{u.displayName}</p>
+                               <p className="text-[9px] text-amber-300/80 truncate">
+                                 {u.view === 'shop' ? '👀 กำลังเลือกเมนู' : u.view === 'cart' ? '🛒 อยู่หน้าตะกร้า' : u.view === 'myOrders' ? '📄 เช็คประวัติบิล' : '⚙️ แผงควบคุม'}
+                               </p>
+                            </div>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                         </div>
+                      ))}
+                      {activeUsers.length === 0 && (
+                         <p className="text-[11px] text-amber-300/60 col-span-2 text-center py-3">ยังไม่มีผู้เข้าชมในขณะนี้</p>
+                      )}
+                   </div>
+                </div>
 
                 <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-3xl shadow-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-emerald-700">
                   <div className="flex items-center gap-3">
@@ -3188,6 +3292,59 @@ export default function App() {
         );
       })()}
 
+      {/* [ADDED] Modal แสดงรายชื่อลูกค้าที่กำลังดูสินค้าอยู่ */}
+      {showActiveUsersModal && (
+        <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 animate-in zoom-in-95 border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+                 <h3 className="font-bold text-base text-slate-800">ผู้เข้าชมร้านตอนนี้ ({activeUsers.length} คน)</h3>
+              </div>
+              <button onClick={() => setShowActiveUsersModal(false)} className="text-slate-400 p-1.5 hover:bg-slate-100 rounded-full transition-colors"><X size={18}/></button>
+            </div>
+
+            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+              ลูกค้าที่กำลังเปิดเลือกดูเครื่องดื่มในร้านวัวนมอารมณ์ดีแบบเรียลไทม์ 🐮✨
+            </p>
+
+            <div className="space-y-2.5 max-h-60 overflow-y-auto hide-scrollbar pt-1">
+              {activeUsers.map((user, idx) => (
+                <div key={user.id || idx} className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    {user.pictureUrl ? (
+                      <img src={user.pictureUrl} className="w-9 h-9 rounded-2xl object-cover border border-amber-300 shadow-xs" alt={user.displayName} />
+                    ) : (
+                      <div className="w-9 h-9 rounded-2xl bg-amber-800 text-white text-xs font-black flex items-center justify-center shadow-xs">🐮</div>
+                    )}
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 leading-tight">
+                        {user.displayName || 'ลูกค้าทั่วไป'} {user.id === lineProfile.userId && <span className="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded-md font-bold ml-1">คุณ</span>}
+                      </p>
+                      <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 
+                        {user.view === 'shop' ? 'กำลังดูหน้าร้าน' : user.view === 'cart' ? 'กำลังดูตะกร้า' : user.view === 'myOrders' ? 'กำลังดูประวัติสั่ง' : 'กำลังใช้งาน'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-semibold">Active</span>
+                </div>
+              ))}
+              {activeUsers.length === 0 && (
+                <p className="text-center text-xs text-slate-400 py-6 font-bold">ยังไม่พบผู้ใช้งานอื่น</p>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setShowActiveUsersModal(false)}
+              className="w-full py-3 bg-slate-900 text-white rounded-2xl font-bold text-xs active:scale-95 shadow-md transition-all"
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal ถ่ายรูปยืนยันการส่งของ */}
       {deliveryModal && (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
@@ -3270,7 +3427,7 @@ export default function App() {
               {successModalData.autoSent 
                 ? "ระบบได้ส่งข้อมูลบิลเข้าไปในแชต LINE ของคุณเรียบร้อยแล้วค่ะ สามารถกดแชร์บิลเพิ่มเติมได้เลยค่ะ" 
                 : "รบกวนกดปุ่มสีเขียวด้านล่างเพื่อแชร์ข้อมูลบิลใบนี้ส่งตรงไปยัง LINE ของร้านนะคะ 💖"
-              }
+            }
             </p>
 
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-dashed border-slate-300 text-left max-h-32 overflow-y-auto">
