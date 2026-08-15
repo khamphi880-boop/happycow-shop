@@ -48,7 +48,7 @@ const THEMES = {
   default: { bg: '#F9F6F0', primary: '#2D2118', accent: '#B8860B', name: 'ปกติ (มินิมอลพรีเมียม)', icons: [] },
   christmas: { bg: '#f0fdf4', primary: '#166534', accent: '#dc2626', name: '🎄 คริสต์มาส', icons: ['❄️', '⛄', '🎁', '🦌'] },
   valentine: { bg: '#fdf2f8', primary: '#831843', accent: '#db2777', name: '💖 วาเลนไทน์', icons: ['💖', '💕', '🌹', '🥰'] },
-  songkran: { bg: '#e0f2fe', primary: '#0369a1', accent: '#0ea5e9', name: '💦 สงกรานต์', icons: ['💦', '🔫', '🌊', '🌴'] },
+  songkran: { bg: '#e0f2fe', primary: '#0369a1', accent: '#0ea5e9', name: '💦 สงกรานต์', icons: ['💦', '🌸', '🌊', '🌴'] },
   halloween: { bg: '#fffbeb', primary: '#451a03', accent: '#ea580c', name: '🎃 ฮาโลวีน', icons: ['🎃', '👻', '🦇', '🕸️'] },
   newyear: { bg: '#f8fafc', primary: '#0f172a', accent: '#ca8a04', name: '🎆 ปีใหม่', icons: ['🎆', '✨', '🎉', '🥂'] },
   loykrathong: { bg: '#f5f3ff', primary: '#2e1065', accent: '#7c3aed', name: '🌕 ลอยกระทง', icons: ['🌕', '🕯️', '🌸', '✨'] },
@@ -188,10 +188,12 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
 
+  // [MODIFIED] Added minOrderAmount to storeSettings default state
   const [storeSettings, setStoreSettings] = useState({ 
     promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
     customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
     shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3, autoCloseDays: [],
+    minOrderAmount: 0,
     googleSheetUrl: 'https://script.google.com/macros/s/AKfycbz8AiaKwcO7IhRqwCEsZhpPmTw9mIkWsnKB-2MDti0-hpDFQ6FGM4ExfijSDfdXm8mn/exec'
   });
   const [editPromptPay, setEditPromptPay] = useState('');
@@ -204,6 +206,8 @@ export default function App() {
   const [editMaxQueue, setEditMaxQueue] = useState(3);
   const [editAutoCloseDays, setEditAutoCloseDays] = useState([]);
   const [editGoogleSheetUrl, setEditGoogleSheetUrl] = useState(''); 
+  // [ADDED] State for editing min order amount in admin settings
+  const [editMinOrderAmount, setEditMinOrderAmount] = useState(0);
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); 
 
@@ -425,6 +429,7 @@ export default function App() {
       setSauces(fetchedSauces); 
     });
 
+    // [MODIFIED] Pull minOrderAmount from Firestore settings
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -440,6 +445,7 @@ export default function App() {
            autoCloseEnabled: data.autoCloseEnabled || false,
            maxQueue: data.maxQueue || 3,
            autoCloseDays: data.autoCloseDays || [],
+           minOrderAmount: data.minOrderAmount !== undefined ? Number(data.minOrderAmount) : 0,
            googleSheetUrl: data.googleSheetUrl || '' 
         });
         setEditPromptPay(data.promptPayNo || '0812345678'); 
@@ -451,6 +457,7 @@ export default function App() {
         setEditAutoCloseEnabled(data.autoCloseEnabled || false);
         setEditMaxQueue(data.maxQueue || 3);
         setEditAutoCloseDays(data.autoCloseDays || []);
+        setEditMinOrderAmount(data.minOrderAmount !== undefined ? Number(data.minOrderAmount) : 0);
         setEditGoogleSheetUrl(data.googleSheetUrl || ''); 
       }
     });
@@ -794,7 +801,6 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] Calculate best sellers strictly from Google Sheets data
   const bestSellers = React.useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
     if (menuItems.length === 0) return defaultSlice;
@@ -808,7 +814,6 @@ export default function App() {
     const countItemSales = (itemsList) => {
       if (!itemsList) return;
 
-      // Handle direct Array format
       if (Array.isArray(itemsList)) {
         itemsList.forEach(item => {
           if (item && item.name) {
@@ -819,7 +824,6 @@ export default function App() {
         return;
       }
 
-      // Handle JSON string or plain text summary format
       if (typeof itemsList === 'string') {
         let parsedJson = null;
         try {
@@ -838,7 +842,6 @@ export default function App() {
           return;
         }
 
-        // Parse formatted plain text lines (e.g. "- 1x ชาไทย" or "2x นมสดเย็น")
         const lines = itemsList.split('\n');
         lines.forEach(line => {
           if (!line.trim()) return;
@@ -855,7 +858,6 @@ export default function App() {
       }
     };
 
-    // Calculate sales counts exclusively from Google Sheets order rows
     sheetOrdersData.forEach(sheetOrder => {
       if (!sheetOrder) return;
       const st = String(sheetOrder.status || '').toLowerCase();
@@ -1001,6 +1003,10 @@ export default function App() {
 
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
   const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
+
+  // [ADDED] Check whether the cart amount fulfills the minimum order requirement
+  const isBelowMinOrder = storeSettings.minOrderAmount > 0 && cartTotal < storeSettings.minOrderAmount;
+  const minOrderShortage = storeSettings.minOrderAmount > 0 ? Math.max(0, storeSettings.minOrderAmount - cartTotal) : 0;
 
   const mainContainerStyle = {
     backgroundColor: currentThemeData.bg,
@@ -1225,6 +1231,9 @@ export default function App() {
                   <li>จัดส่งถึงหน้าห้อง <span className="font-bold text-amber-800">กรณีเข้าตึกได้</span> เท่านั้น</li>
                   <li>หากเข้าตึกไม่ได้ / ฝนตก / ลิฟต์เสีย ขออนุญาต <span className="font-bold text-amber-800">แขวนไว้ใต้ตึก</span></li>
                   <li>ระยะเวลารอประมาณ <span className="font-bold">20 นาที (+/-)</span> ตามลำดับคิว 🙏</li>
+                  {storeSettings.minOrderAmount > 0 && (
+                    <li className="text-amber-900 font-bold">ยอดสั่งซื้อขั้นต่ำ <span className="text-rose-600">฿{storeSettings.minOrderAmount}</span> ต่อหนึ่งออร์เดอร์ค่ะ</li>
+                  )}
                 </ul>
               </div>
             )}
@@ -1356,6 +1365,19 @@ export default function App() {
               <span className="text-xs font-bold text-slate-400">{cart.length} รายการ</span>
             </div>
 
+            {/* [ADDED] Minimum Order Warning Banner in Cart */}
+            {cart.length > 0 && isBelowMinOrder && (
+              <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl shadow-xs animate-in fade-in flex items-start gap-3">
+                <AlertCircle size={20} className="text-amber-700 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs">
+                  <p className="font-bold text-amber-950">ยอดสั่งซื้อยังไม่ถึงขั้นต่ำของร้าน</p>
+                  <p className="text-amber-800 mt-0.5">
+                    ร้านกำหนดยอดสั่งซื้อขั้นต่ำ <span className="font-extrabold text-slate-900">฿{storeSettings.minOrderAmount}</span> (ยังขาดอีก <span className="font-extrabold text-rose-600">฿{minOrderShortage}</span>)
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3">
                {cart.map(i => (
                  <div key={i.cartId} className="flex justify-between items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200/60 shadow-2xs">
@@ -1478,6 +1500,10 @@ export default function App() {
                     onClick={async (e) => {
                       e.preventDefault();
                       if (isProcessingOrder.current) return; 
+                      // [ADDED] Minimum Order Guard Check
+                      if (isBelowMinOrder) {
+                        return showAlert(`ขออภัยค่ะ ร้านกำหนดยอดสั่งซื้อขั้นต่ำ ฿${storeSettings.minOrderAmount} (ขณะนี้ยอดของคุณคือ ฿${cartTotal} ขาดอีก ฿${minOrderShortage}) รบกวนเลือกเครื่องดื่มเพิ่มนะคะ 🐮`);
+                      }
                       if (!address) return showAlert("กรุณากรอกที่อยู่จัดส่งครับ");
                       if (paymentMethod === 'promptpay' && !slipImage) return showAlert("กรุณาแนบสลิปการโอนเงินครับ");
                       
@@ -1559,10 +1585,16 @@ export default function App() {
                         setIsLoading(false);
                       }
                     }}
-                    disabled={isLoading || !acceptedTerms || (paymentMethod === 'promptpay' && !slipImage)} 
-                    className={`w-full py-4.5 rounded-2xl font-bold text-base transition-all shadow-lg active:scale-97 flex justify-center items-center gap-2 ${acceptedTerms && !isLoading && !(paymentMethod === 'promptpay' && !slipImage) ? 'bg-gradient-to-r from-amber-700 to-amber-900 text-white hover:opacity-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                    // [MODIFIED] Added isBelowMinOrder to disabled check and updated button text
+                    disabled={isLoading || !acceptedTerms || (paymentMethod === 'promptpay' && !slipImage) || isBelowMinOrder} 
+                    className={`w-full py-4.5 rounded-2xl font-bold text-base transition-all shadow-lg active:scale-97 flex justify-center items-center gap-2 ${acceptedTerms && !isLoading && !(paymentMethod === 'promptpay' && !slipImage) && !isBelowMinOrder ? 'bg-gradient-to-r from-amber-700 to-amber-900 text-white hover:opacity-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
-                     {isLoading ? 'กำลังบันทึกข้อมูล...' : `ยืนยันการสั่งซื้อ • ฿${cartTotal}`}
+                     {isLoading 
+                       ? 'กำลังบันทึกข้อมูล...' 
+                       : isBelowMinOrder 
+                         ? `ขั้นต่ำ ฿${storeSettings.minOrderAmount} (ขาดอีก ฿${minOrderShortage})` 
+                         : `ยืนยันการสั่งซื้อ • ฿${cartTotal}`
+                     }
                   </button>
                 ) : (
                   <button disabled className="w-full py-4 bg-slate-300 text-slate-500 rounded-2xl font-bold text-sm cursor-not-allowed">
@@ -2437,6 +2469,45 @@ export default function App() {
                       }} className="w-4 h-4 accent-amber-600 cursor-pointer" />
                     </label>
                   </div>
+                </div>
+
+                {/* [ADDED] Minimum Order Setting Card */}
+                <div className="bg-amber-50/80 p-5 rounded-3xl border-2 border-dashed border-amber-300 space-y-3 shadow-inner relative">
+                  <h3 className="font-bold text-xs text-amber-950 uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
+                    <DollarSign size={16} className="text-amber-800" /> ตั้งค่ายอดสั่งซื้อขั้นต่ำ
+                  </h3>
+                  
+                  <div>
+                    <label className="text-[10px] text-slate-600 mb-1 block font-bold">
+                      ยอดสั่งซื้อขั้นต่ำ (บาท) <span className="text-[9px] text-slate-400 font-medium">(ใส่ 0 หากไม่มีขั้นต่ำ)</span>
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="เช่น 40" 
+                      className="w-full p-3.5 rounded-2xl text-xs outline-none shadow-2xs border border-amber-200 font-bold text-slate-800 bg-white" 
+                      value={editMinOrderAmount} 
+                      onChange={e => setEditMinOrderAmount(Number(e.target.value) || 0)} 
+                    />
+                    <p className="text-[9px] text-amber-800 font-medium mt-1 leading-normal">
+                      * ถ้ายอดในตะกร้าต่ำกว่าจำนวนนี้ ลูกค้าจะไม่สามารถกดยืนยันการสั่งซื้อได้
+                    </p>
+                  </div>
+
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const sanitizedMin = Math.max(0, Number(editMinOrderAmount) || 0);
+                        await setDoc(doc(db, 'settings', 'store'), { minOrderAmount: sanitizedMin }, { merge: true });
+                        showAlert(sanitizedMin > 0 ? `กำหนดยอดสั่งซื้อขั้นต่ำเป็น ฿${sanitizedMin} เรียบร้อยแล้วค่ะ! 🐮` : 'ปิดการกำหนดยอดสั่งซื้อขั้นต่ำเรียบร้อยแล้วค่ะ! 🐮');
+                      } catch(e) { 
+                        showAlert("Error: " + e.message); 
+                      }
+                    }} 
+                    className="w-full bg-amber-800 hover:bg-amber-900 text-white py-3.5 rounded-2xl font-bold text-xs active:scale-97 transition-all shadow-md mt-1"
+                  >
+                    บันทึกยอดสั่งซื้อขั้นต่ำ
+                  </button>
                 </div>
 
                 <div className="bg-rose-50/80 p-5 rounded-3xl border-2 border-dashed border-rose-200/80 space-y-3 shadow-inner relative">
