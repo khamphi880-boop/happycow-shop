@@ -211,7 +211,13 @@ export default function App() {
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); 
 
-  const [sheetOrdersData, setSheetOrdersData] = useState([]);
+  // [MODIFIED] Persistent Cache for Google Sheets data (Instant Best-Sellers calculation)
+  const [sheetOrdersData, setSheetOrdersData] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_sheet_orders_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch(e) { return []; }
+  });
   const [isLoadingSheetDashboard, setIsLoadingSheetDashboard] = useState(false);
 
   const [sheetFilterDay, setSheetFilterDay] = useState('all');
@@ -258,6 +264,7 @@ export default function App() {
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
   const isProcessingOrder = useRef(false);
+  const hasFetchedSheetRef = useRef(false);
 
   const isWhipOrCreamCheeseItem = useCallback((item) => {
     if (!item) return false;
@@ -432,23 +439,25 @@ export default function App() {
     }
   };
 
+  // [ENHANCED] Asynchronous Non-Blocking Google Sheets Fetcher
   const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
-    if (!storeSettings?.googleSheetUrl) return;
+    if (!storeSettings?.googleSheetUrl || !storeSettings.googleSheetUrl.startsWith('http')) return;
 
     setIsLoadingSheetDashboard(true);
     try {
       const res = await fetch(storeSettings.googleSheetUrl);
       const json = await res.json();
 
-      if (json && json.status === 'success') {
-        setSheetOrdersData(Array.isArray(json.data) ? json.data : []);
+      if (json && json.status === 'success' && Array.isArray(json.data)) {
+        setSheetOrdersData(json.data);
+        try {
+          localStorage.setItem('happycow_sheet_orders_cache', JSON.stringify(json.data.slice(0, 300)));
+        } catch(e) {}
       } else {
         console.warn("Google Sheets API returned non-success status:", json);
-        setSheetOrdersData([]);
       }
     } catch (err) {
-      console.error("Error fetching Google Sheets dashboard:", err);
-      setSheetOrdersData([]);
+      console.error("Error fetching Google Sheets best seller data:", err);
     } finally {
       setIsLoadingSheetDashboard(false);
     }
@@ -475,12 +484,18 @@ export default function App() {
     }
   };
 
-  // [OPTIMIZED] Fetch Google Sheet data ONLY when admin opens dashboard tab
+  // [ADDED] Background check Google Sheets when viewing Best Sellers tab or Admin Dashboard
   useEffect(() => {
-    if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
+    if (!storeSettings?.googleSheetUrl) return;
+
+    if (view === 'admin' && adminTab === 'dashboard') {
+      fetchDashboardDataFromGoogleSheets();
+    } else if (view === 'shop' && activeCategory === '🔥 เมนูขายดี' && !hasFetchedSheetRef.current) {
+      hasFetchedSheetRef.current = true;
+      // Fetch in background seamlessly without blocking render
       fetchDashboardDataFromGoogleSheets();
     }
-  }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
+  }, [view, adminTab, activeCategory, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
@@ -917,23 +932,26 @@ export default function App() {
     }
   };
 
-  // [OPTIMIZED] High-Speed bestSellers calculation using Map and Set
+  // [CORE FUNCTION] เช็คยอดขายจาก Google Sheets แล้วนำเมนูจริงจาก Firestore มาจัดอันดับขายดี
   const bestSellers = useMemo(() => {
-    const defaultSlice = menuItems.slice(0, 4);
-    if (menuItems.length === 0) return defaultSlice;
+    if (menuItems.length === 0) return [];
+    const defaultFallback = menuItems.slice(0, 6);
 
+    // หากยังไม่มีข้อมูลจาก Sheets ให้แสดง Fallback จากฐานข้อมูลก่อน
     if (!sheetOrdersData || !Array.isArray(sheetOrdersData) || sheetOrdersData.length === 0) {
-      return defaultSlice;
+      return defaultFallback;
     }
 
-    const salesCount = new Map();
+    const salesCountMap = new Map();
     const menuNames = menuItems.map(m => m.name);
 
+    // วนลูปนับจำนวนแก้วที่ขายได้จริงจาก Google Sheets
     for (let i = 0; i < sheetOrdersData.length; i++) {
       const sheetOrder = sheetOrdersData[i];
       if (!sheetOrder) continue;
-      const st = String(sheetOrder.status || '').toLowerCase();
-      if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) continue;
+      
+      const statusStr = String(sheetOrder.status || '').toLowerCase();
+      if (statusStr.includes('cancel') || statusStr.includes('ยกเลิก') || statusStr.includes('deleted')) continue;
 
       const itemsList = sheetOrder.items;
       if (!itemsList) continue;
@@ -943,7 +961,7 @@ export default function App() {
           const item = itemsList[j];
           if (item && item.name) {
             const qty = Number(item.qty) || 1;
-            salesCount.set(item.name, (salesCount.get(item.name) || 0) + qty);
+            salesCountMap.set(item.name, (salesCountMap.get(item.name) || 0) + qty);
           }
         }
       } else if (typeof itemsList === 'string') {
@@ -958,7 +976,7 @@ export default function App() {
             const item = parsedJson[j];
             if (item && item.name) {
               const qty = Number(item.qty) || 1;
-              salesCount.set(item.name, (salesCount.get(item.name) || 0) + qty);
+              salesCountMap.set(item.name, (salesCountMap.get(item.name) || 0) + qty);
             }
           }
         } else {
@@ -973,7 +991,7 @@ export default function App() {
             for (let k = 0; k < menuNames.length; k++) {
               const mName = menuNames[k];
               if (itemDetail.includes(mName)) {
-                salesCount.set(mName, (salesCount.get(mName) || 0) + qty);
+                salesCountMap.set(mName, (salesCountMap.get(mName) || 0) + qty);
               }
             }
           }
@@ -981,13 +999,16 @@ export default function App() {
       }
     }
 
-    let sortedMenus = menuItems.map(menu => ({
+    // แมปยอดขายจริงเข้ากับเมนูทั้งหมดในฐานข้อมูล Firestore
+    let rankedMenus = menuItems.map(menu => ({
       ...menu,
-      sales: salesCount.get(menu.name) || 0
+      sales: salesCountMap.get(menu.name) || 0
     }));
 
-    sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
+    // กรองเอาเฉพาะเมนูที่มียอดขายจริงใน Google Sheets และเรียงจากมากไปน้อย
+    rankedMenus = rankedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
+    
+    return rankedMenus.length > 0 ? rankedMenus.slice(0, 9) : defaultFallback;
   }, [sheetOrdersData, menuItems]);
 
   const displayedItems = useMemo(() => {
@@ -1128,7 +1149,6 @@ export default function App() {
     backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed'
   }), [currentThemeData.bg, storeSettings.theme, storeSettings.customBgImage]);
 
-  // [OPTIMIZED] Memoize falling icons data to prevent Math.random recalculation on each render
   const fallingIconsData = useMemo(() => {
     if (!storeSettings.theme || storeSettings.theme === 'default' || !currentThemeData.icons || currentThemeData.icons.length === 0) return [];
     return Array.from({ length: 12 }, (_, i) => ({
