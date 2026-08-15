@@ -211,7 +211,6 @@ export default function App() {
   
   const [isSyncingAll, setIsSyncingAll] = useState(false); 
 
-  // [MODIFIED] Persistent Cache for Google Sheets data (Instant Best-Sellers calculation)
   const [sheetOrdersData, setSheetOrdersData] = useState(() => {
     try {
       const cached = localStorage.getItem('happycow_sheet_orders_cache');
@@ -439,7 +438,6 @@ export default function App() {
     }
   };
 
-  // [ENHANCED] Asynchronous Non-Blocking Google Sheets Fetcher
   const fetchDashboardDataFromGoogleSheets = useCallback(async () => {
     if (!storeSettings?.googleSheetUrl || !storeSettings.googleSheetUrl.startsWith('http')) return;
 
@@ -484,7 +482,6 @@ export default function App() {
     }
   };
 
-  // [ADDED] Background check Google Sheets when viewing Best Sellers tab or Admin Dashboard
   useEffect(() => {
     if (!storeSettings?.googleSheetUrl) return;
 
@@ -492,7 +489,6 @@ export default function App() {
       fetchDashboardDataFromGoogleSheets();
     } else if (view === 'shop' && activeCategory === '🔥 เมนูขายดี' && !hasFetchedSheetRef.current) {
       hasFetchedSheetRef.current = true;
-      // Fetch in background seamlessly without blocking render
       fetchDashboardDataFromGoogleSheets();
     }
   }, [view, adminTab, activeCategory, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
@@ -932,39 +928,46 @@ export default function App() {
     }
   };
 
-  // [CORE FUNCTION] เช็คยอดขายจาก Google Sheets แล้วนำเมนูจริงจาก Firestore มาจัดอันดับขายดี
+  // [FIXED] Best Sellers logic: Exact Match, Longest-First, Zero Fallback
   const bestSellers = useMemo(() => {
-    if (menuItems.length === 0) return [];
-    const defaultFallback = menuItems.slice(0, 6);
-
-    // หากยังไม่มีข้อมูลจาก Sheets ให้แสดง Fallback จากฐานข้อมูลก่อน
+    if (!menuItems || menuItems.length === 0) return [];
     if (!sheetOrdersData || !Array.isArray(sheetOrdersData) || sheetOrdersData.length === 0) {
-      return defaultFallback;
+      return []; // ไม่ดึงเมนูสุ่มมาแสดงเด็ดขาดถ้ายังไม่มียอดขาย
     }
 
     const salesCountMap = new Map();
-    const menuNames = menuItems.map(m => m.name);
+    
+    // เรียงชื่อเมนูจากยาวไปสั้น เพื่อให้ชื่อยาว (เช่น ชาไทยชีส) ถูกจับคู่ก่อนชื่อสั้น (เช่น ชาไทย)
+    const sortedMenuNames = [...menuItems]
+      .map(m => (m.name || '').trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
 
-    // วนลูปนับจำนวนแก้วที่ขายได้จริงจาก Google Sheets
     for (let i = 0; i < sheetOrdersData.length; i++) {
       const sheetOrder = sheetOrdersData[i];
       if (!sheetOrder) continue;
       
-      const statusStr = String(sheetOrder.status || '').toLowerCase();
+      const statusStr = String(sheetOrder.status || '').toLowerCase().trim();
       if (statusStr.includes('cancel') || statusStr.includes('ยกเลิก') || statusStr.includes('deleted')) continue;
 
       const itemsList = sheetOrder.items;
       if (!itemsList) continue;
 
+      // กรณี A: ข้อมูลส่งมาเป็น Array ของ Object
       if (Array.isArray(itemsList)) {
         for (let j = 0; j < itemsList.length; j++) {
           const item = itemsList[j];
           if (item && item.name) {
+            const cleanName = String(item.name).trim();
             const qty = Number(item.qty) || 1;
-            salesCountMap.set(item.name, (salesCountMap.get(item.name) || 0) + qty);
+            salesCountMap.set(cleanName, (salesCountMap.get(cleanName) || 0) + qty);
           }
         }
-      } else if (typeof itemsList === 'string') {
+        continue;
+      }
+
+      // กรณี B: ข้อมูลส่งมาเป็น String (JSON หรือข้อความหลายบรรทัด)
+      if (typeof itemsList === 'string') {
         const trimmed = itemsList.trim();
         let parsedJson = null;
         if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
@@ -975,40 +978,67 @@ export default function App() {
           for (let j = 0; j < parsedJson.length; j++) {
             const item = parsedJson[j];
             if (item && item.name) {
+              const cleanName = String(item.name).trim();
               const qty = Number(item.qty) || 1;
-              salesCountMap.set(item.name, (salesCountMap.get(item.name) || 0) + qty);
+              salesCountMap.set(cleanName, (salesCountMap.get(cleanName) || 0) + qty);
             }
           }
         } else {
+          // แยกแต่ละบรรทัดในบิล เช่น "- 2x นมสด (หวาน 100%...)"
           const lines = trimmed.split('\n');
           for (let j = 0; j < lines.length; j++) {
             const line = lines[j].trim();
             if (!line) continue;
-            const match = line.match(/(?:-\s*)?(\d+)x\s*(.+)/i);
-            const qty = match ? parseInt(match[1], 10) : 1;
-            const itemDetail = match ? match[2] : line;
 
-            for (let k = 0; k < menuNames.length; k++) {
-              const mName = menuNames[k];
-              if (itemDetail.includes(mName)) {
-                salesCountMap.set(mName, (salesCountMap.get(mName) || 0) + qty);
+            const match = line.match(/^(?:-\s*)?(\d+)\s*x\s*(.+)$/i);
+            const qty = match ? parseInt(match[1], 10) : 1;
+            let rawItem = match ? match[2].trim() : line.replace(/^-\s*/, '').trim();
+
+            // ตัดข้อความในวงเล็บออปชันออก เช่น (เย็น • หวาน 100%) เพื่อไม่ให้ตัวเลือกหลุดมาเป็นชื่อเมนู
+            const parenIdx = rawItem.indexOf('(');
+            let candidateName = parenIdx !== -1 ? rawItem.slice(0, parenIdx).trim() : rawItem;
+
+            let matchedMenuName = null;
+
+            // 1. ตรวจสอบชื่อที่ตรงกันแบบ Exact Match
+            for (const mName of sortedMenuNames) {
+              if (candidateName.toLowerCase() === mName.toLowerCase()) {
+                matchedMenuName = mName;
+                break;
               }
+            }
+
+            // 2. ถ้าชื่อมีข้อความต่อท้าย ให้จับคู่กับเมนูที่ยาวที่สุดที่ขึ้นต้นตรงกัน
+            if (!matchedMenuName) {
+              for (const mName of sortedMenuNames) {
+                if (candidateName.toLowerCase().startsWith(mName.toLowerCase())) {
+                  matchedMenuName = mName;
+                  break;
+                }
+              }
+            }
+
+            if (matchedMenuName) {
+              salesCountMap.set(matchedMenuName, (salesCountMap.get(matchedMenuName) || 0) + qty);
             }
           }
         }
       }
     }
 
-    // แมปยอดขายจริงเข้ากับเมนูทั้งหมดในฐานข้อมูล Firestore
-    let rankedMenus = menuItems.map(menu => ({
-      ...menu,
-      sales: salesCountMap.get(menu.name) || 0
-    }));
+    // แมปเข้าเมนู Firestore และคัดเอาเฉพาะเมนูที่มียอดขาย > 0 เท่านั้น
+    let rankedMenus = menuItems
+      .map(menu => {
+        const cleanMenuName = (menu.name || '').trim();
+        return {
+          ...menu,
+          sales: salesCountMap.get(cleanMenuName) || 0
+        };
+      })
+      .filter(m => m.sales > 0)
+      .sort((a, b) => b.sales - a.sales);
 
-    // กรองเอาเฉพาะเมนูที่มียอดขายจริงใน Google Sheets และเรียงจากมากไปน้อย
-    rankedMenus = rankedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    
-    return rankedMenus.length > 0 ? rankedMenus.slice(0, 9) : defaultFallback;
+    return rankedMenus.slice(0, 9);
   }, [sheetOrdersData, menuItems]);
 
   const displayedItems = useMemo(() => {
@@ -1260,7 +1290,7 @@ export default function App() {
                  คุณ {(lineProfile.displayName || 'ลูกค้าทั่วไป').slice(0, 11)}
                </span>
                <span className="text-slate-300">•</span>
-               <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-xs ${storeSettings.isStoreOpen !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+               <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-xs ${storeSettings.isStoreOpen !== false ? 'bg-emerald-500 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
                  {storeSettings.isStoreOpen !== false ? 'เปิดร้าน' : 'ปิดร้าน'}
                </span>
              </div>
@@ -1496,7 +1526,12 @@ export default function App() {
                     <div className="col-span-2 py-20 text-center flex flex-col items-center gap-3 bg-white/60 rounded-3xl backdrop-blur-md border border-slate-200/50">
                       <AlertCircle size={36} className="text-slate-300" />
                       <p className="text-slate-500 text-xs font-bold">
-                        {searchQuery ? `ไม่พบเมนูที่ตรงกับ "${searchQuery}"` : `ยังไม่มีเมนูในหมวด "${activeCategory}"`}
+                        {searchQuery 
+                          ? `ไม่พบเมนูที่ตรงกับ "${searchQuery}"` 
+                          : activeCategory === '🔥 เมนูขายดี' 
+                            ? 'ยังไม่มีข้อมูลยอดขายในระบบ Google Sheets 🐮' 
+                            : `ยังไม่มีเมนูในหมวด "${activeCategory}"`
+                        }
                       </p>
                     </div>
                   )}
