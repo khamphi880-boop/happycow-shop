@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-// [REMOVED] เอา recharts ออกเพื่อป้องกัน Build Failed บน Vercel
 import { 
   ShoppingCart, Plus, Trash2, ChevronLeft, X, Upload, ClipboardList, Coffee, Zap, 
   MapPin, Settings, Copy, CheckCircle, AlertCircle, LogIn, Eye, Clock, Check, 
@@ -125,7 +124,6 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 // --- 3. Main App Component ---
 export default function App() {
   const [menuItems, setMenuItems] = useState([]);
-  // [MODIFIED] Persistent cache for instant loading of orders
   const [orders, setOrders] = useState(() => {
     try {
       const cached = localStorage.getItem('happycow_orders_cache');
@@ -175,8 +173,8 @@ export default function App() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [msgBox, setMsgBox] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
-  const showAlert = (message, onConfirm = null) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm });
-  const showConfirm = (message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm });
+  const showAlert = useCallback((message, onConfirm = null) => setMsgBox({ isOpen: true, type: 'alert', message, onConfirm }), []);
+  const showConfirm = useCallback((message, onConfirm) => setMsgBox({ isOpen: true, type: 'confirm', message, onConfirm }), []);
   
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
@@ -261,19 +259,26 @@ export default function App() {
   const previousOrderCount = useRef(0);
   const isProcessingOrder = useRef(false);
 
-  const isWhipOrCreamCheeseItem = (item) => {
+  const isWhipOrCreamCheeseItem = useCallback((item) => {
     if (!item) return false;
     return item.category === 'วิปครีมและครีมชีส' || 
            item.category === 'ครีมและครีมชีส' || 
            (item.name && (item.name.includes('วิปครีม') || item.name.includes('ครีมชีส')));
-  };
+  }, []);
 
-  const getAddedBlendPrice = (item) => {
+  const getAddedBlendPrice = useCallback((item) => {
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
-  };
+  }, []);
 
-  const generateOrderSummaryText = (order) => {
+  const getBlendText = useCallback((item) => {
+    if (isWhipOrCreamCheeseItem(item)) return ''; 
+    if (item.isOnlyBlend) return 'ปั่น';
+    if (item.allowBlend === false) return 'เย็น/ปกติ';
+    return item.isBlended ? 'ปั่น' : 'เย็น';
+  }, [isWhipOrCreamCheeseItem]);
+
+  const generateOrderSummaryText = useCallback((order) => {
     if (!order) return '';
     const dateStr = new Date(order.timestamp).toLocaleString('th-TH');
     const paymentText = order.paymentMethod === 'cash' ? 'ชำระเงินสด' : (order.paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์');
@@ -293,7 +298,7 @@ export default function App() {
     }).join('\n');
 
     return `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${order.id.slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${order.lineName || "ลูกค้าทั่วไป"}\n${itemsListText}\n\nยอดรวม: ฿${order.total}\nที่อยู่: ${order.address || '-'}\nช่องทางชำระเงิน: ${paymentText}\nหมายเหตุ: ${order.note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
-  };
+  }, [getBlendText, isWhipOrCreamCheeseItem]);
 
   const handleShareOrderBill = async (order) => {
     const text = generateOrderSummaryText(order);
@@ -316,7 +321,6 @@ export default function App() {
     }
   };
 
-  // [ADDED] ฟังก์ชันสั่งซื้อซ้ำทั้งบิล (Re-order Entire Bill)
   const handleReorder = (order) => {
     if (!order || !order.items || order.items.length === 0) return;
 
@@ -326,7 +330,6 @@ export default function App() {
     order.items.forEach(pastItem => {
       const currentMenu = menuItems.find(m => m.id === pastItem.id || m.name === pastItem.name);
       
-      // Check if the menu is sold out or unavailable
       if (currentMenu && currentMenu.isSoldOut) {
         unavailableItems.push(pastItem.name);
       } else if (pastItem.isOnlyBlend && storeSettings.isBlendOut) {
@@ -353,7 +356,6 @@ export default function App() {
       return showAlert("ขออภัยค่ะ รายการเครื่องดื่มในบิลนี้หมดชั่วคราวทั้งหมด ไม่สามารถสั่งซ้ำได้ในขณะนี้ค่ะ 🐮");
     }
 
-    // Merge items into cart
     setCart(prevCart => {
       let newCart = [...prevCart];
       itemsToAdd.forEach(newItem => {
@@ -367,7 +369,6 @@ export default function App() {
       return newCart;
     });
 
-    // Auto-fill address if empty
     if (order.address && !address) setAddress(order.address);
 
     if (unavailableItems.length > 0) {
@@ -381,7 +382,6 @@ export default function App() {
     }
   };
 
-  // [ADDED] ฟังก์ชันสั่งซื้อซ้ำเฉพาะแก้ว (Re-order Single Item)
   const handleReorderSingleItem = (item) => {
     if (!item) return;
     const currentMenu = menuItems.find(m => m.id === item.id || m.name === item.name);
@@ -475,11 +475,12 @@ export default function App() {
     }
   };
 
+  // [OPTIMIZED] Fetch Google Sheet data ONLY when admin opens dashboard tab
   useEffect(() => {
-    if (storeSettings?.googleSheetUrl) {
+    if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
       fetchDashboardDataFromGoogleSheets();
     }
-  }, [storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
+  }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
@@ -487,7 +488,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('happycow_note', note); }, [note]);
   useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
-  // [ADDED] Cache recent orders for instant display without network lag
+  
   useEffect(() => {
     if (orders.length > 0) {
       try {
@@ -495,12 +496,6 @@ export default function App() {
       } catch (e) {}
     }
   }, [orders]);
-
-  useEffect(() => {
-    if (view === 'admin' && adminTab === 'dashboard' && storeSettings?.googleSheetUrl) {
-      fetchDashboardDataFromGoogleSheets();
-    }
-  }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
@@ -521,6 +516,7 @@ export default function App() {
     else {
       const script = document.createElement('script');
       script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+      script.async = true;
       script.onload = initializeLiff;
       document.body.appendChild(script);
     }
@@ -574,7 +570,6 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // [MODIFIED] High-Performance Query with Limit & Background Sync
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
@@ -628,7 +623,7 @@ export default function App() {
         }
       }
     }
-  }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays]);
+  }, [orders, storeSettings.autoCloseEnabled, storeSettings.maxQueue, storeSettings.isStoreOpen, storeSettings.autoCloseDays, showAlert]);
 
   const viewImage = async (orderId, type) => {
     setLoadingSlipId(orderId);
@@ -906,13 +901,6 @@ export default function App() {
     if(searchQuery) handleSearchSubmit(searchQuery);
   };
 
-  const getBlendText = (item) => {
-    if (isWhipOrCreamCheeseItem(item)) return ''; 
-    if (item.isOnlyBlend) return 'ปั่น';
-    if (item.allowBlend === false) return 'เย็น/ปกติ';
-    return item.isBlended ? 'ปั่น' : 'เย็น';
-  };
-
   const copyPromptPay = () => { navigator.clipboard.writeText(storeSettings.promptPayNo || '0812345678').then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
 
   const handleDownloadImage = (url, name) => {
@@ -929,7 +917,8 @@ export default function App() {
     }
   };
 
-  const bestSellers = React.useMemo(() => {
+  // [OPTIMIZED] High-Speed bestSellers calculation using Map and Set
+  const bestSellers = useMemo(() => {
     const defaultSlice = menuItems.slice(0, 4);
     if (menuItems.length === 0) return defaultSlice;
 
@@ -937,74 +926,71 @@ export default function App() {
       return defaultSlice;
     }
 
-    const salesCount = {};
+    const salesCount = new Map();
+    const menuNames = menuItems.map(m => m.name);
 
-    const countItemSales = (itemsList) => {
-      if (!itemsList) return;
+    for (let i = 0; i < sheetOrdersData.length; i++) {
+      const sheetOrder = sheetOrdersData[i];
+      if (!sheetOrder) continue;
+      const st = String(sheetOrder.status || '').toLowerCase();
+      if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) continue;
+
+      const itemsList = sheetOrder.items;
+      if (!itemsList) continue;
 
       if (Array.isArray(itemsList)) {
-        itemsList.forEach(item => {
+        for (let j = 0; j < itemsList.length; j++) {
+          const item = itemsList[j];
           if (item && item.name) {
             const qty = Number(item.qty) || 1;
-            salesCount[item.name] = (salesCount[item.name] || 0) + qty;
+            salesCount.set(item.name, (salesCount.get(item.name) || 0) + qty);
           }
-        });
-        return;
-      }
-
-      if (typeof itemsList === 'string') {
+        }
+      } else if (typeof itemsList === 'string') {
+        const trimmed = itemsList.trim();
         let parsedJson = null;
-        try {
-          if (itemsList.trim().startsWith('[') || itemsList.trim().startsWith('{')) {
-            parsedJson = JSON.parse(itemsList);
-          }
-        } catch (e) {}
-
-        if (Array.isArray(parsedJson)) {
-          parsedJson.forEach(item => {
-            if (item && item.name) {
-              const qty = Number(item.qty) || 1;
-              salesCount[item.name] = (salesCount[item.name] || 0) + qty;
-            }
-          });
-          return;
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          try { parsedJson = JSON.parse(trimmed); } catch (e) {}
         }
 
-        const lines = itemsList.split('\n');
-        lines.forEach(line => {
-          if (!line.trim()) return;
-          const match = line.match(/(?:-\s*)?(\d+)x\s*(.+)/i);
-          const qty = match ? parseInt(match[1], 10) : 1;
-          const itemDetail = match ? match[2] : line;
-
-          menuItems.forEach(menu => {
-            if (itemDetail.includes(menu.name)) {
-              salesCount[menu.name] = (salesCount[menu.name] || 0) + qty;
+        if (Array.isArray(parsedJson)) {
+          for (let j = 0; j < parsedJson.length; j++) {
+            const item = parsedJson[j];
+            if (item && item.name) {
+              const qty = Number(item.qty) || 1;
+              salesCount.set(item.name, (salesCount.get(item.name) || 0) + qty);
             }
-          });
-        });
-      }
-    };
+          }
+        } else {
+          const lines = trimmed.split('\n');
+          for (let j = 0; j < lines.length; j++) {
+            const line = lines[j].trim();
+            if (!line) continue;
+            const match = line.match(/(?:-\s*)?(\d+)x\s*(.+)/i);
+            const qty = match ? parseInt(match[1], 10) : 1;
+            const itemDetail = match ? match[2] : line;
 
-    sheetOrdersData.forEach(sheetOrder => {
-      if (!sheetOrder) return;
-      const st = String(sheetOrder.status || '').toLowerCase();
-      if (st.includes('cancel') || st.includes('ยกเลิก') || st.includes('deleted')) return;
-      
-      countItemSales(sheetOrder.items);
-    });
+            for (let k = 0; k < menuNames.length; k++) {
+              const mName = menuNames[k];
+              if (itemDetail.includes(mName)) {
+                salesCount.set(mName, (salesCount.get(mName) || 0) + qty);
+              }
+            }
+          }
+        }
+      }
+    }
 
     let sortedMenus = menuItems.map(menu => ({
       ...menu,
-      sales: salesCount[menu.name] || 0
+      sales: salesCount.get(menu.name) || 0
     }));
 
     sortedMenus = sortedMenus.filter(m => m.sales > 0).sort((a, b) => b.sales - a.sales);
-    
     return sortedMenus.length === 0 ? defaultSlice : sortedMenus.slice(0, 9);
   }, [sheetOrdersData, menuItems]);
 
-  const displayedItems = React.useMemo(() => {
+  const displayedItems = useMemo(() => {
     if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
     if (activeCategory === '🔥 เมนูขายดี') return bestSellers;
     return menuItems.filter(i => {
@@ -1014,9 +1000,9 @@ export default function App() {
     }).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
   }, [activeCategory, menuItems, bestSellers, searchQuery]);
 
-  const promotedItems = React.useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
+  const promotedItems = useMemo(() => menuItems.filter(i => i.isPromoted).sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0)), [menuItems]);
 
-  const filteredOrders = React.useMemo(() => {
+  const filteredOrders = useMemo(() => {
     const activeOrders = orders.filter(o => !o.isDeleted);
     if (!adminSearchQuery) return activeOrders;
     const q = adminSearchQuery.trim().toLowerCase();
@@ -1049,7 +1035,8 @@ export default function App() {
     let thaiSum = 0;
     let completedCount = 0;
 
-    validSheetOrders.forEach(o => {
+    for (let i = 0; i < validSheetOrders.length; i++) {
+      const o = validSheetOrders[i];
       const amount = Number(o?.total) || 0;
       const paymentMethod = String(o?.paymentMethod || o?.payment || '').toLowerCase();
       const st = String(o?.status || '').toLowerCase();
@@ -1072,7 +1059,7 @@ export default function App() {
       } else if (paymentMethod.includes("ไทยช่วยไทย") || paymentMethod.includes("thaichueithai") || paymentMethod.includes("ไทย")) {
         thaiSum += amount;
       }
-    });
+    }
 
     return {
       todayRevenue,
@@ -1130,24 +1117,35 @@ export default function App() {
   }, [view, promotedItems.length, searchQuery]);
 
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
-  const cartTotal = cart.reduce((s,i)=>s+(i.price*i.qty),0);
+  const cartTotal = useMemo(() => cart.reduce((s, i) => s + (i.price * i.qty), 0), [cart]);
 
   const isBelowMinOrder = storeSettings.minOrderAmount > 0 && cartTotal < storeSettings.minOrderAmount;
   const minOrderShortage = storeSettings.minOrderAmount > 0 ? Math.max(0, storeSettings.minOrderAmount - cartTotal) : 0;
 
-  const mainContainerStyle = {
+  const mainContainerStyle = useMemo(() => ({
     backgroundColor: currentThemeData.bg,
     backgroundImage: storeSettings.theme === 'custom' && storeSettings.customBgImage ? `url(${storeSettings.customBgImage})` : 'none',
     backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed'
-  };
+  }), [currentThemeData.bg, storeSettings.theme, storeSettings.customBgImage]);
+
+  // [OPTIMIZED] Memoize falling icons data to prevent Math.random recalculation on each render
+  const fallingIconsData = useMemo(() => {
+    if (!storeSettings.theme || storeSettings.theme === 'default' || !currentThemeData.icons || currentThemeData.icons.length === 0) return [];
+    return Array.from({ length: 12 }, (_, i) => ({
+      id: i,
+      left: `${(i * 8.33) + 2}%`,
+      animationDuration: `${12 + (i % 6) * 2}s`,
+      animationDelay: `-${(i % 5) * 2.5}s`,
+      fontSize: `${1.1 + (i % 3) * 0.25}rem`,
+      icon: currentThemeData.icons[i % currentThemeData.icons.length]
+    }));
+  }, [storeSettings.theme, currentThemeData.icons]);
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col font-sans relative overflow-hidden transition-colors duration-500 shadow-2xl bg-amber-50/20" style={mainContainerStyle}>
-      <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="auto"></audio>
+      <audio id="orderNotification" ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2854/2854-preview.mp3" preload="none"></audio>
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Kanit:wght@300;400;500;600;700&display=swap');
-        
         :root {
           --theme-primary: ${currentThemeData.primary};
           --theme-accent: ${currentThemeData.accent};
@@ -1173,8 +1171,8 @@ export default function App() {
 
         .glass-card {
           background: rgba(255, 255, 255, 0.82);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.6);
           box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
         }
@@ -1204,19 +1202,19 @@ export default function App() {
         .special-bg { background: linear-gradient(135deg, rgba(255,251,245,0.92) 0%, rgba(255,243,230,0.95) 100%); }
         
         @keyframes fall { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(360deg); opacity: 0; } }
-        .falling-icon { position: fixed; z-index: 10; animation: fall linear infinite; pointer-events: none; font-size: 1.5rem; opacity: 0.6; }
+        .falling-icon { position: fixed; z-index: 10; animation: fall linear infinite; pointer-events: none; opacity: 0.6; }
       `}</style>
 
-      {storeSettings.theme && storeSettings.theme !== 'default' && currentThemeData.icons && (
+      {fallingIconsData.length > 0 && (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          {[...Array(12)].map((_, i) => (
-             <div key={i} className="falling-icon" style={{
-                left: `${Math.random() * 100}vw`,
-                animationDuration: `${10 + Math.random() * 15}s`,
-                animationDelay: `-${Math.random() * 10}s`,
-                fontSize: `${1 + Math.random() * 1.5}rem`
+          {fallingIconsData.map((item) => (
+             <div key={item.id} className="falling-icon" style={{
+                left: item.left,
+                animationDuration: item.animationDuration,
+                animationDelay: item.animationDelay,
+                fontSize: item.fontSize
              }}>
-                {currentThemeData.icons[Math.floor(Math.random() * currentThemeData.icons.length)]}
+                {item.icon}
              </div>
           ))}
         </div>
@@ -1227,7 +1225,7 @@ export default function App() {
         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }}>
            <div className="relative">
              {lineProfile.pictureUrl ? (
-               <img src={lineProfile.pictureUrl} className="w-11 h-11 rounded-2xl border-2 border-amber-400/60 shadow-md object-cover transition-transform group-hover:scale-105" alt="profile" />
+               <img src={lineProfile.pictureUrl} loading="eager" decoding="async" className="w-11 h-11 rounded-2xl border-2 border-amber-400/60 shadow-md object-cover transition-transform group-hover:scale-105" alt="profile" />
              ) : (
                <div className="w-11 h-11 bg-gradient-to-tr from-amber-800 to-amber-900 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-md border border-amber-500/30">🐮</div>
              )}
@@ -1329,7 +1327,7 @@ export default function App() {
                     <div key={`promo-${item.id}`} className="w-[88%] flex-shrink-0 snap-center">
                       <div onClick={() => openOptionModal(item)} className={`bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950 text-white rounded-3xl p-4 shadow-xl flex items-center gap-4 border border-amber-500/30 transition-all h-full relative overflow-hidden animate-shimmer ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-98'}`}>
                          <div className="relative">
-                            <img src={item.image} className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-lg border border-amber-400/20 flex-shrink-0" alt={item.name} />
+                            <img src={item.image} loading="eager" decoding="async" className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-lg border border-amber-400/20 flex-shrink-0" alt={item.name} />
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
                             {item.isSoldOut && (
                                <div className="absolute top-1 -left-1 bg-slate-900/90 text-white px-2.5 py-0.5 rounded-md font-bold text-[9px] shadow-lg border border-slate-700 rotate-[-5deg] z-10">หมด</div>
@@ -1412,10 +1410,10 @@ export default function App() {
                     <div 
                       key={item.id} 
                       onClick={() => openOptionModal(item)} 
-                      className={`rounded-3xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 relative border flex flex-col justify-between ${
+                      className={`rounded-3xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 relative flex flex-col justify-between ${
                         isSpecial 
                           ? 'special-bg border-amber-200/70 glow-effect' 
-                          : 'bg-white/95 border-slate-200/80'
+                          : 'bg-white/95 border border-slate-200/80'
                       } ${
                         isDisabled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:-translate-y-1 active:scale-97'
                       }`}
@@ -1449,7 +1447,13 @@ export default function App() {
                       )}
 
                       <div className="aspect-square bg-slate-50 relative overflow-hidden">
-                         <img src={item.image} className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" alt={item.name} />
+                         <img 
+                           src={item.image} 
+                           loading="lazy" 
+                           decoding="async" 
+                           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
+                           alt={item.name} 
+                         />
                       </div>
 
                       <div className="p-3.5 text-left flex flex-col justify-between flex-1">
@@ -1551,9 +1555,9 @@ export default function App() {
                   <div className="bg-slate-50 p-5 rounded-3xl border-2 border-dashed border-slate-200 text-center relative overflow-hidden">
                     <p className="text-xs font-bold mb-3 text-slate-800">สแกน QR Code เพื่อชำระเงิน 📱</p>
                     {storeSettings.qrCodeImage ? (
-                      <img src={storeSettings.qrCodeImage} className="w-36 h-36 mx-auto mb-3 bg-white p-2 rounded-2xl object-contain shadow-sm border border-slate-100" alt="QR Code ร้าน" />
+                      <img src={storeSettings.qrCodeImage} loading="lazy" decoding="async" className="w-36 h-36 mx-auto mb-3 bg-white p-2 rounded-2xl object-contain shadow-sm border border-slate-100" alt="QR Code ร้าน" />
                     ) : (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} className="w-36 h-36 mx-auto mb-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm" alt="QR Code อัตโนมัติ" />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PROMPTPAY:${storeSettings.promptPayNo}:${cartTotal}`} loading="lazy" decoding="async" className="w-36 h-36 mx-auto mb-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm" alt="QR Code อัตโนมัติ" />
                     )}
                     
                     <div className="flex items-center justify-center gap-2 mb-4">
@@ -1585,7 +1589,7 @@ export default function App() {
 
                     {slipImage && (
                        <div className="mt-4 bg-white p-3 rounded-2xl shadow-xs border border-slate-100">
-                          <img src={slipImage} className="h-32 mx-auto rounded-xl shadow-xs border border-slate-100 mb-2 object-contain bg-slate-50" alt="Slip Preview" />
+                          <img src={slipImage} loading="lazy" decoding="async" className="h-32 mx-auto rounded-xl shadow-xs border border-slate-100 mb-2 object-contain bg-slate-50" alt="Slip Preview" />
                           {slipStatus === 'checking' && (
                              <div className="flex flex-col items-center gap-1.5 text-blue-600 animate-pulse">
                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1731,7 +1735,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- My Orders View (ประวัติการสั่งซื้อ + สั่งซ้ำได้ทันที) --- */}
+        {/* --- My Orders View --- */}
         {view === 'myOrders' && (
           <div className="p-6 space-y-6 flex-1 bg-white rounded-t-[3rem] mt-4 min-h-[85vh] shadow-2xl relative z-20 animate-in slide-in-from-bottom-6 duration-300">
              <button onClick={() => { setView('shop'); setActiveCategory('🔥 เมนูขายดี'); }} className="flex items-center gap-2 font-bold text-slate-400 text-xs hover:text-slate-800"><ChevronLeft size={18}/> กลับหน้าร้าน</button>
@@ -1768,7 +1772,7 @@ export default function App() {
                             <div className="text-xl font-serif font-black text-slate-900">฿{o.total}</div>
                           </div>
                           
-                          {/* รายการเครื่องดื่มในบิล พร้อมปุ่มสั่งซ้ำเฉพาะแก้ว */}
+                          {/* รายการเครื่องดื่มในบิล */}
                           <div className="space-y-2 mb-3">
                             {(o.items || []).map((item, idx) => (
                               <div key={idx} className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50/80 border border-slate-100">
@@ -1792,7 +1796,7 @@ export default function App() {
                             ))}
                           </div>
 
-                          {/* [ADDED] ปุ่มสั่งซ้ำทั้งบิล และ ปุ่มแชร์ */}
+                          {/* ปุ่มสั่งซ้ำทั้งบิล และ ปุ่มแชร์ */}
                           <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
                             <button 
                               onClick={() => handleReorder(o)}
@@ -1864,11 +1868,10 @@ export default function App() {
               ))}
             </div>
 
-            {/* TAB: แดชบอร์ด (Google Sheets Only) */}
+            {/* TAB: แดชบอร์ด */}
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* 1. Google Sheets Live Sync Control Bar */}
                 <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 rounded-3xl shadow-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-emerald-700">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
@@ -1905,7 +1908,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2. การ์ดสรุปยอดขาย (Google Sheets Data Only) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 rounded-3xl shadow-xl relative overflow-hidden border border-emerald-500">
                     <div className="absolute -right-2 -top-2 opacity-15"><Calendar size={100}/></div>
@@ -1936,7 +1938,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 3. จำแนกช่องทางชำระเงินจาก Google Sheets */}
                 <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
                   <h3 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                     <Banknote size={16} className="text-emerald-600"/> สัดส่วนช่องทางชำระเงิน (ข้อมูลจาก Google Sheets)
@@ -1975,7 +1976,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 4. ตารางแสดงประวัติออร์เดอร์ถาวรจาก Google Sheets */}
                 <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
                     <h3 className="font-bold text-xs text-slate-800 flex items-center gap-2">
@@ -2432,7 +2432,7 @@ export default function App() {
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'up', itemsInCategory); }} disabled={idx === 0 || adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === 0 || adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowUp size={13}/></button>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowDown size={13}/></button>
                                 </div>
-                                <img src={item.image} className={`w-12 h-12 rounded-xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
+                                <img src={item.image} loading="lazy" decoding="async" className={`w-12 h-12 rounded-xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
                                 <div>
                                   <p className="font-bold text-xs text-slate-800 flex items-center gap-1 flex-wrap">
                                     {item.name} 
@@ -2597,7 +2597,7 @@ export default function App() {
                              }} />
                            </label>
 
-                           {editCustomBgImage && <img src={editCustomBgImage} className="w-full h-28 object-cover rounded-xl shadow-xs border border-slate-200" alt="Bg Preview" />}
+                           {editCustomBgImage && <img src={editCustomBgImage} loading="lazy" decoding="async" className="w-full h-28 object-cover rounded-xl shadow-xs border border-slate-200" alt="Bg Preview" />}
                            {editCustomBgImage && (
                               <button onClick={async () => {
                                  try { 
@@ -2633,7 +2633,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Minimum Order Setting Card */}
                 <div className="bg-amber-50/80 p-5 rounded-3xl border-2 border-dashed border-amber-300 space-y-3 shadow-inner relative">
                   <h3 className="font-bold text-xs text-amber-950 uppercase tracking-wider text-center flex items-center justify-center gap-1.5">
                     <DollarSign size={16} className="text-amber-800" /> ตั้งค่ายอดสั่งซื้อขั้นต่ำ
@@ -2749,7 +2748,7 @@ export default function App() {
                           if(file) { try { const compressedImage = await compressImage(file); setEditQrCodeImage(compressedImage); } catch(err) { console.error(err); } }
                         }} />
                       </label>
-                      {editQrCodeImage && <img src={editQrCodeImage} className="w-12 h-12 rounded-xl object-cover shadow-2xs border border-slate-200 bg-white" alt="QR Preview" />}
+                      {editQrCodeImage && <img src={editQrCodeImage} loading="lazy" decoding="async" className="w-12 h-12 rounded-xl object-cover shadow-2xs border border-slate-200 bg-white" alt="QR Preview" />}
                       {editQrCodeImage && <button onClick={() => setEditQrCodeImage('')} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>}
                     </div>
                   </div>
@@ -2880,7 +2879,7 @@ export default function App() {
           <div className="bg-white rounded-t-[3rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-400 shadow-2xl max-h-[88vh] flex flex-col overflow-hidden">
             
             <div className="w-full h-[28vh] relative flex-shrink-0 bg-slate-50">
-              <img src={optionModalItem.image} alt={optionModalItem.name} className="w-full h-full object-cover" />
+              <img src={optionModalItem.image} loading="eager" decoding="async" alt={optionModalItem.name} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
             </div>
 
@@ -3113,7 +3112,7 @@ export default function App() {
                          if(file){ setDeliveryImage(await compressImage(file)); }
                       }} />
                    </label>
-                   {deliveryImage && <img src={deliveryImage} className="mt-3 h-28 w-full object-cover rounded-xl shadow-xs border border-slate-200" alt="Delivery Proof"/>}
+                   {deliveryImage && <img src={deliveryImage} loading="lazy" decoding="async" className="mt-3 h-28 w-full object-cover rounded-xl shadow-xs border border-slate-200" alt="Delivery Proof"/>}
                 </div>
             )}
 
@@ -3128,7 +3127,7 @@ export default function App() {
       {/* Modal ดูรูปภาพสลิป */}
       {selectedSlip && selectedSlip !== 'cash_payment' && selectedSlip !== 'thaichueithai_payment' && (
         <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedSlip(null)}>
-          <img src={selectedSlip} className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95" alt="slip preview" />
+          <img src={selectedSlip} loading="eager" decoding="async" className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95" alt="slip preview" />
         </div>
       )}
 
@@ -3249,7 +3248,7 @@ export default function App() {
           <p className="text-white font-bold mb-4 bg-emerald-600/90 px-4 py-2.5 rounded-2xl flex items-center gap-2 shadow-xl border border-emerald-400 text-xs text-center">
             <Download size={16}/> กดค้างที่รูปภาพเพื่อบันทึกลงเครื่อง (Save Image)
           </p>
-          <img src={downloadPreview} className="max-w-full max-h-[60vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95 pointer-events-auto" alt="preview to save" />
+          <img src={downloadPreview} loading="eager" decoding="async" className="max-w-full max-h-[60vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95 pointer-events-auto" alt="preview to save" />
           <button onClick={() => setDownloadPreview(null)} className="mt-6 bg-white text-slate-800 px-6 py-3 rounded-2xl font-bold text-xs active:scale-95 shadow-md flex items-center gap-2">
             <X size={16}/> ปิดหน้าต่าง
           </button>
