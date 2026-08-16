@@ -5,12 +5,12 @@ import {
   Banknote, CreditCard, MessageSquare, Star, Edit, Save, Camera, Home, Building, 
   TrendingUp, Download, ArrowUp, ArrowDown, Search, Palette, BellRing, Share2, UserCheck,
   Sparkles, Database, Users, Filter, Calendar, UserX, DollarSign, Package, CheckCircle2, ChevronRight, ShieldCheck,
-  RotateCcw, Activity
+  RotateCcw, Activity, ShoppingBag
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, 
-  updateDoc, increment, query, orderBy, limit, getDocs 
+  updateDoc, increment, query, orderBy, limit, getDocs, where
 } from 'firebase/firestore';
 
 // --- 1. Firebase Configuration & Constants ---
@@ -50,6 +50,15 @@ const THEMES = {
   newyear: { bg: '#f8fafc', primary: '#0f172a', accent: '#ca8a04', name: '🎆 ปีใหม่', icons: ['🎆', '✨', '🎉', '🥂'] },
   loykrathong: { bg: '#f5f3ff', primary: '#2e1065', accent: '#7c3aed', name: '🌕 ลอยกระทง', icons: ['🌕', '🕯️', '🌸', '✨'] },
   custom: { bg: '#F9F6F0', primary: '#2D2118', accent: '#B8860B', name: '🎨 อัปโหลดเอง', icons: [] },
+};
+
+// [ADDED] Helper to get current Date Key (YYYY-MM-DD)
+const getTodayDateKey = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // --- 2. Helper Functions ---
@@ -135,6 +144,9 @@ export default function App() {
   
   // Real-time Active Visitors Tracking
   const [activeUsers, setActiveUsers] = useState([]);
+  
+  // [ADDED] State to store today's visitors history logs (including purchase status)
+  const [dailyVisitors, setDailyVisitors] = useState([]);
   
   // [MODIFIED] State for tracking copied customer name visual feedback
   const [copiedNameId, setCopiedNameId] = useState(null);
@@ -540,7 +552,7 @@ export default function App() {
     }
   }, [orders]);
 
-  // Presence Heartbeat: Keeps tracking active user status for Admin view in background
+  // Presence & User Auth Initialization
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -614,29 +626,45 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // [MODIFIED] Background presence updater for real-time tracking (Read by Admins)
+  // [MODIFIED] Background presence updater & Daily Visitor Logging (Saves who visited and purchase status)
   useEffect(() => {
     if (!lineProfile.userId) return;
 
+    const todayDateKey = getTodayDateKey();
     const userPresenceRef = doc(db, 'active_users', lineProfile.userId);
+    const dailyVisitorRef = doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`);
 
     const updateMyPresence = async () => {
+      const now = Date.now();
       try {
+        // 1. Update real-time active users
         await setDoc(userPresenceRef, {
           userId: lineProfile.userId,
           displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
           pictureUrl: lineProfile.pictureUrl || '',
           view: view,
-          lastActive: Date.now()
+          lastActive: now
+        }, { merge: true });
+
+        // 2. [ADDED] Record Daily Visitor History Log
+        await setDoc(dailyVisitorRef, {
+          userId: lineProfile.userId,
+          displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
+          pictureUrl: lineProfile.pictureUrl || '',
+          dateKey: todayDateKey,
+          lastActive: now,
+          lastView: view,
+          hasPurchased: false // default, updated to true upon ordering
         }, { merge: true });
       } catch (err) {
-        console.warn("Presence update skipped:", err);
+        console.warn("Presence / Daily Visitor update skipped:", err);
       }
     };
 
     updateMyPresence();
     const heartbeatTimer = setInterval(updateMyPresence, 25000);
 
+    // Subscribe to active users
     const unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
       const now = Date.now();
       const activeThreshold = 75000; 
@@ -652,6 +680,17 @@ export default function App() {
       setActiveUsers(currentActive);
     });
 
+    // [ADDED] Subscribe to Today's Visitor Logs for Admin View
+    const unsubDailyVisitors = onSnapshot(
+      query(collection(db, 'daily_visitors'), where('dateKey', '==', todayDateKey)),
+      snapshot => {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+        setDailyVisitors(list);
+      },
+      err => console.warn("Daily visitors listener error:", err)
+    );
+
     const handleBeforeUnload = () => {
       deleteDoc(userPresenceRef).catch(() => {});
     };
@@ -660,6 +699,7 @@ export default function App() {
     return () => {
       clearInterval(heartbeatTimer);
       unsubPresence();
+      unsubDailyVisitors();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       deleteDoc(userPresenceRef).catch(() => {});
     };
@@ -1258,6 +1298,27 @@ export default function App() {
     return Array.from(years).sort((a, b) => b - a);
   }, [sheetOrdersData]);
 
+  // [ADDED] Compute Today's Visitor Analytics (Buyers vs Non-Buyers)
+  const visitorAnalytics = useMemo(() => {
+    const totalVisitors = dailyVisitors.length;
+    
+    // Cross-check with today's orders in case real-time status was written
+    const buyers = dailyVisitors.filter(v => v.hasPurchased);
+    const nonBuyers = dailyVisitors.filter(v => !v.hasPurchased);
+    const conversionRate = totalVisitors > 0 ? Math.round((buyers.length / totalVisitors) * 100) : 0;
+    const totalSpentByVisitors = buyers.reduce((sum, v) => sum + (Number(v.orderAmount) || 0), 0);
+
+    return {
+      totalVisitors,
+      buyersCount: buyers.length,
+      nonBuyersCount: nonBuyers.length,
+      conversionRate,
+      totalSpentByVisitors,
+      buyers,
+      nonBuyers
+    };
+  }, [dailyVisitors]);
+
   const sliderRef = useRef(null);
   useEffect(() => {
     if (view !== 'shop' || promotedItems.length <= 1 || searchQuery) return;
@@ -1798,6 +1859,7 @@ export default function App() {
                       const total = cartTotal;
                       const orderTime = Date.now();
                       const dateStr = new Date(orderTime).toLocaleString('th-TH');
+                      const todayDateKey = getTodayDateKey();
                       
                       try {
                         const orderRef = await addDoc(collection(db, 'orders'), {
@@ -1808,6 +1870,16 @@ export default function App() {
                           hasDeliveryImage: false,
                           isDeleted: false
                         });
+
+                        // [ADDED] Update daily visitor status to Purchased!
+                        if (lineProfile.userId) {
+                          await setDoc(doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`), {
+                            hasPurchased: true,
+                            lastOrderTotal: total,
+                            orderId: orderRef.id,
+                            purchasedAt: orderTime
+                          }, { merge: true });
+                        }
 
                         if (paymentMethod === 'promptpay' && slipImage) {
                           await setDoc(doc(db, 'slips', orderRef.id), {
@@ -2012,7 +2084,7 @@ export default function App() {
             <div className="flex justify-between items-center mb-5">
                <h2 className="text-xl font-serif font-black text-slate-900">แผงควบคุมแอดมิน</h2>
                
-               {/* [MODIFIED] Active visitors badge shown exclusively in Admin Header */}
+               {/* Active visitors badge shown exclusively in Admin Header */}
                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] bg-emerald-50 text-emerald-800 font-black px-2.5 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -2035,37 +2107,103 @@ export default function App() {
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* [MODIFIED] Real-time Active Visitors Card in Admin Dashboard */}
-                <div className="bg-gradient-to-r from-amber-900 to-amber-950 text-white p-5 rounded-3xl shadow-lg border border-amber-700/60">
-                   <div className="flex justify-between items-center mb-3">
-                      <h4 className="font-bold text-xs flex items-center gap-2 text-amber-200">
-                         <Activity size={16} className="text-emerald-400 animate-pulse" />
-                         กำลังเข้าชมร้านขณะนี้ ({activeUsers.length} คน)
-                      </h4>
-                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full font-bold">
-                        สด ณ ปัจจุบัน 🟢
+                {/* [MODIFIED] Real-time & Daily Visitors Tracking Analytics (วันนี้ใครเข้ามาบ้าง & ซื้อหรือไม่) */}
+                <div className="bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900 text-white p-5 rounded-3xl shadow-xl border border-amber-500/20 space-y-4">
+                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                      <div>
+                        <h4 className="font-bold text-sm flex items-center gap-2 text-white">
+                           <Users size={17} className="text-amber-400" />
+                           สรุปผู้เข้าชมวันนี้ ({visitorAnalytics.totalVisitors} คน)
+                        </h4>
+                        <p className="text-[10px] text-amber-200/70 font-medium mt-0.5">
+                          เช็คว่าใครเข้ามาดูร้าน และตัดสินใจสั่งซื้อหรือไม่
+                        </p>
+                      </div>
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-1 rounded-full font-bold">
+                        อัตราการซื้อ {visitorAnalytics.conversionRate}%
                       </span>
                    </div>
 
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto hide-scrollbar">
-                      {activeUsers.map(u => (
-                         <div key={u.id} className="bg-white/10 backdrop-blur-md p-2.5 rounded-2xl flex items-center gap-3 border border-white/10">
-                            {u.pictureUrl ? (
-                               <img src={u.pictureUrl} className="w-8 h-8 rounded-full border border-amber-300/40 object-cover" alt="visitor"/>
-                            ) : (
-                               <div className="w-8 h-8 rounded-full bg-amber-700 flex items-center justify-center text-xs font-bold">🐮</div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                               <p className="text-xs font-bold truncate text-white">{u.displayName}</p>
-                               <p className="text-[9px] text-amber-300/80 truncate">
-                                 {u.view === 'shop' ? '👀 กำลังเลือกเมนู' : u.view === 'cart' ? '🛒 อยู่หน้าตะกร้า' : u.view === 'myOrders' ? '📄 เช็คประวัติบิล' : '⚙️ แผงควบคุม'}
-                               </p>
+                   {/* Stats summary of today's visitors */}
+                   <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10">
+                         <span className="text-[9px] text-slate-300 font-bold block uppercase">เข้าดูทั้งหมด</span>
+                         <span className="text-lg font-serif font-black text-white">{visitorAnalytics.totalVisitors}</span>
+                         <span className="text-[9px] text-slate-400 block">คน</span>
+                      </div>
+
+                      <div className="bg-emerald-950/60 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/30">
+                         <span className="text-[9px] text-emerald-300 font-bold block uppercase flex items-center justify-center gap-1">
+                           <ShoppingBag size={10}/> สั่งซื้อแล้ว
+                         </span>
+                         <span className="text-lg font-serif font-black text-emerald-300">{visitorAnalytics.buyersCount}</span>
+                         <span className="text-[9px] text-emerald-400/80 block">คน</span>
+                      </div>
+
+                      <div className="bg-rose-950/50 backdrop-blur-md p-3 rounded-2xl border border-rose-500/30">
+                         <span className="text-[9px] text-rose-300 font-bold block uppercase flex items-center justify-center gap-1">
+                           <Eye size={10}/> ยังไม่ซื้อ
+                         </span>
+                         <span className="text-lg font-serif font-black text-rose-300">{visitorAnalytics.nonBuyersCount}</span>
+                         <span className="text-[9px] text-rose-400/80 block">คน</span>
+                      </div>
+                   </div>
+
+                   {/* Detailed list of visitors with purchase status */}
+                   <div className="space-y-2 max-h-60 overflow-y-auto hide-scrollbar pt-1">
+                      {dailyVisitors.map(v => {
+                         const lastTimeStr = v.lastActive ? new Date(v.lastActive).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
+                         const isCurrentlyActive = activeUsers.some(au => au.userId === v.userId);
+
+                         return (
+                         <div key={v.id || v.userId} className="bg-white/10 hover:bg-white/15 transition-all backdrop-blur-md p-3 rounded-2xl flex items-center justify-between gap-3 border border-white/10">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                               <div className="relative flex-shrink-0">
+                                  {v.pictureUrl ? (
+                                     <img src={v.pictureUrl} className="w-9 h-9 rounded-full border border-amber-300/40 object-cover" alt="visitor" />
+                                  ) : (
+                                     <div className="w-9 h-9 rounded-full bg-amber-800 flex items-center justify-center text-xs font-bold">🐮</div>
+                                  )}
+                                  {isCurrentlyActive && (
+                                     <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse"></span>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                   <div className="flex items-center gap-1.5 flex-wrap">
+                                      <p className="text-xs font-bold truncate text-white">{v.displayName || 'ลูกค้าทั่วไป'}</p>
+                                      {isCurrentlyActive && (
+                                         <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold">ดูสด</span>
+                                      )}
+                                   </div>
+                                   <p className="text-[9px] text-amber-200/70 truncate">
+                                     เข้าดูล่าสุด {lastTimeStr} น. • {v.lastView === 'shop' ? 'เลือกเมนู' : v.lastView === 'cart' ? 'หน้าตะกร้า' : v.lastView === 'myOrders' ? 'ดูประวัติ' : 'ร้านค้า'}
+                                   </p>
+                                </div>
                             </div>
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+
+                            <div className="text-right flex-shrink-0">
+                               {v.hasPurchased ? (
+                                  <div className="flex flex-col items-end">
+                                     <span className="text-[9px] bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full font-black flex items-center gap-0.5 shadow-2xs">
+                                        <CheckCircle2 size={10} /> สั่งซื้อแล้ว
+                                     </span>
+                                     {v.lastOrderTotal && (
+                                        <span className="text-[10px] text-emerald-300 font-black mt-0.5">฿{v.lastOrderTotal}</span>
+                                     )}
+                                  </div>
+                               ) : (
+                                  <span className="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                                     <Eye size={10} /> ยังไม่ซื้อ
+                                  </span>
+                               )}
+                            </div>
                          </div>
-                      ))}
-                      {activeUsers.length === 0 && (
-                         <p className="text-[11px] text-amber-300/60 col-span-2 text-center py-3">ยังไม่มีผู้เข้าชมในขณะนี้</p>
+                      )})}
+
+                      {dailyVisitors.length === 0 && (
+                         <div className="text-center py-6 text-amber-200/50 text-xs font-bold">
+                            ยังไม่มีบันทึกผู้เข้าชมในวันนี้ 🐮
+                         </div>
                       )}
                    </div>
                 </div>
@@ -2289,7 +2427,6 @@ export default function App() {
                         <div className="flex items-center gap-2">
                            <span className="bg-slate-900 text-white w-6 h-6 flex items-center justify-center rounded-lg text-[10px] font-black">#{filteredOrders.length - idx}</span>
                            <div>
-                              {/* [MODIFIED] Added Copy Customer Name Button */}
                               <div className="flex items-center gap-1.5 flex-wrap">
                                  <span className="font-bold text-xs text-slate-800">{o.lineName}</span>
                                  <button 
@@ -3149,6 +3286,7 @@ export default function App() {
                        <label className="text-[10px] font-black block mb-2.5 text-emerald-900 uppercase tracking-wider flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
                        <div className="grid grid-cols-2 gap-2">
                          <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-3 rounded-2xl text-xs font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-emerald-700 text-white border-emerald-700 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>มัทฉะ<br/><span className="text-[9px] font-normal opacity-80">หอมเข้มข้น ดั้งเดิม</span></button>
+                         // --- ต่อจากโค้ดส่วน TempOptions และ Modal ตัวเลือกเครื่องดื่ม ---
                          <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-3 rounded-2xl text-xs font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-amber-800 text-white border-amber-800 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal opacity-80">หอมคั่ว ละมุน</span></button>
                        </div>
                      </div>
