@@ -3295,7 +3295,6 @@ export default function App() {
                        <label className="text-[10px] font-black block mb-2.5 text-emerald-900 uppercase tracking-wider flex items-center gap-1">🍵 เลือกรสชาติผงชา</label>
                        <div className="grid grid-cols-2 gap-2">
                          <button onClick={() => setTempOptions({...tempOptions, teaType: 'มัทฉะ'})} className={`py-3 rounded-2xl text-xs font-bold border transition-all ${tempOptions.teaType === 'มัทฉะ' ? 'bg-emerald-700 text-white border-emerald-700 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>มัทฉะ<br/><span className="text-[9px] font-normal opacity-80">หอมเข้มข้น ดั้งเดิม</span></button>
-                         // --- ต่อจากโค้ดส่วน TempOptions และ Modal ตัวเลือกเครื่องดื่ม ---
                          <button onClick={() => setTempOptions({...tempOptions, teaType: 'โฮจิฉะ'})} className={`py-3 rounded-2xl text-xs font-bold border transition-all ${tempOptions.teaType === 'โฮจิฉะ' ? 'bg-amber-800 text-white border-amber-800 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>โฮจิฉะ<br/><span className="text-[9px] font-normal opacity-80">หอมคั่ว ละมุน</span></button>
                        </div>
                      </div>
