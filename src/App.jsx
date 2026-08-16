@@ -52,7 +52,6 @@ const THEMES = {
   custom: { bg: '#F9F6F0', primary: '#2D2118', accent: '#B8860B', name: '🎨 อัปโหลดเอง', icons: [] },
 };
 
-// [ADDED] Helper to get current Date Key (YYYY-MM-DD)
 const getTodayDateKey = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -144,11 +143,7 @@ export default function App() {
   
   // Real-time Active Visitors Tracking
   const [activeUsers, setActiveUsers] = useState([]);
-  
-  // [ADDED] State to store today's visitors history logs (including purchase status)
   const [dailyVisitors, setDailyVisitors] = useState([]);
-  
-  // [MODIFIED] State for tracking copied customer name visual feedback
   const [copiedNameId, setCopiedNameId] = useState(null);
 
   const [cart, setCart] = useState(() => {
@@ -245,7 +240,8 @@ export default function App() {
     name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
     hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
     isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
-    allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%']
+    allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%'],
+    soldCount: 0
   });
   const [editingMenu, setEditingMenu] = useState(null); 
   const [newTopping, setNewTopping] = useState({ name: '', price: '' }); 
@@ -281,7 +277,6 @@ export default function App() {
   const audioRef = useRef(null);
   const previousOrderCount = useRef(0);
   const isProcessingOrder = useRef(false);
-  const hasFetchedSheetRef = useRef(false);
 
   const isWhipOrCreamCheeseItem = useCallback((item) => {
     if (!item) return false;
@@ -302,7 +297,6 @@ export default function App() {
     return item.isBlended ? 'ปั่น' : 'เย็น';
   }, [isWhipOrCreamCheeseItem]);
 
-  // [MODIFIED] Helper to copy customer name to clipboard with brief feedback
   const handleCopyCustomerName = (e, name, id) => {
     e.stopPropagation();
     if (!name) return;
@@ -524,18 +518,13 @@ export default function App() {
     }
   };
 
+  // ดึงข้อมูล Google Sheets เฉพาะเมื่อแอดมินเปิดแท็บแดชบอร์ด
   useEffect(() => {
     if (!storeSettings?.googleSheetUrl) return;
-
     if (view === 'admin' && adminTab === 'dashboard') {
       fetchDashboardDataFromGoogleSheets();
-    } else if (view === 'shop' && activeCategory === '🔥 เมนูขายดี') {
-      if (!hasFetchedSheetRef.current || sheetOrdersData.length === 0) {
-        hasFetchedSheetRef.current = true;
-        fetchDashboardDataFromGoogleSheets();
-      }
     }
-  }, [view, adminTab, activeCategory, storeSettings?.googleSheetUrl, sheetOrdersData.length, fetchDashboardDataFromGoogleSheets]);
+  }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
   useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
@@ -626,8 +615,7 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // [MODIFIED] Background presence updater & Daily Visitor Logging (Saves who visited and purchase status)
-  // [MODIFIED] Background presence updater & Daily Visitor Logging (Saves who visited and purchase status)
+  // Background presence updater & Daily Visitor Logging
   useEffect(() => {
     if (!lineProfile.userId) return;
 
@@ -637,11 +625,9 @@ export default function App() {
 
     const updateMyPresence = async () => {
       const now = Date.now();
-      // [ADDED] เช็คสถานะว่าเป็นแอดมินหรือไม่
       const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true'; 
 
       try {
-        // 1. Update real-time active users (แอดมินยังคงแสดงจุดสีเขียวว่าออนไลน์อยู่)
         await setDoc(userPresenceRef, {
           userId: lineProfile.userId,
           displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
@@ -650,8 +636,6 @@ export default function App() {
           lastActive: now
         }, { merge: true });
 
-        // 2. [MODIFIED] Record Daily Visitor History Log (ไม่นับรวมแอดมินในสถิติการเข้าชม)
-        // หมายเหตุ: ถอด hasPurchased: false ออก เพื่อป้องกันการไปเขียนทับกรณีที่ลูกค้าสั่งซื้อสำเร็จแล้ว
         if (!isAdmin) {
           await setDoc(dailyVisitorRef, {
             userId: lineProfile.userId,
@@ -670,7 +654,6 @@ export default function App() {
     updateMyPresence();
     const heartbeatTimer = setInterval(updateMyPresence, 25000);
 
-    // Subscribe to active users
     const unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
       const now = Date.now();
       const activeThreshold = 75000; 
@@ -686,7 +669,6 @@ export default function App() {
       setActiveUsers(currentActive);
     });
 
-    // Subscribe to Today's Visitor Logs for Admin View
     const unsubDailyVisitors = onSnapshot(
       query(collection(db, 'daily_visitors'), where('dateKey', '==', todayDateKey)),
       snapshot => {
@@ -827,6 +809,7 @@ export default function App() {
         isSoldOut: newMenu.isSoldOut || false, 
         hasTeaType: newMenu.hasTeaType || false, 
         allowedSweetness: newMenu.allowedSweetness || SWEETNESS,
+        soldCount: 0,
         createdAt: Date.now(), 
         sortOrder: Date.now() 
       });
@@ -835,7 +818,8 @@ export default function App() {
         name: '', price: '', category: 'นม', image: '', blendPrice: 5, 
         hasFreePearl: false, allowTopping: true, allowSauce: false, allowBlend: true, 
         isOnlyBlend: false, isPromoted: false, isSoldOut: false, hasTeaType: false,
-        allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%'] 
+        allowedSweetness: ['0%', '25%', '50%', '75%', '100%', '120%'],
+        soldCount: 0
       });
       setShowAddMenuForm(false);
     } catch (e) { showAlert(e.message); }
@@ -1009,13 +993,14 @@ export default function App() {
 
   const exportMenuToCSV = () => {
     if (menuItems.length === 0) return showAlert('ยังไม่มีเมนูในระบบครับ');
-    let csv = "\uFEFFหมวดหมู่,ชื่อเมนู,ราคาปกติ (เย็น),ราคาปั่น,สถานะ\n";
+    let csv = "\uFEFFหมวดหมู่,ชื่อเมนู,ราคาปกติ (เย็น),ราคาปั่น,ยอดขายสะสม (แก้ว),สถานะ\n";
     const sortedMenus = [...menuItems].sort((a, b) => a.category.localeCompare(b.category));
     sortedMenus.forEach(m => {
       const coldPrice = m.isOnlyBlend ? '-' : m.price;
       const blendPrice = (m.allowBlend === false && !m.isOnlyBlend) ? '-' : (m.price + getAddedBlendPrice(m));
       const status = m.isSoldOut ? 'หมดชั่วคราว' : 'พร้อมขาย';
-      csv += `"${m.category}","${(m.name||'').replace(/"/g, '""')}",${coldPrice},${blendPrice},${status}\n`;
+      const sold = m.soldCount || 0;
+      csv += `"${m.category}","${(m.name||'').replace(/"/g, '""')}",${coldPrice},${blendPrice},${sold},${status}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -1058,138 +1043,22 @@ export default function App() {
     }
   };
 
+  // [MODIFIED] คำนวณอันดับเมนูขายดีจาก soldCount โดยตรง ทำงานแบบ 0ms (ไม่บล็อก Main Thread)
   const bestSellers = useMemo(() => {
     if (!menuItems || menuItems.length === 0) return [];
 
-    const salesCountMap = new Map();
-    const processedOrderIds = new Set();
-    const combinedOrders = [];
+    const sortedBySales = [...menuItems]
+      .filter(item => (item.soldCount || 0) > 0 && !item.isSoldOut)
+      .sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0));
 
-    if (Array.isArray(sheetOrdersData)) {
-      sheetOrdersData.forEach(o => { if (o) combinedOrders.push(o); });
-    }
-
-    if (Array.isArray(orders)) {
-      orders.forEach(o => { if (o && !o.isDeleted) combinedOrders.push(o); });
-    }
-
-    const sortedMenuNames = [...menuItems]
-      .map(m => (m.name || '').trim())
-      .filter(Boolean)
-      .sort((a, b) => b.length - a.length);
-
-    for (let i = 0; i < combinedOrders.length; i++) {
-      const currentOrder = combinedOrders[i];
-      if (!currentOrder) continue;
-
-      const orderKey = currentOrder.id || currentOrder.orderId;
-      if (orderKey) {
-        if (processedOrderIds.has(orderKey)) continue;
-        processedOrderIds.add(orderKey);
-      }
-      
-      const statusStr = String(currentOrder.status || '').toLowerCase().trim();
-      if (statusStr.includes('cancel') || statusStr.includes('ยกเลิก') || statusStr.includes('deleted')) continue;
-
-      const itemsList = currentOrder.items;
-      if (!itemsList) continue;
-
-      if (Array.isArray(itemsList)) {
-        for (let j = 0; j < itemsList.length; j++) {
-          const item = itemsList[j];
-          if (item && item.name) {
-            const cleanName = String(item.name).trim();
-            const qty = Number(item.qty) || 1;
-            const matchedName = sortedMenuNames.find(m => 
-              cleanName.toLowerCase() === m.toLowerCase() || 
-              cleanName.toLowerCase().startsWith(m.toLowerCase())
-            ) || cleanName;
-
-            salesCountMap.set(matchedName, (salesCountMap.get(matchedName) || 0) + qty);
-          }
-        }
-        continue;
-      }
-
-      if (typeof itemsList === 'string') {
-        const trimmed = itemsList.trim();
-        let parsedJson = null;
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          try { parsedJson = JSON.parse(trimmed); } catch (e) {}
-        }
-
-        if (Array.isArray(parsedJson)) {
-          for (let j = 0; j < parsedJson.length; j++) {
-            const item = parsedJson[j];
-            if (item && item.name) {
-              const cleanName = String(item.name).trim();
-              const qty = Number(item.qty) || 1;
-              const matchedName = sortedMenuNames.find(m => 
-                cleanName.toLowerCase() === m.toLowerCase() || 
-                cleanName.toLowerCase().startsWith(m.toLowerCase())
-              ) || cleanName;
-              salesCountMap.set(matchedName, (salesCountMap.get(matchedName) || 0) + qty);
-            }
-          }
-        } else {
-          const lines = trimmed.split('\n');
-          for (let j = 0; j < lines.length; j++) {
-            const line = lines[j].trim();
-            if (!line) continue;
-
-            const match = line.match(/^(?:-\s*)?(\d+)\s*x\s*(.+)$/i);
-            const qty = match ? parseInt(match[1], 10) : 1;
-            let rawItem = match ? match[2].trim() : line.replace(/^-\s*/, '').trim();
-
-            const parenIdx = rawItem.indexOf('(');
-            let candidateName = parenIdx !== -1 ? rawItem.slice(0, parenIdx).trim() : rawItem;
-
-            let matchedMenuName = null;
-            for (const mName of sortedMenuNames) {
-              if (candidateName.toLowerCase() === mName.toLowerCase()) {
-                matchedMenuName = mName;
-                break;
-              }
-            }
-
-            if (!matchedMenuName) {
-              for (const mName of sortedMenuNames) {
-                if (candidateName.toLowerCase().startsWith(mName.toLowerCase()) || candidateName.toLowerCase().includes(mName.toLowerCase())) {
-                  matchedMenuName = mName;
-                  break;
-                }
-              }
-            }
-
-            if (matchedMenuName) {
-              salesCountMap.set(matchedMenuName, (salesCountMap.get(matchedMenuName) || 0) + qty);
-            }
-          }
-        }
-      }
-    }
-
-    let rankedMenus = menuItems
-      .map(menu => {
-        const cleanMenuName = (menu.name || '').trim();
-        return {
-          ...menu,
-          sales: salesCountMap.get(cleanMenuName) || 0
-        };
-      })
-      .filter(m => m.sales > 0)
-      .sort((a, b) => b.sales - a.sales);
-
-    if (rankedMenus.length === 0) {
+    if (sortedBySales.length === 0) {
       const promoted = menuItems.filter(m => m.isPromoted && !m.isSoldOut);
-      if (promoted.length > 0) {
-        return promoted.slice(0, 8);
-      }
+      if (promoted.length > 0) return promoted.slice(0, 8);
       return menuItems.filter(m => !m.isSoldOut).slice(0, 8);
     }
 
-    return rankedMenus.slice(0, 9);
-  }, [sheetOrdersData, orders, menuItems]);
+    return sortedBySales.slice(0, 9);
+  }, [menuItems]);
 
   const displayedItems = useMemo(() => {
     if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1304,11 +1173,8 @@ export default function App() {
     return Array.from(years).sort((a, b) => b - a);
   }, [sheetOrdersData]);
 
-  // [ADDED] Compute Today's Visitor Analytics (Buyers vs Non-Buyers)
   const visitorAnalytics = useMemo(() => {
     const totalVisitors = dailyVisitors.length;
-    
-    // Cross-check with today's orders in case real-time status was written
     const buyers = dailyVisitors.filter(v => v.hasPurchased);
     const nonBuyers = dailyVisitors.filter(v => !v.hasPurchased);
     const conversionRate = totalVisitors > 0 ? Math.round((buyers.length / totalVisitors) * 100) : 0;
@@ -1877,7 +1743,19 @@ export default function App() {
                           isDeleted: false
                         });
 
-                        // [MODIFIED] Update daily visitor status to Purchased! (ข้ามการนับถ้าผู้กดสั่งคือแอดมิน)
+                        // [ADDED] อัปเดต soldCount สะสมตรงไปที่แต่ละเมนูใน Firestore ด้วย increment
+                        const updateMenuSalesPromises = cart.map(item => {
+                          const targetId = item.id || menuItems.find(m => m.name === item.name)?.id;
+                          if (targetId) {
+                            return updateDoc(doc(db, 'menus', targetId), {
+                              soldCount: increment(item.qty || 1)
+                            }).catch(err => console.warn("Failed to increment soldCount for:", item.name, err));
+                          }
+                          return Promise.resolve();
+                        });
+                        await Promise.all(updateMenuSalesPromises);
+
+                        // Update daily visitor status to Purchased
                         if (lineProfile.userId) {
                           const isAdminVisitor = localStorage.getItem('happycow_isAdmin') === 'true';
                           if (!isAdminVisitor) {
@@ -2093,7 +1971,6 @@ export default function App() {
             <div className="flex justify-between items-center mb-5">
                <h2 className="text-xl font-serif font-black text-slate-900">แผงควบคุมแอดมิน</h2>
                
-               {/* Active visitors badge shown exclusively in Admin Header */}
                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] bg-emerald-50 text-emerald-800 font-black px-2.5 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -2116,7 +1993,6 @@ export default function App() {
             {adminTab === 'dashboard' && (
               <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* [MODIFIED] Real-time & Daily Visitors Tracking Analytics (วันนี้ใครเข้ามาบ้าง & ซื้อหรือไม่) */}
                 <div className="bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900 text-white p-5 rounded-3xl shadow-xl border border-amber-500/20 space-y-4">
                    <div className="flex justify-between items-center border-b border-white/10 pb-3">
                       <div>
@@ -2133,7 +2009,6 @@ export default function App() {
                       </span>
                    </div>
 
-                   {/* Stats summary of today's visitors */}
                    <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10">
                          <span className="text-[9px] text-slate-300 font-bold block uppercase">เข้าดูทั้งหมด</span>
@@ -2158,7 +2033,6 @@ export default function App() {
                       </div>
                    </div>
 
-                   {/* Detailed list of visitors with purchase status */}
                    <div className="space-y-2 max-h-60 overflow-y-auto hide-scrollbar pt-1">
                       {dailyVisitors.map(v => {
                          const lastTimeStr = v.lastActive ? new Date(v.lastActive).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -2563,7 +2437,7 @@ export default function App() {
                   </div>
                   <h3 className="font-bold text-xs text-slate-800 mb-0.5">ส่งออกรายการเมนู (CSV)</h3>
                   <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
-                     ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา และสถานะทั้งหมด
+                     ดาวน์โหลดรายชื่อเครื่องดื่ม ราคา ยอดขายสะสม และสถานะทั้งหมด
                   </p>
                   <button onClick={exportMenuToCSV} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl font-bold text-xs shadow-md active:scale-97 transition-all flex items-center justify-center gap-2">
                      <Download size={16} /> โหลดรายการเมนูลงเครื่อง
@@ -2800,7 +2674,10 @@ export default function App() {
                                     {item.isPromoted && <span className="text-[8px] bg-rose-500 text-white px-1.5 py-0.2 rounded-full font-bold">แนะนำ</span>}
                                     {item.isSoldOut && <span className="text-[8px] bg-slate-500 text-white px-1.5 py-0.2 rounded-full font-bold">หมด</span>}
                                   </p>
-                                  <p className="text-xs text-amber-800 font-black">฿{item.price}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs text-amber-800 font-black">฿{item.price}</p>
+                                    <span className="text-[9px] text-slate-400 font-medium">ขายแล้ว {item.soldCount || 0} แก้ว</span>
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex gap-1.5 z-10">
@@ -3688,4 +3565,4 @@ export default function App() {
 
     </div>
   );
-} 
+}
