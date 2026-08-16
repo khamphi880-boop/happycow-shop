@@ -627,6 +627,7 @@ export default function App() {
   }, []);
 
   // [MODIFIED] Background presence updater & Daily Visitor Logging (Saves who visited and purchase status)
+  // [MODIFIED] Background presence updater & Daily Visitor Logging (Saves who visited and purchase status)
   useEffect(() => {
     if (!lineProfile.userId) return;
 
@@ -636,8 +637,11 @@ export default function App() {
 
     const updateMyPresence = async () => {
       const now = Date.now();
+      // [ADDED] เช็คสถานะว่าเป็นแอดมินหรือไม่
+      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true'; 
+
       try {
-        // 1. Update real-time active users
+        // 1. Update real-time active users (แอดมินยังคงแสดงจุดสีเขียวว่าออนไลน์อยู่)
         await setDoc(userPresenceRef, {
           userId: lineProfile.userId,
           displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
@@ -646,16 +650,18 @@ export default function App() {
           lastActive: now
         }, { merge: true });
 
-        // 2. [ADDED] Record Daily Visitor History Log
-        await setDoc(dailyVisitorRef, {
-          userId: lineProfile.userId,
-          displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
-          pictureUrl: lineProfile.pictureUrl || '',
-          dateKey: todayDateKey,
-          lastActive: now,
-          lastView: view,
-          hasPurchased: false // default, updated to true upon ordering
-        }, { merge: true });
+        // 2. [MODIFIED] Record Daily Visitor History Log (ไม่นับรวมแอดมินในสถิติการเข้าชม)
+        // หมายเหตุ: ถอด hasPurchased: false ออก เพื่อป้องกันการไปเขียนทับกรณีที่ลูกค้าสั่งซื้อสำเร็จแล้ว
+        if (!isAdmin) {
+          await setDoc(dailyVisitorRef, {
+            userId: lineProfile.userId,
+            displayName: lineProfile.displayName || 'ลูกค้าทั่วไป',
+            pictureUrl: lineProfile.pictureUrl || '',
+            dateKey: todayDateKey,
+            lastActive: now,
+            lastView: view
+          }, { merge: true });
+        }
       } catch (err) {
         console.warn("Presence / Daily Visitor update skipped:", err);
       }
@@ -680,7 +686,7 @@ export default function App() {
       setActiveUsers(currentActive);
     });
 
-    // [ADDED] Subscribe to Today's Visitor Logs for Admin View
+    // Subscribe to Today's Visitor Logs for Admin View
     const unsubDailyVisitors = onSnapshot(
       query(collection(db, 'daily_visitors'), where('dateKey', '==', todayDateKey)),
       snapshot => {
@@ -1871,14 +1877,17 @@ export default function App() {
                           isDeleted: false
                         });
 
-                        // [ADDED] Update daily visitor status to Purchased!
+                        // [MODIFIED] Update daily visitor status to Purchased! (ข้ามการนับถ้าผู้กดสั่งคือแอดมิน)
                         if (lineProfile.userId) {
-                          await setDoc(doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`), {
-                            hasPurchased: true,
-                            lastOrderTotal: total,
-                            orderId: orderRef.id,
-                            purchasedAt: orderTime
-                          }, { merge: true });
+                          const isAdminVisitor = localStorage.getItem('happycow_isAdmin') === 'true';
+                          if (!isAdminVisitor) {
+                            await setDoc(doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`), {
+                              hasPurchased: true,
+                              lastOrderTotal: total,
+                              orderId: orderRef.id,
+                              purchasedAt: orderTime
+                            }, { merge: true });
+                          }
                         }
 
                         if (paymentMethod === 'promptpay' && slipImage) {
