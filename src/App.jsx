@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, 
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, 
   updateDoc, increment, query, orderBy, limit, getDocs, where
 } from 'firebase/firestore';
 
@@ -24,7 +25,20 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// [PERFORMANCE] เปิด IndexedDB Persistent Cache เพื่อให้อ่านข้อมูลจากเครื่องได้ทันที
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+} catch (e) {
+  const { getFirestore } = require('firebase/firestore');
+  db = getFirestore(app);
+}
+
 const LIFF_ID = "2009828681-C1cb8QC3"; 
 
 const CATEGORIES = ['🔥 เมนูขายดี', 'นม', 'ชา', 'กาแฟ', 'มัทฉะ', 'สมูทตี้โยเกิร์ต', 'วิปครีมและครีมชีส'];
@@ -131,15 +145,43 @@ const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => 
 
 // --- 3. Main App Component ---
 export default function App() {
-  const [menuItems, setMenuItems] = useState([]);
+  // [PERFORMANCE] โหลดเมนู, ท็อปปิ้ง, ซอส จาก LocalStorage ทันทีตั้งแต่ Millisecond แรก (ไม่ต้องรอหมุน)
+  const [menuItems, setMenuItems] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_menus_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch(e) { return []; }
+  });
+
   const [orders, setOrders] = useState(() => {
     try {
       const cached = localStorage.getItem('happycow_orders_cache');
       return cached ? JSON.parse(cached) : [];
     } catch(e) { return []; }
   });
-  const [toppings, setToppings] = useState([]); 
-  const [sauces, setSauces] = useState([]);
+
+  const [toppings, setToppings] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_toppings_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch(e) { return []; }
+  }); 
+
+  const [sauces, setSauces] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_sauces_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch(e) { return []; }
+  });
+
+  // [PERFORMANCE] ถ้ามีแคชเมนูอยู่แล้ว ไม่ต้องแสดงหน้า Loading ให้เปิดหน้าร้านได้ทันที 0ms
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('happycow_menus_cache');
+    } catch(e) { return true; }
+  });
+
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   
   // Real-time Active Visitors Tracking
   const [activeUsers, setActiveUsers] = useState([]);
@@ -173,9 +215,6 @@ export default function App() {
     }
     return localStorage.getItem('happycow_view') || 'shop';
   }); 
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   
   const [address, setAddress] = useState(() => localStorage.getItem('happycow_address') || '');
   const [note, setNote] = useState(() => localStorage.getItem('happycow_note') || ''); 
@@ -203,13 +242,27 @@ export default function App() {
   const [deliveryLocation, setDeliveryLocation] = useState('room');
   const [isDelivering, setIsDelivering] = useState(false);
 
-  const [storeSettings, setStoreSettings] = useState({ 
-    promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
-    customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
-    shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3, autoCloseDays: [],
-    minOrderAmount: 0,
-    googleSheetUrl: 'https://script.google.com/macros/s/AKfycbz8AiaKwcO7IhRqwCEsZhpPmTw9mIkWsnKB-2MDti0-hpDFQ6FGM4ExfijSDfdXm8mn/exec'
+  const [storeSettings, setStoreSettings] = useState(() => {
+    try {
+      const cached = localStorage.getItem('happycow_settings_cache');
+      return cached ? JSON.parse(cached) : { 
+        promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
+        customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
+        shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3, autoCloseDays: [],
+        minOrderAmount: 0,
+        googleSheetUrl: 'https://script.google.com/macros/s/AKfycbz8AiaKwcO7IhRqwCEsZhpPmTw9mIkWsnKB-2MDti0-hpDFQ6FGM4ExfijSDfdXm8mn/exec'
+      };
+    } catch(e) {
+      return { 
+        promptPayNo: '0812345678', qrCodeImage: '', isStoreOpen: true, theme: 'default', 
+        customBgImage: '', isBlendOut: false, notifyAdmin: false, adminLineId: '',
+        shopLineUrl: '', autoCloseEnabled: false, maxQueue: 3, autoCloseDays: [],
+        minOrderAmount: 0,
+        googleSheetUrl: 'https://script.google.com/macros/s/AKfycbz8AiaKwcO7IhRqwCEsZhpPmTw9mIkWsnKB-2MDti0-hpDFQ6FGM4ExfijSDfdXm8mn/exec'
+      };
+    }
   });
+
   const [editPromptPay, setEditPromptPay] = useState('');
   const [editQrCodeImage, setEditQrCodeImage] = useState('');
   const [editCustomBgImage, setEditCustomBgImage] = useState('');
@@ -538,7 +591,7 @@ export default function App() {
     } catch (e) {}
   }, [cart, view, address, note, paymentMethod, searchHistory]);
 
-  // Presence & User Auth Initialization
+  // [PERFORMANCE] โหลดข้อมูลเมนูและการตั้งค่าแบบ Background Sync พร้อมอัปเดต Local Cache
   useEffect(() => {
     let cid = localStorage.getItem('happycow_uid') || 'guest_' + Math.random().toString(36).substr(2, 5);
     localStorage.setItem('happycow_uid', cid);
@@ -564,23 +617,28 @@ export default function App() {
     }
 
     const unsubMenus = onSnapshot(collection(db, 'menus'), snapshot => { 
-      setMenuItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
+      const fetchedMenus = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMenuItems(fetchedMenus); 
       setIsLoading(false); 
+      try { localStorage.setItem('happycow_menus_cache', JSON.stringify(fetchedMenus)); } catch(e) {}
     });
 
     const unsubToppings = onSnapshot(collection(db, 'toppings'), snapshot => { 
-      setToppings(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); 
+      const fetchedToppings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setToppings(fetchedToppings); 
+      try { localStorage.setItem('happycow_toppings_cache', JSON.stringify(fetchedToppings)); } catch(e) {}
     });
 
     const unsubSauces = onSnapshot(collection(db, 'sauces'), snapshot => { 
       const fetchedSauces = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setSauces(fetchedSauces); 
+      try { localStorage.setItem('happycow_sauces_cache', JSON.stringify(fetchedSauces)); } catch(e) {}
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'store'), docSnap => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setStoreSettings({ 
+        const settingsObj = { 
            ...data, 
            isStoreOpen: data.isStoreOpen !== false, 
            theme: data.theme || 'default', 
@@ -594,7 +652,10 @@ export default function App() {
            autoCloseDays: data.autoCloseDays || [],
            minOrderAmount: data.minOrderAmount !== undefined ? Number(data.minOrderAmount) : 0,
            googleSheetUrl: data.googleSheetUrl || '' 
-        });
+        };
+        setStoreSettings(settingsObj);
+        try { localStorage.setItem('happycow_settings_cache', JSON.stringify(settingsObj)); } catch(e) {}
+        
         setEditPromptPay(data.promptPayNo || '0812345678'); 
         setEditQrCodeImage(data.qrCodeImage || '');
         setEditCustomBgImage(data.customBgImage || '');
@@ -612,7 +673,7 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // [PERFORMANCE FIX] Presence updates (Only Heartbeat every 60s and only listen if Admin)
+  // [PERFORMANCE] หน่วงเวลากิจกรรม Presence ไม่ให้แย่ง Network ตอนเปิดแอป
   useEffect(() => {
     if (!lineProfile.userId) return;
 
@@ -622,7 +683,7 @@ export default function App() {
     const dailyVisitorRef = doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`);
 
     const updateMyPresence = async () => {
-      if (document.hidden) return; // ไม่ส่ง Heartbeat ตอนพับจอ
+      if (document.hidden) return;
       const now = Date.now();
       try {
         await setDoc(userPresenceRef, {
@@ -648,13 +709,13 @@ export default function App() {
       }
     };
 
-    updateMyPresence();
-    const heartbeatTimer = setInterval(updateMyPresence, 60000); // ขยายเวลาเป็น 60s
+    // หน่วงเวลา 1.5 วินาทีตอนเปิดแอป เพื่อให้เมนูโหลดขึ้นก่อนทันที
+    const initialPresenceTimer = setTimeout(updateMyPresence, 1500);
+    const heartbeatTimer = setInterval(updateMyPresence, 60000);
 
     let unsubPresence = () => {};
     let unsubDailyVisitors = () => {};
 
-    // เฉพาะ Admin เท่านั้นที่ต้องดึงข้อมูล Real-time Active Users (ลูกค้าทั่วไปไม่ต้องโหลด)
     if (isAdmin && view === 'admin') {
       unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
         const now = Date.now();
@@ -686,6 +747,7 @@ export default function App() {
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      clearTimeout(initialPresenceTimer);
       clearInterval(heartbeatTimer);
       unsubPresence();
       unsubDailyVisitors();
@@ -694,7 +756,7 @@ export default function App() {
     };
   }, [lineProfile.userId, lineProfile.displayName, lineProfile.pictureUrl, view]);
 
-  // [PERFORMANCE FIX] โหลดออร์เดอร์แบบตรงจุด
+  // [PERFORMANCE] โหลดออร์เดอร์เฉพาะแท็บที่เปิด และแยกสิทธิ์ลูกค้า/แอดมิน
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
@@ -709,7 +771,6 @@ export default function App() {
         limit(80)
       );
     } else {
-      // ลูกค้าทั่วไป query เฉพาะของตัวเอง ไม่โหลดออร์เดอร์ของคนอื่น
       ordersQuery = query(
         collection(db, 'orders'),
         where('userId', '==', lineProfile.userId || 'guest_user'),
@@ -722,6 +783,7 @@ export default function App() {
        const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
        setOrders(fetchedOrders); 
        setIsLoadingOrders(false);
+       try { localStorage.setItem('happycow_orders_cache', JSON.stringify(fetchedOrders.slice(0, 50))); } catch(e) {}
     }, err => {
        console.warn("Orders query fallback:", err);
        const fallbackQuery = query(collection(db, 'orders'), limit(30));
@@ -3388,7 +3450,7 @@ export default function App() {
                 </div>
             )}
 
-            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-3.5 rounded-2xl font-bold text-xs transition-all shadow-md active:scale-97 flex items-center justify-center gap-1.5 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-emerald-600 text-white hover:bg-emerald-700': 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-3.5 rounded-2xl font-bold text-xs transition-all shadow-md active:scale-97 flex items-center justify-center gap-1.5 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
               {isDelivering ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
               {isDelivering ? 'กำลังบันทึก...' : <><CheckCircle size={16}/> ยืนยันการจัดส่ง</>}
             </button>
@@ -3470,133 +3532,133 @@ export default function App() {
               <button 
                 onClick={() => { setSuccessModalData(null); setView('myOrders'); }}
                 className="w-full text-slate-400 py-2 text-xs font-bold hover:text-slate-600"
-              >
-                เสร็จสิ้น / ดูรายการคำสั่งซื้อ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal สรุปผลส่งของสำเร็จ (แอดมิน) */}
-      {adminDeliverySuccessData && (
-        <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center space-y-5 animate-in zoom-in-95">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto"><CheckCircle size={28}/></div>
-            <h3 className="text-lg font-bold text-slate-800">อัปเดตสถานะสำเร็จ! 🛵</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">บันทึกการส่งสำเร็จแล้ว สามารถแชร์แจ้งลูกค้าทาง LINE ได้เลยครับ</p>
-
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-dashed text-left max-h-36 overflow-y-auto">
-              <pre className="text-[10px] text-slate-600 whitespace-pre-wrap font-sans leading-normal">{adminDeliverySuccessData.text}</pre>
-            </div>
-
-            <div className="space-y-2">
-              <a 
-                href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-3.5 rounded-2xl text-xs font-bold shadow-md active:scale-95 hover:bg-emerald-600"
-              >
-                <Share2 size={16}/> แชร์สถานะผ่าน LINE
-              </a>
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(adminDeliverySuccessData.text);
-                  showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชตลูกค้าได้เลยครับ");
-                }}
-                className="w-full bg-slate-100 text-slate-700 py-3 rounded-2xl text-xs font-bold active:scale-95 hover:bg-slate-200"
-              >
-                คัดลอกข้อความ
-              </button>
-              <button onClick={() => setAdminDeliverySuccessData(null)} className="w-full text-slate-400 py-1.5 text-xs font-bold">ปิดหน้าต่าง</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ดาวน์โหลดรูปพรีวิว */}
-      {downloadPreview && (
-        <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
-          <p className="text-white font-bold mb-4 bg-emerald-600/90 px-4 py-2.5 rounded-2xl flex items-center gap-2 shadow-xl border border-emerald-400 text-xs text-center">
-            <Download size={16}/> กดค้างที่รูปภาพเพื่อบันทึกลงเครื่อง (Save Image)
-          </p>
-          <img src={downloadPreview} loading="eager" decoding="async" className="max-w-full max-h-[60vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95 pointer-events-auto" alt="preview to save" />
-          <button onClick={() => setDownloadPreview(null)} className="mt-6 bg-white text-slate-800 px-6 py-3 rounded-2xl font-bold text-xs active:scale-95 shadow-md flex items-center gap-2">
-            <X size={16}/> ปิดหน้าต่าง
-          </button>
-        </div>
-      )}
-
-      {/* Modal แอดมินล็อกอิน */}
-      {showAdminModal && (
-        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center">
-            <h3 className="font-bold text-lg mb-6 text-slate-900">แอดมินเข้าสู่ระบบ</h3>
-            <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl mb-6 text-center text-2xl outline-none tracking-[0.4em] focus:border-amber-800 focus:bg-white transition-all shadow-inner font-bold text-slate-800" placeholder="••••••" />
-            <div className="flex gap-3">
-              <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-3 bg-slate-100 text-slate-500 font-bold text-xs rounded-2xl hover:bg-slate-200 transition-colors">ยกเลิก</button>
-              <button onClick={() => {
-                if(adminPassword === '570402') { 
-                  localStorage.setItem('happycow_isAdmin', 'true');
-                  setView('admin'); 
-                  setAdminTab('orders'); 
-                  setShowAdminModal(false); 
-                  setAdminPassword(''); 
-                }
-                else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
-              }} className="flex-1 py-3 bg-slate-900 text-white font-bold text-xs rounded-2xl shadow-md transition-all active:scale-95 hover:bg-slate-800">ยืนยัน</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Custom Message Box */}
-      {msgBox.isOpen && (
-        <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
-          <div className="bg-white p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
-          {msgBox.type === 'confirm' ? (
-              <AlertCircle size={42} className="text-amber-500 mx-auto mb-4" />
-            ) : (
-              <CheckCircle size={42} className="text-emerald-500 mx-auto mb-4" />
-            )}
-
-            <h3 className="font-bold text-xs text-slate-800 mb-6 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
-
-            {msgBox.type === 'confirm' ? (
-              <div className="flex gap-2.5">
-                <button 
-                  onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
-                  className="flex-1 py-3 bg-slate-100 rounded-2xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
                 >
-                  ยกเลิก
-                </button>
-                <button 
-                  onClick={() => {
-                    if (msgBox.onConfirm) msgBox.onConfirm();
-                    setMsgBox({ ...msgBox, isOpen: false });
-                  }} 
-                  className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-opacity shadow-md"
-                >
-                  ตกลง
+                  เสร็จสิ้น / ดูรายการคำสั่งซื้อ
                 </button>
               </div>
-            ) : (
-              <button 
-                onClick={() => {
-                  setMsgBox({ ...msgBox, isOpen: false });
-                  if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
-                      window.liff.closeWindow();
-                  }
-                }} 
-                className="w-full py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-opacity shadow-md"
-              >
-                รับทราบ
-              </button>
-            )}
+            </div>
           </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
+        )}
+  
+        {/* Modal สรุปผลส่งของสำเร็จ (แอดมิน) */}
+        {adminDeliverySuccessData && (
+          <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center space-y-5 animate-in zoom-in-95">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto"><CheckCircle size={28}/></div>
+              <h3 className="text-lg font-bold text-slate-800">อัปเดตสถานะสำเร็จ! 🛵</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">บันทึกการส่งสำเร็จแล้ว สามารถแชร์แจ้งลูกค้าทาง LINE ได้เลยครับ</p>
+  
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-dashed text-left max-h-36 overflow-y-auto">
+                <pre className="text-[10px] text-slate-600 whitespace-pre-wrap font-sans leading-normal">{adminDeliverySuccessData.text}</pre>
+              </div>
+  
+              <div className="space-y-2">
+                <a 
+                  href={`https://line.me/R/share?text=${encodeURIComponent(adminDeliverySuccessData.text)}`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-[#06C755] text-white py-3.5 rounded-2xl text-xs font-bold shadow-md active:scale-95 hover:bg-emerald-600"
+                >
+                  <Share2 size={16}/> แชร์สถานะผ่าน LINE
+                </a>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(adminDeliverySuccessData.text);
+                    showAlert("คัดลอกข้อความสำเร็จ! นำไปวางในแชตลูกค้าได้เลยครับ");
+                  }}
+                  className="w-full bg-slate-100 text-slate-700 py-3 rounded-2xl text-xs font-bold active:scale-95 hover:bg-slate-200"
+                >
+                  คัดลอกข้อความ
+                </button>
+                <button onClick={() => setAdminDeliverySuccessData(null)} className="w-full text-slate-400 py-1.5 text-xs font-bold">ปิดหน้าต่าง</button>
+              </div>
+            </div>
+          </div>
+        )}
+  
+        {/* Modal ดาวน์โหลดรูปพรีวิว */}
+        {downloadPreview && (
+          <div className="fixed inset-0 bg-black/95 z-[250] flex flex-col items-center justify-center p-4 animate-in fade-in">
+            <p className="text-white font-bold mb-4 bg-emerald-600/90 px-4 py-2.5 rounded-2xl flex items-center gap-2 shadow-xl border border-emerald-400 text-xs text-center">
+              <Download size={16}/> กดค้างที่รูปภาพเพื่อบันทึกลงเครื่อง (Save Image)
+            </p>
+            <img src={downloadPreview} loading="eager" decoding="async" className="max-w-full max-h-[60vh] rounded-2xl shadow-2xl border-2 border-white/20 animate-in zoom-in-95 pointer-events-auto" alt="preview to save" />
+            <button onClick={() => setDownloadPreview(null)} className="mt-6 bg-white text-slate-800 px-6 py-3 rounded-2xl font-bold text-xs active:scale-95 shadow-md flex items-center gap-2">
+              <X size={16}/> ปิดหน้าต่าง
+            </button>
+          </div>
+        )}
+  
+        {/* Modal แอดมินล็อกอิน */}
+        {showAdminModal && (
+          <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center backdrop-blur-xs p-4 animate-in fade-in">
+            <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center">
+              <h3 className="font-bold text-lg mb-6 text-slate-900">แอดมินเข้าสู่ระบบ</h3>
+              <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-200 p-4 rounded-2xl mb-6 text-center text-2xl outline-none tracking-[0.4em] focus:border-amber-800 focus:bg-white transition-all shadow-inner font-bold text-slate-800" placeholder="••••••" />
+              <div className="flex gap-3">
+                <button onClick={() => { setShowAdminModal(false); setAdminPassword(''); }} className="flex-1 py-3 bg-slate-100 text-slate-500 font-bold text-xs rounded-2xl hover:bg-slate-200 transition-colors">ยกเลิก</button>
+                <button onClick={() => {
+                  if(adminPassword === '570402') { 
+                    localStorage.setItem('happycow_isAdmin', 'true');
+                    setView('admin'); 
+                    setAdminTab('orders'); 
+                    setShowAdminModal(false); 
+                    setAdminPassword(''); 
+                  }
+                  else { showAlert('รหัสผ่านไม่ถูกต้องครับ!'); setAdminPassword(''); }
+                }} className="flex-1 py-3 bg-slate-900 text-white font-bold text-xs rounded-2xl shadow-md transition-all active:scale-95 hover:bg-slate-800">ยืนยัน</button>
+              </div>
+            </div>
+          </div>
+        )}
+  
+        {/* Custom Message Box */}
+        {msgBox.isOpen && (
+          <div className="fixed inset-0 bg-black/70 z-[400] flex items-center justify-center p-4 animate-in fade-in backdrop-blur-xs">
+            <div className="bg-white p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+            {msgBox.type === 'confirm' ? (
+                <AlertCircle size={42} className="text-amber-500 mx-auto mb-4" />
+              ) : (
+                <CheckCircle size={42} className="text-emerald-500 mx-auto mb-4" />
+              )}
+  
+              <h3 className="font-bold text-xs text-slate-800 mb-6 whitespace-pre-line leading-relaxed">{msgBox.message}</h3>
+  
+              {msgBox.type === 'confirm' ? (
+                <div className="flex gap-2.5">
+                  <button 
+                    onClick={() => setMsgBox({ ...msgBox, isOpen: false })} 
+                    className="flex-1 py-3 bg-slate-100 rounded-2xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (msgBox.onConfirm) msgBox.onConfirm();
+                      setMsgBox({ ...msgBox, isOpen: false });
+                    }} 
+                    className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-opacity shadow-md"
+                  >
+                    ตกลง
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => {
+                    setMsgBox({ ...msgBox, isOpen: false });
+                    if (msgBox.message.includes("สำเร็จ") && window.liff && window.liff.isInClient() && msgBox.message.includes("คุณ")) {
+                        window.liff.closeWindow();
+                    }
+                  }} 
+                  className="w-full py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-opacity shadow-md"
+                >
+                  รับทราบ
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+  
+      </div>
+    );
+  }
