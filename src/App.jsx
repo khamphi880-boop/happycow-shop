@@ -286,11 +286,13 @@ export default function App() {
   }, []);
 
   const getAddedBlendPrice = useCallback((item) => {
+    if (!item) return 0;
     if (item.category === 'สมูทตี้โยเกิร์ต' || item.category === 'ผลไม้และสมูทตี้') return 0;
     return (item.blendPrice !== undefined && item.blendPrice !== null && item.blendPrice !== '') ? Number(item.blendPrice) : 5;
   }, []);
 
   const getBlendText = useCallback((item) => {
+    if (!item) return '';
     if (isWhipOrCreamCheeseItem(item)) return ''; 
     if (item.isOnlyBlend) return 'ปั่น';
     if (item.allowBlend === false) return 'เย็น/ปกติ';
@@ -324,10 +326,10 @@ export default function App() {
       const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
       const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
       const sweetText = isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`;
-      return `- ${i.qty}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
+      return `- ${i.qty || 1}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
     }).join('\n');
 
-    return `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${order.id.slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${order.lineName || "ลูกค้าทั่วไป"}\n${itemsListText}\n\nยอดรวม: ฿${order.total}\nที่อยู่: ${order.address || '-'}\nช่องทางชำระเงิน: ${paymentText}\nหมายเหตุ: ${order.note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
+    return `วัวนมอารมณ์ดี 🐮\nบิลเลขที่: #${(order.id || '').slice(0, 6)}\nวัน/เวลา: ${dateStr}\nลูกค้า: คุณ ${order.lineName || "ลูกค้าทั่วไป"}\n${itemsListText}\n\nยอดรวม: ฿${order.total}\nที่อยู่: ${order.address || '-'}\nช่องทางชำระเงิน: ${paymentText}\nหมายเหตุ: ${order.note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
   }, [getBlendText, isWhipOrCreamCheeseItem]);
 
   const handleShareOrderBill = async (order) => {
@@ -365,8 +367,8 @@ export default function App() {
       } else if (pastItem.isOnlyBlend && storeSettings.isBlendOut) {
         unavailableItems.push(`${pastItem.name} (งดปั่น)`);
       } else {
-        const toppingsStr = (pastItem.selectedToppings || []).map(t => t.id || t.name).sort().join('-');
-        const saucesStr = (pastItem.selectedSauces || []).map(s => typeof s === 'object' ? s.id || s.name : s).sort().join('-');
+        const toppingsStr = (pastItem.selectedToppings || []).map(t => t?.id || t?.name || '').sort().join('-');
+        const saucesStr = (pastItem.selectedSauces || []).map(s => typeof s === 'object' ? (s?.id || s?.name) : s).sort().join('-');
         const beanStr = pastItem.bean ? `-${pastItem.bean}` : '';
         const teaStr = pastItem.teaType ? `-${pastItem.teaType}` : '';
         const shotStr = pastItem.addShot ? `-addShot` : '';
@@ -387,11 +389,11 @@ export default function App() {
     }
 
     setCart(prevCart => {
-      let newCart = [...prevCart];
+      let newCart = Array.isArray(prevCart) ? [...prevCart] : [];
       itemsToAdd.forEach(newItem => {
         const idx = newCart.findIndex(c => c.cartId === newItem.cartId);
         if (idx > -1) {
-          newCart[idx] = { ...newCart[idx], qty: newCart[idx].qty + (newItem.qty || 1) };
+          newCart[idx] = { ...newCart[idx], qty: (newCart[idx].qty || 1) + (newItem.qty || 1) };
         } else {
           newCart.push({ ...newItem, qty: newItem.qty || 1 });
         }
@@ -423,8 +425,8 @@ export default function App() {
       return showAlert(`ขออภัยค่ะ วันนี้งดรับเมนูปั่นชั่วคราวค่ะ 🐮`);
     }
 
-    const toppingsStr = (item.selectedToppings || []).map(t => t.id || t.name).sort().join('-');
-    const saucesStr = (item.selectedSauces || []).map(s => typeof s === 'object' ? s.id || s.name : s).sort().join('-');
+    const toppingsStr = (item.selectedToppings || []).map(t => t?.id || t?.name || '').sort().join('-');
+    const saucesStr = (item.selectedSauces || []).map(s => typeof s === 'object' ? (s?.id || s?.name) : s).sort().join('-');
     const beanStr = item.bean ? `-${item.bean}` : '';
     const teaStr = item.teaType ? `-${item.teaType}` : '';
     const shotStr = item.addShot ? `-addShot` : '';
@@ -434,11 +436,12 @@ export default function App() {
     const cartId = item.cartId || `${item.id || item.name}-${isWhipOrCream ? 'nowhip' : item.sweetness}-${item.isBlended}-${item.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
 
     setCart(prev => {
-      const idx = prev.findIndex(c => c.cartId === cartId);
+      const safePrev = Array.isArray(prev) ? prev : [];
+      const idx = safePrev.findIndex(c => c.cartId === cartId);
       if (idx > -1) {
-        return prev.map((c, i) => i === idx ? { ...c, qty: c.qty + 1 } : c);
+        return safePrev.map((c, i) => i === idx ? { ...c, qty: (c.qty || 1) + 1 } : c);
       }
-      return [...prev, { ...item, cartId, qty: 1 }];
+      return [...safePrev, { ...item, cartId, qty: 1 }];
     });
 
     showAlert(`เพิ่ม "${item.name}" (หวาน ${item.sweetness || 'ปกติ'}) ลงตะกร้าแล้วค่ะ! 🐮🛒`, () => {
@@ -487,8 +490,6 @@ export default function App() {
         try {
           localStorage.setItem('happycow_sheet_orders_cache', JSON.stringify(json.slice(0, 300)));
         } catch(e) {}
-      } else {
-        console.warn("Google Sheets API returned non-success structure:", json);
       }
     } catch (err) {
       console.error("Error fetching Google Sheets best seller data:", err);
@@ -518,7 +519,6 @@ export default function App() {
     }
   };
 
-  // ดึงข้อมูล Google Sheets เฉพาะเมื่อแอดมินเปิดแท็บแดชบอร์ด
   useEffect(() => {
     if (!storeSettings?.googleSheetUrl) return;
     if (view === 'admin' && adminTab === 'dashboard') {
@@ -526,20 +526,17 @@ export default function App() {
     }
   }, [view, adminTab, storeSettings?.googleSheetUrl, fetchDashboardDataFromGoogleSheets]);
 
-  useEffect(() => { localStorage.setItem('happycow_cart', JSON.stringify(cart)); }, [cart]);
-  useEffect(() => { localStorage.setItem('happycow_view', view); }, [view]);
-  useEffect(() => { localStorage.setItem('happycow_address', address); }, [address]);
-  useEffect(() => { localStorage.setItem('happycow_note', note); }, [note]);
-  useEffect(() => { localStorage.setItem('happycow_paymentMethod', paymentMethod); }, [paymentMethod]);
-  useEffect(() => { localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory)); }, [searchHistory]);
-  
+  // Sync to LocalStorage safely
   useEffect(() => {
-    if (orders.length > 0) {
-      try {
-        localStorage.setItem('happycow_orders_cache', JSON.stringify(orders.slice(0, 50)));
-      } catch (e) {}
-    }
-  }, [orders]);
+    try {
+      localStorage.setItem('happycow_cart', JSON.stringify(cart));
+      localStorage.setItem('happycow_view', view);
+      localStorage.setItem('happycow_address', address);
+      localStorage.setItem('happycow_note', note);
+      localStorage.setItem('happycow_paymentMethod', paymentMethod);
+      localStorage.setItem('happycow_searchHistory', JSON.stringify(searchHistory));
+    } catch (e) {}
+  }, [cart, view, address, note, paymentMethod, searchHistory]);
 
   // Presence & User Auth Initialization
   useEffect(() => {
@@ -615,18 +612,18 @@ export default function App() {
     return () => { unsubMenus(); unsubToppings(); unsubSauces(); unsubSettings(); };
   }, []);
 
-  // Background presence updater & Daily Visitor Logging
+  // [PERFORMANCE FIX] Presence updates (Only Heartbeat every 60s and only listen if Admin)
   useEffect(() => {
     if (!lineProfile.userId) return;
 
+    const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     const todayDateKey = getTodayDateKey();
     const userPresenceRef = doc(db, 'active_users', lineProfile.userId);
     const dailyVisitorRef = doc(db, 'daily_visitors', `${todayDateKey}_${lineProfile.userId}`);
 
     const updateMyPresence = async () => {
+      if (document.hidden) return; // ไม่ส่ง Heartbeat ตอนพับจอ
       const now = Date.now();
-      const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true'; 
-
       try {
         await setDoc(userPresenceRef, {
           userId: lineProfile.userId,
@@ -647,37 +644,41 @@ export default function App() {
           }, { merge: true });
         }
       } catch (err) {
-        console.warn("Presence / Daily Visitor update skipped:", err);
+        console.warn("Presence skipped:", err);
       }
     };
 
     updateMyPresence();
-    const heartbeatTimer = setInterval(updateMyPresence, 25000);
+    const heartbeatTimer = setInterval(updateMyPresence, 60000); // ขยายเวลาเป็น 60s
 
-    const unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
-      const now = Date.now();
-      const activeThreshold = 75000; 
-      const currentActive = [];
+    let unsubPresence = () => {};
+    let unsubDailyVisitors = () => {};
 
-      snapshot.forEach(d => {
-        const data = d.data();
-        if (data.lastActive && (now - data.lastActive < activeThreshold)) {
-          currentActive.push({ id: d.id, ...data });
-        }
+    // เฉพาะ Admin เท่านั้นที่ต้องดึงข้อมูล Real-time Active Users (ลูกค้าทั่วไปไม่ต้องโหลด)
+    if (isAdmin && view === 'admin') {
+      unsubPresence = onSnapshot(collection(db, 'active_users'), snapshot => {
+        const now = Date.now();
+        const activeThreshold = 120000; 
+        const currentActive = [];
+        snapshot.forEach(d => {
+          const data = d.data();
+          if (data.lastActive && (now - data.lastActive < activeThreshold)) {
+            currentActive.push({ id: d.id, ...data });
+          }
+        });
+        setActiveUsers(currentActive);
       });
 
-      setActiveUsers(currentActive);
-    });
-
-    const unsubDailyVisitors = onSnapshot(
-      query(collection(db, 'daily_visitors'), where('dateKey', '==', todayDateKey)),
-      snapshot => {
-        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        list.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
-        setDailyVisitors(list);
-      },
-      err => console.warn("Daily visitors listener error:", err)
-    );
+      unsubDailyVisitors = onSnapshot(
+        query(collection(db, 'daily_visitors'), where('dateKey', '==', todayDateKey)),
+        snapshot => {
+          const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          list.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+          setDailyVisitors(list);
+        },
+        err => console.warn("Daily visitors error:", err)
+      );
+    }
 
     const handleBeforeUnload = () => {
       deleteDoc(userPresenceRef).catch(() => {});
@@ -693,27 +694,38 @@ export default function App() {
     };
   }, [lineProfile.userId, lineProfile.displayName, lineProfile.pictureUrl, view]);
 
+  // [PERFORMANCE FIX] โหลดออร์เดอร์แบบตรงจุด
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
     if (view !== 'admin' && view !== 'myOrders' && !isAdmin) return;
 
-    if (orders.length === 0) {
-      setIsLoadingOrders(true);
-    }
+    setIsLoadingOrders(true);
 
-    const ordersQuery = query(
-      collection(db, 'orders'),
-      orderBy('timestamp', 'desc'),
-      limit(isAdmin ? 120 : 50)
-    );
+    let ordersQuery;
+    if (isAdmin && view === 'admin') {
+      ordersQuery = query(
+        collection(db, 'orders'),
+        orderBy('timestamp', 'desc'),
+        limit(80)
+      );
+    } else {
+      // ลูกค้าทั่วไป query เฉพาะของตัวเอง ไม่โหลดออร์เดอร์ของคนอื่น
+      ordersQuery = query(
+        collection(db, 'orders'),
+        where('userId', '==', lineProfile.userId || 'guest_user'),
+        orderBy('timestamp', 'desc'),
+        limit(30)
+      );
+    }
 
     const unsubOrders = onSnapshot(ordersQuery, snapshot => { 
        const fetchedOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
        setOrders(fetchedOrders); 
        setIsLoadingOrders(false);
     }, err => {
-       console.warn("Optimized query fallback:", err);
-       const unsubFallback = onSnapshot(collection(db, 'orders'), snap => {
+       console.warn("Orders query fallback:", err);
+       const fallbackQuery = query(collection(db, 'orders'), limit(30));
+       const unsubFallback = onSnapshot(fallbackQuery, snap => {
           const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.timestamp - a.timestamp);
           setOrders(fetched);
           setIsLoadingOrders(false);
@@ -722,7 +734,7 @@ export default function App() {
     });
 
     return () => unsubOrders();
-  }, [view]);
+  }, [view, lineProfile.userId]);
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('happycow_isAdmin') === 'true';
@@ -799,8 +811,8 @@ export default function App() {
     try {
       await addDoc(collection(db, 'menus'), { 
         ...newMenu, 
-        price: Number(newMenu.price), 
-        blendPrice: Number(newMenu.blendPrice), 
+        price: Number(newMenu.price) || 0, 
+        blendPrice: Number(newMenu.blendPrice) || 5, 
         allowTopping: newMenu.allowTopping !== false, 
         allowSauce: newMenu.allowSauce || false,
         isOnlyBlend: newMenu.isOnlyBlend || false, 
@@ -830,8 +842,8 @@ export default function App() {
     try {
       await updateDoc(doc(db, 'menus', editingMenu.id), { 
         ...editingMenu, 
-        price: Number(editingMenu.price), 
-        blendPrice: Number(editingMenu.blendPrice), 
+        price: Number(editingMenu.price) || 0, 
+        blendPrice: Number(editingMenu.blendPrice) || 5, 
         allowTopping: editingMenu.allowTopping !== false, 
         allowSauce: editingMenu.allowSauce || false,
         isOnlyBlend: editingMenu.isOnlyBlend || false, 
@@ -889,7 +901,7 @@ export default function App() {
 
   const handleAddTopping = async () => {
     if (!newTopping.name || !newTopping.price) return showAlert('กรุณากรอกข้อมูลท็อปปิ้งให้ครบถ้วนครับ');
-    try { await addDoc(collection(db, 'toppings'), { name: newTopping.name, price: Number(newTopping.price) }); showAlert('เพิ่มท็อปปิ้งสำเร็จ!'); setNewTopping({ name: '', price: '' }); setShowAddToppingForm(false); } catch (e) { showAlert(e.message); }
+    try { await addDoc(collection(db, 'toppings'), { name: newTopping.name, price: Number(newTopping.price) || 0 }); showAlert('เพิ่มท็อปปิ้งสำเร็จ!'); setNewTopping({ name: '', price: '' }); setShowAddToppingForm(false); } catch (e) { showAlert(e.message); }
   };
 
   const handleDeleteTopping = (id) => { 
@@ -923,7 +935,7 @@ export default function App() {
     try {
       setIsLoading(true);
       for (const sauce of DEFAULT_SAUCES) {
-        await addDoc(collection(db, 'sauces'), { name: sauce.name, price: sauce.price });
+        await addDoc(collection(db, 'sauces'), { name: sauce.name, price: Number(sauce.price) || 0 });
       }
       showAlert('นำเข้าซอสเริ่มต้นเข้าสู่ระบบเรียบร้อยแล้วค่ะ! ✨');
     } catch (e) {
@@ -944,13 +956,11 @@ export default function App() {
   const handleAcceptOrder = async (order) => {
     try {
       await updateDoc(doc(db, 'orders', order.id), { status: 'cooking' });
-      
       sendOrderToGoogleSheets({
         ...order,
         orderId: order.id,
         status: 'cooking'
       });
-
       showAlert(`รับออร์เดอร์ของ ${order.lineName} แล้ว! 👩‍🍳`);
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
   };
@@ -986,7 +996,6 @@ export default function App() {
 
       setDeliveryModal(null); 
       setAdminDeliverySuccessData({ text: deliverySummaryText, orderId: deliveryModal.id });
-      
     } catch (e) { showAlert("เกิดข้อผิดพลาด: " + e.message); }
     setIsDelivering(false);
   };
@@ -1013,14 +1022,14 @@ export default function App() {
   const updateTheme = async (newTheme) => { try { await setDoc(doc(db, 'settings', 'store'), { theme: newTheme }, { merge: true }); showAlert(`เปลี่ยนธีมร้านเป็น ${THEMES[newTheme].name} เรียบร้อย! 🎨`); } catch(e) { showAlert("Error: " + e.message); } };
 
   const openOptionModal = (item) => {
-    if (item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
+    if (!item || item.isSoldOut || (item.isOnlyBlend && storeSettings.isBlendOut)) return;
     setOptionModalItem(item);
 
     const allowed = (item.allowedSweetness && item.allowedSweetness.length > 0) ? item.allowedSweetness : SWEETNESS;
     const defaultSweetness = allowed.includes('100%') ? '100%' : (allowed[0] || '100%');
 
     setTempOptions({ 
-      sweetness: defaultSweetness, isBlended: item.isOnlyBlend ? true : false, addPearl: item.hasFreePearl || false, 
+      sweetness: defaultSweetness, isBlended: Boolean(item.isOnlyBlend), addPearl: Boolean(item.hasFreePearl), 
       selectedToppings: [], selectedSauces: [], bean: item.category === 'กาแฟ' ? 'คั่วเข้ม' : null, teaType: item.hasTeaType ? 'มัทฉะ' : null, addShot: false,
       separateIce: false
     });
@@ -1043,10 +1052,8 @@ export default function App() {
     }
   };
 
-  // [MODIFIED] คำนวณอันดับเมนูขายดีจาก soldCount โดยตรง ทำงานแบบ 0ms (ไม่บล็อก Main Thread)
   const bestSellers = useMemo(() => {
     if (!menuItems || menuItems.length === 0) return [];
-
     const sortedBySales = [...menuItems]
       .filter(item => (item.soldCount || 0) > 0 && !item.isSoldOut)
       .sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0));
@@ -1056,12 +1063,11 @@ export default function App() {
       if (promoted.length > 0) return promoted.slice(0, 8);
       return menuItems.filter(m => !m.isSoldOut).slice(0, 8);
     }
-
     return sortedBySales.slice(0, 9);
   }, [menuItems]);
 
   const displayedItems = useMemo(() => {
-    if (searchQuery) return menuItems.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (searchQuery) return menuItems.filter(i => (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
     if (activeCategory === '🔥 เมนูขายดี') return bestSellers;
     return menuItems.filter(i => {
        if (activeCategory === 'สมูทตี้โยเกิร์ต') return i.category === 'สมูทตี้โยเกิร์ต' || i.category === 'ผลไม้และสมูทตี้';
@@ -1077,7 +1083,7 @@ export default function App() {
     if (!adminSearchQuery) return activeOrders;
     const q = adminSearchQuery.trim().toLowerCase();
     return activeOrders.filter(o => 
-      o.id.toLowerCase().includes(q) || 
+      (o.id || '').toLowerCase().includes(q) || 
       (o.lineName || '').toLowerCase().includes(q) || 
       (o.address || '').toLowerCase().includes(q) ||
       (o.paymentMethod || '').toLowerCase().includes(q)
@@ -1086,7 +1092,6 @@ export default function App() {
 
   const sheetStats = useMemo(() => {
     const rawOrders = Array.isArray(sheetOrdersData) ? sheetOrdersData : [];
-    
     const validSheetOrders = rawOrders.filter(o => {
       if (!o) return false;
       const st = String(o.status || '').toLowerCase().trim();
@@ -1146,7 +1151,6 @@ export default function App() {
   const filteredSheetOrders = useMemo(() => {
     return (Array.isArray(sheetOrdersData) ? sheetOrdersData : []).filter(o => {
       if (!o) return false;
-      
       const parsed = parseCustomDate(o.timestamp, o.timestampStr, o.datetime || o.date);
       if (!parsed) return true;
 
@@ -1205,7 +1209,7 @@ export default function App() {
   }, [view, promotedItems.length, searchQuery]);
 
   const currentThemeData = THEMES[storeSettings.theme] || THEMES.default;
-  const cartTotal = useMemo(() => cart.reduce((s, i) => s + (i.price * i.qty), 0), [cart]);
+  const cartTotal = useMemo(() => (Array.isArray(cart) ? cart : []).reduce((s, i) => s + ((Number(i.price) || 0) * (Number(i.qty) || 1)), 0), [cart]);
 
   const isBelowMinOrder = storeSettings.minOrderAmount > 0 && cartTotal < storeSettings.minOrderAmount;
   const minOrderShortage = storeSettings.minOrderAmount > 0 ? Math.max(0, storeSettings.minOrderAmount - cartTotal) : 0;
@@ -1414,7 +1418,7 @@ export default function App() {
                     <div key={`promo-${item.id}`} className="w-[88%] flex-shrink-0 snap-center">
                       <div onClick={() => openOptionModal(item)} className={`bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950 text-white rounded-3xl p-4 shadow-xl flex items-center gap-4 border border-amber-500/30 transition-all h-full relative overflow-hidden animate-shimmer ${item.isSoldOut ? 'cursor-not-allowed opacity-80' : 'cursor-pointer active:scale-98'}`}>
                          <div className="relative">
-                            <img src={item.image} loading="eager" decoding="async" className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-lg border border-amber-400/20 flex-shrink-0" alt={item.name} />
+                            <img src={item.image} loading="lazy" decoding="async" className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-2xl shadow-lg border border-amber-400/20 flex-shrink-0" alt={item.name} />
                             <div className="absolute -bottom-2 -right-2 text-2xl floating-badge drop-shadow-md">🔥</div>
                             {item.isSoldOut && (
                                <div className="absolute top-1 -left-1 bg-slate-900/90 text-white px-2.5 py-0.5 rounded-md font-bold text-[9px] shadow-lg border border-slate-700 rotate-[-5deg] z-10">หมด</div>
@@ -1602,7 +1606,7 @@ export default function App() {
                {cart.map(i => (
                  <div key={i.cartId} className="flex justify-between items-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200/60 shadow-2xs">
                    <div className="flex-1 font-bold text-xs text-slate-800 pr-2">
-                     {i.qty}x {i.name} <br/>
+                     {i.qty || 1}x {i.name} <br/>
                      <span className="text-slate-400 text-[10px] font-medium uppercase leading-relaxed block mt-0.5">
                        ({getBlendText(i)}{isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง (+฿5)' : ''}{i.hasFreePearl ? (i.addPearl ? ' • มุกฟรี' : ' • ไม่รับมุกฟรี') : ''})
                        {i.selectedSauces?.length > 0 && ` • ราดซอส: ${i.selectedSauces.map(s => typeof s === 'object' ? s.name : s).join(', ')}`}
@@ -1610,7 +1614,7 @@ export default function App() {
                      </span>
                    </div>
                    <div className="flex items-center gap-3">
-                     <p className="font-black text-amber-800 text-sm">฿{i.price * i.qty}</p>
+                     <p className="font-black text-amber-800 text-sm">฿{(Number(i.price) || 0) * (Number(i.qty) || 1)}</p>
                      <button onClick={() => setCart(prev => prev.filter(item => item.cartId !== i.cartId))} className="text-rose-300 hover:text-rose-600 transition-colors p-1"><Trash2 size={16}/></button>
                    </div>
                  </div>
@@ -1743,7 +1747,6 @@ export default function App() {
                           isDeleted: false
                         });
 
-                        // [ADDED] อัปเดต soldCount สะสมตรงไปที่แต่ละเมนูใน Firestore ด้วย increment
                         const updateMenuSalesPromises = cart.map(item => {
                           const targetId = item.id || menuItems.find(m => m.name === item.name)?.id;
                           if (targetId) {
@@ -1755,7 +1758,6 @@ export default function App() {
                         });
                         await Promise.all(updateMenuSalesPromises);
 
-                        // Update daily visitor status to Purchased
                         if (lineProfile.userId) {
                           const isAdminVisitor = localStorage.getItem('happycow_isAdmin') === 'true';
                           if (!isAdminVisitor) {
@@ -1799,7 +1801,7 @@ export default function App() {
                             const toppingsText = i.selectedToppings?.length > 0 ? ` • เพิ่มท็อปปิ้ง: ${i.selectedToppings.map(t => t.name).join(', ')}` : '';
                             const pearlText = i.hasFreePearl ? (i.addPearl ? ' • รับไข่มุกฟรี' : ' • ไม่รับไข่มุกฟรี') : '';
                             const sweetText = isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`;
-                            return `- ${i.qty}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
+                            return `- ${i.qty || 1}x ${i.name} (${blendText}${sweetText}${beanText}${teaText}${shotText}${iceText}${pearlText}${saucesText}${toppingsText})`;
                           }).join('\n') + 
                           `\n\nยอดรวม: ฿${total}\nที่อยู่: ${address}\nช่องทางชำระเงิน: ${paymentMethod === 'cash' ? 'ชำระเงินสด' : (paymentMethod === 'thaichueithai' ? 'ไทยช่วยไทยพลัส' : 'โอนพร้อมเพย์')}\nหมายเหตุ: ${note || '-'}\n\n📄 สั่งน้ำกดลิ้งค์ได้เลย: ${orderLink}`;
 
@@ -1892,7 +1894,7 @@ export default function App() {
                               <div key={idx} className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50/80 border border-slate-100">
                                 <div className="flex-1 pr-2">
                                   <p className="text-xs font-bold text-slate-800 leading-snug">
-                                    {item.qty}x {item.name}
+                                    {item.qty || 1}x {item.name}
                                   </p>
                                   <p className="text-[9.5px] text-slate-400 font-medium leading-relaxed mt-0.5">
                                     ({getBlendText(item)}{isWhipOrCreamCheeseItem(item) ? '' : ` • หวาน ${item.sweetness}`}{item.bean ? ` • ${item.bean}` : ''}{item.teaType ? ` • ${item.teaType}` : ''}{item.addShot ? ' • เพิ่มช็อต' : ''}{item.separateIce ? ' • แยกน้ำแข็ง' : ''})
@@ -2043,7 +2045,7 @@ export default function App() {
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                <div className="relative flex-shrink-0">
                                   {v.pictureUrl ? (
-                                     <img src={v.pictureUrl} className="w-9 h-9 rounded-full border border-amber-300/40 object-cover" alt="visitor" />
+                                     <img src={v.pictureUrl} loading="lazy" decoding="async" className="w-9 h-9 rounded-full border border-amber-300/40 object-cover" alt="visitor" />
                                   ) : (
                                      <div className="w-9 h-9 rounded-full bg-amber-800 flex items-center justify-center text-xs font-bold">🐮</div>
                                   )}
@@ -2342,8 +2344,8 @@ export default function App() {
                       
                       <div className="space-y-1 border-t border-slate-100 pt-3 mb-3">{(o.items || []).map((i, idx) => (
                           <div key={idx} className="text-xs text-slate-600 flex justify-between font-medium">
-                            <span>{i.qty}x {i.name} ({getBlendText(i)}{isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? ' +มุกฟรี':''}{i.selectedSauces?.length > 0 ? ` + ราดซอส:${i.selectedSauces.map(s=>typeof s==='object'?s.name:s).join(',')}` : ''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
-                            <span className="font-bold text-slate-800">฿{i.price * i.qty}</span>
+                            <span>{i.qty || 1}x {i.name} ({getBlendText(i)}{isWhipOrCreamCheeseItem(i) ? '' : ` • หวาน ${i.sweetness}`}{i.bean ? ` • ${i.bean}` : ''}{i.teaType ? ` • ${i.teaType}` : ''}{i.addShot ? ' • เพิ่มช็อต' : ''}{i.separateIce ? ' • แยกน้ำแข็ง' : ''}{i.hasFreePearl && i.addPearl ? ' +มุกฟรี':''}{i.selectedSauces?.length > 0 ? ` + ราดซอส:${i.selectedSauces.map(s=>typeof s==='object'?s.name:s).join(',')}` : ''}{i.selectedToppings?.length > 0 ? ` + ${i.selectedToppings.map(t=>t.name).join(',')}` : ''})</span>
+                            <span className="font-bold text-slate-800">฿{(Number(i.price) || 0) * (Number(i.qty) || 1)}</span>
                           </div>
                       ))}</div>
 
@@ -2368,7 +2370,7 @@ export default function App() {
                             <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 flex-1 min-w-[120px] text-center">
                               <p className="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-wider">🛵 รูปส่งสินค้า:</p>
                               <button 
-                                onClick={() => viewImage(o.id, 'delivery')}
+                                onClick={() => viewImage(o.id, 'delivery')} 
                                 disabled={loadingSlipId === o.id}
                                 className="w-full bg-white hover:bg-slate-100 transition-colors py-2 rounded-lg border text-[10px] font-bold text-emerald-600 flex items-center justify-center gap-1 shadow-2xs"
                               >
@@ -2646,7 +2648,7 @@ export default function App() {
                       })
                       .sort((a, b) => (a.sortOrder || a.createdAt || 0) - (b.sortOrder || b.createdAt || 0));
 
-                    if (adminSearchQuery) itemsInCategory = itemsInCategory.filter(item => item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()));
+                    if (adminSearchQuery) itemsInCategory = itemsInCategory.filter(item => (item.name || '').toLowerCase().includes(adminSearchQuery.toLowerCase()));
                     if (itemsInCategory.length === 0) return null;
 
                     return (
@@ -2664,8 +2666,8 @@ export default function App() {
                             >
                               <div className="flex items-center gap-2.5">
                                 <div className="flex flex-col items-center gap-0.5 z-10">
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'up', itemsInCategory); }} disabled={idx === 0 || adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === 0 || adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowUp size={13}/></button>
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === itemsInCategory.length - 1 || adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowDown size={13}/></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'up', itemsInCategory); }} disabled={idx === 0 || !!adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === 0 || !!adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowUp size={13}/></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleMoveMenu(item, 'down', itemsInCategory); }} disabled={idx === itemsInCategory.length - 1 || !!adminSearchQuery} className={`p-1 rounded-md transition-all ${idx === itemsInCategory.length - 1 || !!adminSearchQuery ? 'text-slate-200' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'}`}><ArrowDown size={13}/></button>
                                 </div>
                                 <img src={item.image} loading="lazy" decoding="async" className={`w-12 h-12 rounded-xl object-cover pointer-events-none ${item.isSoldOut ? 'grayscale opacity-50' : ''}`} alt="list" />
                                 <div>
@@ -3097,13 +3099,14 @@ export default function App() {
 
       {/* --- Modal เลือกออปชันเมนูเครื่องดื่มตอนสั่งซื้อ --- */}
       {optionModalItem && (() => {
-        const isItemBlendedInPreview = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-        const previewToppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-        const previewSaucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + Number(s.price || 0), 0);
+        const isItemBlendedInPreview = Boolean(optionModalItem.isOnlyBlend || tempOptions.isBlended);
+        const previewToppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + (Number(t?.price) || 0), 0);
+        const previewSaucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + (Number(typeof s === 'object' ? s?.price : 0) || 0), 0);
         const previewShotPrice = tempOptions.addShot ? 20 : 0;
         const isWhipOrCreamCheese = isWhipOrCreamCheeseItem(optionModalItem);
         const previewIcePrice = (!isItemBlendedInPreview && !isWhipOrCreamCheese && tempOptions.separateIce) ? 5 : 0;
-        const previewTotalPrice = optionModalItem.price + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewSaucesPrice + previewShotPrice + previewIcePrice;
+        const baseP = Number(optionModalItem.price) || 0;
+        const previewTotalPrice = baseP + (isItemBlendedInPreview ? getAddedBlendPrice(optionModalItem) : 0) + previewToppingsPrice + previewSaucesPrice + previewShotPrice + previewIcePrice;
 
         const isWhipCreamOrSauceItem = isWhipOrCreamCheese;
 
@@ -3111,13 +3114,64 @@ export default function App() {
           ? optionModalItem.allowedSweetness 
           : SWEETNESS;
 
+        const handleAddToCartFromModal = () => {
+          try {
+            if (!optionModalItem) return;
+            const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + (Number(t?.price) || 0), 0);
+            const saucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + (Number(typeof s === 'object' ? s?.price : 0) || 0), 0);
+            const shotPrice = tempOptions.addShot ? 20 : 0;
+            const isItemBlended = Boolean(optionModalItem.isOnlyBlend || tempOptions.isBlended);
+            const icePrice = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? 5 : 0;
+            const finalP = (Number(optionModalItem.price) || 0) + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + saucesPrice + shotPrice + icePrice;
+            
+            const toppingsStr = (tempOptions.selectedToppings || []).map((t, idx) => t?.id || t?.name || idx).sort().join('-');
+            const saucesStr = (tempOptions.selectedSauces || []).map((s, idx) => (typeof s === 'object' ? (s?.id || s?.name) : s) || idx).sort().join('-');
+            const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
+            const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
+            const shotStr = tempOptions.addShot ? `-addShot` : '';
+            const iceStr = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? `-separateIce` : '';
+            
+            const cartId = `${optionModalItem.id || optionModalItem.name}-${isWhipOrCreamCheese ? 'nowhip' : (tempOptions.sweetness || '100%')}-${isItemBlended}-${Boolean(tempOptions.addPearl)}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
+            
+            const newItem = {
+              ...optionModalItem,
+              price: finalP,
+              cartId,
+              sweetness: tempOptions.sweetness || '100%',
+              isBlended: isItemBlended,
+              addPearl: Boolean(tempOptions.addPearl),
+              selectedToppings: Array.isArray(tempOptions.selectedToppings) ? tempOptions.selectedToppings : [],
+              selectedSauces: Array.isArray(tempOptions.selectedSauces) ? tempOptions.selectedSauces : [],
+              bean: tempOptions.bean || null,
+              teaType: tempOptions.teaType || null,
+              addShot: Boolean(tempOptions.addShot),
+              separateIce: Boolean(tempOptions.separateIce),
+              qty: 1
+            };
+            
+            setCart(prev => {
+              const safePrev = Array.isArray(prev) ? prev : [];
+              const exIndex = safePrev.findIndex(i => i.cartId === cartId);
+              if (exIndex > -1) {
+                return safePrev.map((item, idx) => idx === exIndex ? { ...item, qty: (Number(item.qty) || 1) + 1 } : item);
+              }
+              return [...safePrev, newItem];
+            });
+            
+            setOptionModalItem(null);
+          } catch (err) {
+            console.error("Add to cart error:", err);
+            showAlert("เกิดข้อผิดพลาดในการเพิ่มลงตะกร้า กรุณาลองใหม่อีกครั้ง");
+          }
+        };
+
         return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end justify-center backdrop-blur-xs p-3 animate-in fade-in">
           
           <div className="bg-white rounded-t-[3rem] w-full max-w-md animate-in slide-in-from-bottom-full duration-400 shadow-2xl max-h-[88vh] flex flex-col overflow-hidden">
             
             <div className="w-full h-[28vh] relative flex-shrink-0 bg-slate-50">
-              <img src={optionModalItem.image} loading="eager" decoding="async" alt={optionModalItem.name} className="w-full h-full object-cover" />
+              <img src={optionModalItem.image} loading="lazy" decoding="async" alt={optionModalItem.name} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
             </div>
 
@@ -3228,7 +3282,7 @@ export default function App() {
                     </label>
                     <div className="space-y-2">
                       {toppings.map(t => {
-                        const isSelected = tempOptions.selectedToppings?.find(st => st.id === t.id);
+                        const isSelected = tempOptions.selectedToppings?.find(st => (st.id && st.id === t.id) || st.name === t.name);
                         return (
                           <label key={t.id} className={`flex justify-between items-center p-3 rounded-2xl border cursor-pointer transition-all ${isSelected ? 'border-amber-800 bg-amber-50/60' : 'border-slate-200 bg-slate-50/60'}`}>
                             <div className="flex items-center gap-2.5">
@@ -3241,7 +3295,7 @@ export default function App() {
                             <input type="checkbox" className="hidden" checked={!!isSelected} onChange={() => {
                               setTempOptions(prev => {
                                 const currentToppings = prev.selectedToppings || [];
-                                if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => st.id !== t.id) };
+                                if (isSelected) return { ...prev, selectedToppings: currentToppings.filter(st => (st.id && st.id !== t.id) || st.name !== t.name) };
                                 return { ...prev, selectedToppings: [...currentToppings, t] };
                               });
                             }} />
@@ -3290,31 +3344,11 @@ export default function App() {
             </div>
 
             <div className="p-4 border-t border-slate-100 bg-white">
-              <button onClick={() => {
-                  const toppingsPrice = (tempOptions.selectedToppings || []).reduce((sum, t) => sum + Number(t.price), 0);
-                  const saucesPrice = (tempOptions.selectedSauces || []).reduce((sum, s) => sum + Number(s.price || 0), 0);
-                  const shotPrice = tempOptions.addShot ? 20 : 0;
-                  const isItemBlended = optionModalItem.isOnlyBlend || tempOptions.isBlended;
-                  const icePrice = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? 5 : 0;
-                  const finalP = optionModalItem.price + (isItemBlended ? getAddedBlendPrice(optionModalItem) : 0) + toppingsPrice + saucesPrice + shotPrice + icePrice;
-                  
-                  const toppingsStr = (tempOptions.selectedToppings || []).map(t => t.id).sort().join('-');
-                  const saucesStr = (tempOptions.selectedSauces || []).map(s => typeof s === 'object' ? s.id : s).sort().join('-');
-                  const beanStr = tempOptions.bean ? `-${tempOptions.bean}` : '';
-                  const teaStr = tempOptions.teaType ? `-${tempOptions.teaType}` : '';
-                  const shotStr = tempOptions.addShot ? `-addShot` : '';
-                  const iceStr = (!isItemBlended && !isWhipOrCreamCheese && tempOptions.separateIce) ? `-separateIce` : '';
-                  
-                  const cartId = `${optionModalItem.id}-${isWhipOrCreamCheese ? 'nowhip' : tempOptions.sweetness}-${isItemBlended}-${tempOptions.addPearl}-${toppingsStr}-${saucesStr}${beanStr}${teaStr}${shotStr}${iceStr}`;
-                  
-                  setCart(prev => {
-                    const ex = prev.find(i => i.cartId === cartId);
-                    if (ex) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-                    return [...prev, { ...optionModalItem, price: finalP, cartId, ...tempOptions, isBlended: isItemBlended, qty: 1 }];
-                  });
-                  setOptionModalItem(null);
-                }} className="w-full py-4 bg-gradient-to-r from-amber-700 to-amber-900 text-white rounded-2xl font-bold text-base active:scale-97 flex items-center justify-center gap-2 shadow-lg transition-all">
-                  <Plus size={20}/> เพิ่มลงตะกร้า • ฿{previewTotalPrice}
+              <button 
+                onClick={handleAddToCartFromModal} 
+                className="w-full py-4 bg-gradient-to-r from-amber-700 to-amber-900 text-white rounded-2xl font-bold text-base active:scale-97 flex items-center justify-center gap-2 shadow-lg transition-all"
+              >
+                <Plus size={20}/> เพิ่มลงตะกร้า • ฿{previewTotalPrice}
               </button>
             </div>
           </div>
@@ -3354,7 +3388,7 @@ export default function App() {
                 </div>
             )}
 
-            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-3.5 rounded-2xl font-bold text-xs transition-all shadow-md active:scale-97 flex items-center justify-center gap-1.5 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+            <button onClick={handleConfirmDelivery} disabled={isDelivering || (deliveryLocation !== 'pickup' && !deliveryImage)} className={`w-full py-3.5 rounded-2xl font-bold text-xs transition-all shadow-md active:scale-97 flex items-center justify-center gap-1.5 ${deliveryLocation === 'pickup' || deliveryImage ? 'bg-emerald-600 text-white hover:bg-emerald-700': 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
               {isDelivering ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : null}
               {isDelivering ? 'กำลังบันทึก...' : <><CheckCircle size={16}/> ยืนยันการจัดส่ง</>}
             </button>
